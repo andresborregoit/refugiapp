@@ -5,6 +5,7 @@
 - La documentacion para humanos debe estar en espanol.
 
 ## Arquitectura
+- Leer `architecture.md` antes de modificar estructura, entidades, relaciones o persistencia.
 - La API vive bajo el prefijo global `/api/v1`.
 - Cada dominio debe organizarse en `domain`, `application`, `infrastructure` e `interfaces`.
 - `domain` no debe importar NestJS, TypeORM, Cloudinary ni detalles HTTP.

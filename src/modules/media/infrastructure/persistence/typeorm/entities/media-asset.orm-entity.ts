@@ -1,7 +1,8 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseOrmEntity } from '../../../../../../common/entities/base-orm.entity';
 import { MediaOwnerType } from '../../../../domain/enums/media-owner-type.enum';
 import { MediaResourceType } from '../../../../domain/enums/media-resource-type.enum';
+import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 
 @Entity({ name: 'media_assets' })
 @Index(['ownerType', 'ownerId'])
@@ -39,6 +40,10 @@ export class MediaAssetOrmEntity extends BaseOrmEntity {
 
   @Column({ type: 'uuid', nullable: true })
   uploadedByUserId?: string | null;
+
+  @ManyToOne(() => UserOrmEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'uploadedByUserId' })
+  uploadedByUser?: UserOrmEntity | null;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   metadata!: Record<string, unknown>;

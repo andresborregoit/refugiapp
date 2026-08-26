@@ -1,11 +1,17 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseOrmEntity } from '../../../../../../common/entities/base-orm.entity';
+import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 
 @Entity({ name: 'veterinarians' })
 @Index(['licenseNumber'], { unique: true })
+@Index(['userId'], { unique: true })
 export class VeterinarianOrmEntity extends BaseOrmEntity {
   @Column({ type: 'uuid', nullable: true })
   userId?: string | null;
+
+  @ManyToOne(() => UserOrmEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'userId' })
+  user?: UserOrmEntity | null;
 
   @Column({ type: 'varchar', length: 100 })
   firstName!: string;
