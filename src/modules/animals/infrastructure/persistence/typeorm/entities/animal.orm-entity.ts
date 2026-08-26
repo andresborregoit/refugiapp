@@ -1,7 +1,8 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseOrmEntity } from '../../../../../../common/entities/base-orm.entity';
 import { AnimalSex } from '../../../../domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../../../domain/enums/animal-status.enum';
+import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 
 @Entity({ name: 'animals' })
 @Index(['status'])
@@ -36,6 +37,10 @@ export class AnimalOrmEntity extends BaseOrmEntity {
 
   @Column({ type: 'uuid', nullable: true })
   profilePhotoMediaId?: string | null;
+
+  @ManyToOne(() => MediaAssetOrmEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'profilePhotoMediaId' })
+  profilePhotoMedia?: MediaAssetOrmEntity | null;
 
   @Column({ type: 'text', nullable: true })
   notes?: string | null;
