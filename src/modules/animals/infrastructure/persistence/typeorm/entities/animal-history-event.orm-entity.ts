@@ -1,6 +1,8 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseOrmEntity } from '../../../../../../common/entities/base-orm.entity';
 import { AnimalHistoryEventType } from '../../../../domain/enums/animal-history-event-type.enum';
+import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
+import { AnimalOrmEntity } from './animal.orm-entity';
 
 @Entity({ name: 'animal_history_events' })
 @Index(['animalId'])
@@ -8,6 +10,10 @@ import { AnimalHistoryEventType } from '../../../../domain/enums/animal-history-
 export class AnimalHistoryEventOrmEntity extends BaseOrmEntity {
   @Column({ type: 'uuid' })
   animalId!: string;
+
+  @ManyToOne(() => AnimalOrmEntity, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'animalId' })
+  animal!: AnimalOrmEntity;
 
   @Column({
     type: 'enum',
@@ -24,6 +30,10 @@ export class AnimalHistoryEventOrmEntity extends BaseOrmEntity {
 
   @Column({ type: 'uuid', nullable: true })
   createdByUserId?: string | null;
+
+  @ManyToOne(() => UserOrmEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'createdByUserId' })
+  createdByUser?: UserOrmEntity | null;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   metadata!: Record<string, unknown>;
