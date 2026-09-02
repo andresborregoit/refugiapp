@@ -12,7 +12,7 @@ La API esta preparada para ser consumida por un frontend en React Native y queda
 
 Este proyecto no implementa todavia una aplicacion completa ni CRUDs finales. El foco es dejar una base profesional, modular y escalable para crecer por dominio.
 
-Incluye:
+Implementado:
 
 - NestJS con estructura modular.
 - TypeORM con PostgreSQL/Neon.
@@ -22,8 +22,19 @@ Incluye:
 - Validacion global con DTOs.
 - Filtro base de errores HTTP.
 - Configuracion base de Cloudinary.
+- Entidades ORM iniciales para usuarios, animales, eventos historicos, veterinarios, registros medicos, gastos y assets de media.
+- Enum clinico `medical_record_type` con `deworming` incluido.
+- Migracion inicial `InitSchema1787781241921` en `src/database/migrations/1787781241921-InitSchema.ts`.
 - Tests unitarios y e2e iniciales con Jest.
 - `AGENTS.md` por modulo para guiar futuras tareas con IA.
+
+Pendiente:
+
+- Flujo real de login y emision de JWT.
+- Hashing real de passwords.
+- Subida real de archivos a Cloudinary.
+- CRUDs y casos de uso finales por dominio.
+- Campo `breed` para animales. Todavia no existe en la entidad de dominio `Animal`, en `AnimalOrmEntity` ni en la migracion inicial; debe agregarse con una migracion posterior.
 
 ## Arquitectura
 
@@ -118,12 +129,12 @@ cp .env.example .env
 ## Configurar PostgreSQL/Neon
 
 1. Crear un proyecto en Neon.
-2. Crear o seleccionar la base de datos `refugiapp_bd`.
+2. Crear o seleccionar la base de datos `neondb`.
 3. Copiar el connection string de Neon, preferentemente el pooled connection string.
 4. Configurar `.env`:
 
 ```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST/refugiapp_bd?sslmode=require
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
 DB_SSL=true
 DB_SSL_REJECT_UNAUTHORIZED=false
 TYPEORM_SYNCHRONIZE=false
@@ -134,14 +145,24 @@ Notas:
 - `TYPEORM_SYNCHRONIZE=false` es el valor recomendado. Usar migraciones para cambios de schema.
 - Neon requiere SSL, por eso `DB_SSL=true`.
 - `DB_SSL_REJECT_UNAUTHORIZED=false` evita problemas habituales con certificados en entornos cloud/serverless.
+- El nombre de base documentado para este proyecto es `neondb`; debe coincidir con la base indicada en `DATABASE_URL`.
 
 Comandos de migraciones:
 
 ```bash
-npm run migration:generate -- src/database/migrations/InitSchema
+npm run migration:generate -- src/database/migrations/FeatureName
 npm run migration:run
+npm run migration:show
 npm run migration:revert
 ```
+
+La migracion inicial ya existe y no debe regenerarse:
+
+```txt
+src/database/migrations/1787781241921-InitSchema.ts
+```
+
+Para cambios nuevos de schema, modificar primero las entidades ORM, generar una migracion nueva con nombre descriptivo, revisar el SQL generado y versionar codigo y migracion juntos.
 
 ## Configurar JWT
 
@@ -242,8 +263,8 @@ El e2e inicial prueba el health check sin levantar la conexion real a Neon. Los 
 ## Siguiente etapa recomendada
 
 - Implementar hashing de passwords y flujo real de login.
-- Crear migracion inicial de schema.
 - Implementar CRUD controlado de usuarios y animales.
+- Agregar `breed` a animales con cambios de dominio, ORM y migracion.
 - Agregar guards de roles en endpoints reales.
 - Implementar subida de fotos/tickets a Cloudinary.
 - Crear endpoints de historial general y clinico por animal.
