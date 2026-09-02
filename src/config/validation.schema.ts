@@ -16,6 +16,13 @@ export const envValidationSchema = Joi.object({
   TYPEORM_SYNCHRONIZE: Joi.boolean().default(false),
   TYPEORM_LOGGING: Joi.boolean().default(false),
 
+  INITIAL_ADMIN_EMAIL: Joi.string().email().allow('').default(''),
+  INITIAL_ADMIN_PASSWORD: Joi.string().min(12).allow('').default(''),
+  INITIAL_ADMIN_FIRST_NAME: Joi.string().allow('').default(''),
+  INITIAL_ADMIN_LAST_NAME: Joi.string().allow('').default(''),
+  INITIAL_ADMIN_RESET_PASSWORD: Joi.boolean().default(false),
+  INITIAL_ADMIN_SEED_ALLOW_PRODUCTION: Joi.boolean().default(false),
+
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_EXPIRES_IN: Joi.string().default('1d'),
   JWT_ISSUER: Joi.string().default('refugiapp-api'),
