@@ -10,6 +10,9 @@ coverage/
 .env.*
 !.env.example
 
+# opencode config (contains secrets)
+opencode.json
+
 # logs
 npm-debug.log*
 yarn-debug.log*
@@ -26,3 +29,6 @@ Thumbs.db
 tmp/
 temp/
 
+
+.codex
+.data
