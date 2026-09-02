@@ -164,6 +164,42 @@ src/database/migrations/1787781241921-InitSchema.ts
 
 Para cambios nuevos de schema, modificar primero las entidades ORM, generar una migracion nueva con nombre descriptivo, revisar el SQL generado y versionar codigo y migracion juntos.
 
+## Administrador inicial
+
+El proyecto incluye un seed explicito para crear o recuperar el primer administrador sin duplicar usuarios:
+
+```bash
+npm run seed:admin
+```
+
+Variables requeridas:
+
+```env
+INITIAL_ADMIN_EMAIL=admin@example.com
+INITIAL_ADMIN_PASSWORD=replace-with-a-long-random-password
+INITIAL_ADMIN_FIRST_NAME=Initial
+INITIAL_ADMIN_LAST_NAME=Admin
+INITIAL_ADMIN_RESET_PASSWORD=false
+INITIAL_ADMIN_SEED_ALLOW_PRODUCTION=false
+```
+
+El password siempre se persiste hasheado. Si el usuario con `INITIAL_ADMIN_EMAIL` ya existe, el seed no crea otro registro y asegura que tenga el rol `admin`.
+
+En `NODE_ENV=production`, el seed queda bloqueado salvo que se declare explicitamente:
+
+```env
+INITIAL_ADMIN_SEED_ALLOW_PRODUCTION=true
+```
+
+Procedimiento de recuperacion:
+
+1. Cargar `INITIAL_ADMIN_EMAIL` con el email del administrador a recuperar.
+2. Cargar `INITIAL_ADMIN_PASSWORD` desde el gestor de secretos o una variable de entorno segura.
+3. Definir `INITIAL_ADMIN_RESET_PASSWORD=true`.
+4. En produccion, definir tambien `INITIAL_ADMIN_SEED_ALLOW_PRODUCTION=true` solo durante esa ejecucion.
+5. Ejecutar `npm run seed:admin`.
+6. Remover las variables temporales usadas para la recuperacion.
+
 ## Configurar JWT
 
 Configurar un secreto largo y privado:
