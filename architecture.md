@@ -262,7 +262,6 @@ Representa la ficha principal del animal.
 | `id` | `uuid` | No | PK |
 | `name` | `varchar(120)` | No | |
 | `species` | `varchar(80)` | No | Ejemplos: `dog`, `cat` |
-| `breed` | `varchar` | Si | Campo conceptual pendiente de agregar al ORM actual |
 | `sex` | `animal_sex` | No | Default `unknown` |
 | `status` | `animal_status` | No | Default `admitted` |
 | `birthDate` | `date` | Si | Fecha real o estimada |
@@ -271,7 +270,7 @@ Representa la ficha principal del animal.
 | `notes` | `text` | Si | |
 | columnas comunes | | | |
 
-Nota: `breed` esta en el modelo funcional definido, pero aun no figura en `AnimalOrmEntity` ni en la migracion ejecutada. Debe agregarse mediante una migracion posterior antes de usarlo en produccion.
+Nota: `breed` es un campo pendiente. No figura en la entidad de dominio `Animal`, en `AnimalOrmEntity` ni en la migracion inicial ejecutada. Debe agregarse al modelo de dominio, al ORM y a PostgreSQL mediante una migracion posterior antes de usarlo en produccion.
 
 Enum `animal_sex`:
 
@@ -339,6 +338,7 @@ Enum `medical_record_type`:
 ```text
 consultation
 vaccination
+deworming
 surgery
 lab_result
 treatment
@@ -696,6 +696,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - UUID para primary keys.
 - Soft delete comun.
 - Enums PostgreSQL.
+- Tipo clinico `deworming` en el enum `medical_record_type`.
 - Relaciones ORM principales.
 - Foreign keys de la migracion inicial.
 - Neon configurado mediante `DATABASE_URL`.
@@ -708,7 +709,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 
 ### Pendiente
 
-- Agregar `breed` a `AnimalOrmEntity` y crear una migracion.
+- Agregar `breed` a la entidad de dominio `Animal`, a `AnimalOrmEntity` y crear una migracion.
 - Agregar checks de `amountCents` y `bytes`.
 - Implementar hashing real de passwords.
 - Completar login real y emision de JWT.
