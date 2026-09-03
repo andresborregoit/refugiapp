@@ -164,6 +164,8 @@ Responsabilidades:
 
 `passwordHash` pertenece a persistencia y nunca debe exponerse en respuestas HTTP.
 
+La creacion de usuarios internos se expone solo para administradores. El email se normaliza a minusculas y sin espacios externos antes de persistir. Si el email ya existe, la API responde `409 Conflict`. Cuando no se indican roles, el rol por defecto es `shelter_manager`.
+
 ### `animals`
 
 Gestiona la ficha general del animal y su historial no clinico.
@@ -707,6 +709,9 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Metadata de Cloudinary separada de los binarios.
 - JWT y roles preparados.
 - Seed explicito e idempotente para el primer administrador.
+- Creacion protegida de usuarios internos por administradores.
+- Normalizacion de email y conflicto `409` para emails duplicados.
+- Activacion y baja logica preparadas en el repositorio de usuarios.
 - Build, lint y tests unitarios configurados.
 
 ### Pendiente
@@ -716,7 +721,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Implementar hashing real de passwords en el flujo de alta/login de usuarios.
 - Completar login real y emision de JWT.
 - Implementar subida real de archivos.
-- Implementar casos de uso completos por dominio.
+- Implementar casos de uso restantes por dominio.
 - Crear tests de integracion con PostgreSQL.
 - Definir politicas definitivas de roles por endpoint.
 - Revisar normalizacion de emails a minusculas.
