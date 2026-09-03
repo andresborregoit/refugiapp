@@ -1,44 +1,33 @@
-import { randomBytes, scrypt } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 
-const SCRYPT_KEY_LENGTH = 64;
-const SCRYPT_SALT_LENGTH = 16;
-const SCRYPT_COST = 16384;
-const SCRYPT_BLOCK_SIZE = 8;
-const SCRYPT_PARALLELIZATION = 1;
+export const PASSWORD_MIN_LENGTH = 12;
+export const BCRYPT_SALT_ROUNDS = 12;
 
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(SCRYPT_SALT_LENGTH).toString('base64url');
-  const derivedKey = await deriveScryptKey(password, salt);
-
-  return [
-    'scrypt',
-    SCRYPT_COST,
-    SCRYPT_BLOCK_SIZE,
-    SCRYPT_PARALLELIZATION,
-    salt,
-    derivedKey.toString('base64url'),
-  ].join('$');
+export class PasswordPolicyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PasswordPolicyError';
+  }
 }
 
-function deriveScryptKey(password: string, salt: string): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    scrypt(
-      password,
-      salt,
-      SCRYPT_KEY_LENGTH,
-      {
-        N: SCRYPT_COST,
-        r: SCRYPT_BLOCK_SIZE,
-        p: SCRYPT_PARALLELIZATION,
-      },
-      (error, derivedKey) => {
-        if (error) {
-          reject(error);
-          return;
-        }
+export async function hashPassword(password: string): Promise<string> {
+  assertPasswordPolicy(password);
 
-        resolve(derivedKey);
-      },
+  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+}
+
+export async function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(password, passwordHash);
+  } catch {
+    return false;
+  }
+}
+
+export function assertPasswordPolicy(password: string): void {
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw new PasswordPolicyError(
+      `Password must contain at least ${PASSWORD_MIN_LENGTH} characters.`,
     );
-  });
+  }
 }

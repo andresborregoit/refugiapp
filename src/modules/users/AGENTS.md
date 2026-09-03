@@ -12,4 +12,4 @@
 
 ## Seguridad
 - No exponer `passwordHash` en DTOs de respuesta.
-- Implementar hashing fuerte de passwords antes de crear login real.
+- Usar el helper centralizado de hashing antes de persistir passwords.
