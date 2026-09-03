@@ -4,31 +4,39 @@ Este proyecto usa PostgreSQL. La base de datos real no se ve como un unico archi
 
 Los archivos visibles para desarrollo local son:
 
-- `.env`: apunta el backend a `postgresql://refugiapp:refugiapp@localhost:5432/refugiapp_bd`.
+- `.env`: archivo local ignorado por Git. Debe contener la URL real de tu PostgreSQL local o Neon.
 - `src/database/local/seed-demo.sql`: inserta datos de ejemplo para mostrar el modelo inicial.
 
 ## Como crearla sin Docker
 
-Con PostgreSQL instalado localmente y `psql` disponible en la terminal:
+Con PostgreSQL instalado localmente y `psql` disponible en la terminal, crear un usuario, password y base propios. No reutilizar estos placeholders literalmente:
 
 ```powershell
-psql -U postgres -c "CREATE USER refugiapp WITH PASSWORD 'refugiapp';"
-psql -U postgres -c "CREATE DATABASE refugiapp_bd OWNER refugiapp;"
+psql -U postgres -c "CREATE USER <local_user> WITH PASSWORD '<local_password>';"
+psql -U postgres -c "CREATE DATABASE <local_database> OWNER <local_user>;"
 ```
 
-Luego levantar la API una vez para que TypeORM cree las tablas en modo desarrollo:
+Luego configurar `.env` sin versionarlo:
+
+```env
+DATABASE_URL=postgresql://<local_user>:<local_password>@localhost:5432/<local_database>
+DB_SSL=false
+TYPEORM_SYNCHRONIZE=false
+```
+
+Ejecutar las migraciones:
 
 ```powershell
-npm.cmd run start:dev
+npm.cmd run migration:run
 ```
 
-Con el backend ya conectado al menos una vez, cortar el proceso y cargar datos demo:
+Cargar datos demo solo si corresponde:
 
 ```powershell
-psql "postgresql://refugiapp:refugiapp@localhost:5432/refugiapp_bd" -f src/database/local/seed-demo.sql
+psql "postgresql://<local_user>:<local_password>@localhost:5432/<local_database>" -f src/database/local/seed-demo.sql
 ```
 
-Despues volver a levantar:
+Levantar el backend:
 
 ```powershell
 npm.cmd run start:dev
@@ -39,4 +47,4 @@ Endpoints visibles:
 - `http://localhost:3000/api/v1`
 - `http://localhost:3000/api/v1/docs`
 
-Nota: `TYPEORM_SYNCHRONIZE=true` esta pensado solo para esta demo local. En produccion debe quedar en `false` y usarse migraciones.
+Nota: mantener `TYPEORM_SYNCHRONIZE=false` y usar migraciones tambien en desarrollo local.

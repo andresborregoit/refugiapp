@@ -653,6 +653,7 @@ No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido
 - Aplicar hashing fuerte antes de persistir `passwordHash`.
 - Nunca incluir `passwordHash` en DTOs de respuesta.
 - No imprimir `DATABASE_URL`, `JWT_SECRET` ni secretos de Cloudinary en logs.
+- No copiar secretos reales en documentacion, issues de Jira, comentarios, descripciones de PR ni ejemplos versionados.
 - Mantener secretos solo en `.env` local o en el gestor de secretos del proveedor.
 - Validar roles mediante `UserRole` y guards reutilizables.
 - Proteger escritura de datos clinicos y financieros con roles adecuados.

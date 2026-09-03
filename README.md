@@ -230,6 +230,14 @@ CLOUDINARY_SECURE=true
 
 El modulo `media` ya contiene el provider base de Cloudinary y un servicio para construir carpetas de upload. La subida real de archivos se implementara en una etapa posterior.
 
+## Configuracion local segura
+
+- Mantener credenciales reales solo en `.env` local o en el gestor de secretos del entorno.
+- No copiar connection strings, tokens, secretos JWT ni claves Cloudinary en README, Jira, commits, logs o capturas.
+- Usar placeholders en documentacion, por ejemplo `postgresql://<user>:<password>@<host>/neondb?sslmode=require`.
+- Si una credencial se expone, revocarla en el proveedor, crear una nueva y actualizar solo el secreto local o del entorno.
+- Antes de compartir el repositorio, ejecutar `npm run secrets:scan`.
+
 ## Correr el proyecto
 
 Modo desarrollo:
