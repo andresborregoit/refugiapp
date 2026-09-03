@@ -13,7 +13,17 @@ export const envValidationSchema = Joi.object({
   DB_SSL: Joi.boolean().default(true),
   DB_SSL_REJECT_UNAUTHORIZED: Joi.boolean().default(false),
   DB_POOL_SIZE: Joi.number().integer().min(1).max(50).default(10),
-  TYPEORM_SYNCHRONIZE: Joi.boolean().default(false),
+  TYPEORM_SYNCHRONIZE: Joi.boolean().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.boolean()
+      .valid(false)
+      .required()
+      .messages({
+        'any.only':
+          'TYPEORM_SYNCHRONIZE debe ser false en produccion. Usa migraciones para gestionar el esquema.',
+      }),
+    otherwise: Joi.boolean().default(false),
+  }),
   TYPEORM_LOGGING: Joi.boolean().default(false),
 
   INITIAL_ADMIN_EMAIL: Joi.string().email().allow('').default(''),
@@ -28,8 +38,26 @@ export const envValidationSchema = Joi.object({
   JWT_ISSUER: Joi.string().default('refugiapp-api'),
   JWT_AUDIENCE: Joi.string().default('refugiapp-mobile'),
 
-  CLOUDINARY_CLOUD_NAME: Joi.string().allow('').default(''),
-  CLOUDINARY_API_KEY: Joi.string().allow('').default(''),
-  CLOUDINARY_API_SECRET: Joi.string().allow('').default(''),
+  CLOUDINARY_CLOUD_NAME: Joi.string().allow('').when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required().messages({
+      'any.required':
+        'CLOUDINARY_CLOUD_NAME es obligatorio en produccion. Configura tu cuenta de Cloudinary.',
+    }),
+  }),
+  CLOUDINARY_API_KEY: Joi.string().allow('').when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required().messages({
+      'any.required':
+        'CLOUDINARY_API_KEY es obligatorio en produccion. Configura tu cuenta de Cloudinary.',
+    }),
+  }),
+  CLOUDINARY_API_SECRET: Joi.string().allow('').when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required().messages({
+      'any.required':
+        'CLOUDINARY_API_SECRET es obligatorio en produccion. Configura tu cuenta de Cloudinary.',
+    }),
+  }),
   CLOUDINARY_SECURE: Joi.boolean().default(true),
 });
