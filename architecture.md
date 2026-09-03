@@ -706,6 +706,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Migracion inicial ejecutada en Neon.
 - Metadata de Cloudinary separada de los binarios.
 - JWT y roles preparados.
+- Login real mediante email, password hasheado y JWT.
 - Seed explicito e idempotente para el primer administrador.
 - Build, lint y tests unitarios configurados.
 
@@ -714,7 +715,6 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Agregar `breed` a la entidad de dominio `Animal`, a `AnimalOrmEntity` y crear una migracion.
 - Agregar checks de `amountCents` y `bytes`.
 - Implementar hashing real de passwords en el flujo de alta/login de usuarios.
-- Completar login real y emision de JWT.
 - Implementar subida real de archivos.
 - Implementar casos de uso completos por dominio.
 - Crear tests de integracion con PostgreSQL.

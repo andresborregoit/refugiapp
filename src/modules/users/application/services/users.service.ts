@@ -15,4 +15,8 @@ export class UsersService {
   findByEmail(email: string) {
     return this.userRepository.findByEmail(email);
   }
+
+  findCredentialsByEmail(email: string) {
+    return this.userRepository.findCredentialsByEmail(email);
+  }
 }
