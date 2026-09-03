@@ -1,5 +1,6 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpStatus, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiErrorResponses } from '../../../../common/decorators/api-error-responses.decorator';
 import { CurrentUser } from '../../../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
@@ -12,6 +13,7 @@ export class UsersController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Return the authenticated user from the JWT payload' })
   @ApiOkResponse({ description: 'Authenticated user payload.' })
+  @ApiErrorResponses(HttpStatus.UNAUTHORIZED)
   getMe(@CurrentUser() user: AuthenticatedUser): AuthenticatedUser {
     return user;
   }

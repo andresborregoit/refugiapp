@@ -1,4 +1,4 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
@@ -14,9 +14,10 @@ export class AuthService {
   ) {}
 
   async login(_dto: LoginDto): Promise<AuthResponseDto> {
-    throw new NotImplementedException(
-      'Credential validation and password hashing will be implemented in the next stage.',
-    );
+    throw new UnauthorizedException({
+      code: 'INVALID_CREDENTIALS',
+      message: 'Invalid email or password.',
+    });
   }
 
   issueAccessToken(user: AuthenticatedUser): AuthResponseDto {
