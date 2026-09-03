@@ -1,4 +1,4 @@
-import { randomBytes, scrypt } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
 const SCRYPT_KEY_LENGTH = 64;
 const SCRYPT_SALT_LENGTH = 16;
@@ -20,16 +20,46 @@ export async function hashPassword(password: string): Promise<string> {
   ].join('$');
 }
 
-function deriveScryptKey(password: string, salt: string): Promise<Buffer> {
+export async function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
+  const parsedHash = parseScryptHash(passwordHash);
+
+  if (!parsedHash) {
+    return false;
+  }
+
+  let derivedKey: Buffer;
+
+  try {
+    derivedKey = await deriveScryptKey(password, parsedHash.salt, parsedHash.options);
+  } catch {
+    return false;
+  }
+
+  if (derivedKey.length !== parsedHash.expectedKey.length) {
+    return false;
+  }
+
+  return timingSafeEqual(derivedKey, parsedHash.expectedKey);
+}
+
+function deriveScryptKey(
+  password: string,
+  salt: string,
+  options = {
+    cost: SCRYPT_COST,
+    blockSize: SCRYPT_BLOCK_SIZE,
+    parallelization: SCRYPT_PARALLELIZATION,
+  },
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     scrypt(
       password,
       salt,
       SCRYPT_KEY_LENGTH,
       {
-        N: SCRYPT_COST,
-        r: SCRYPT_BLOCK_SIZE,
-        p: SCRYPT_PARALLELIZATION,
+        N: options.cost,
+        r: options.blockSize,
+        p: options.parallelization,
       },
       (error, derivedKey) => {
         if (error) {
@@ -41,4 +71,52 @@ function deriveScryptKey(password: string, salt: string): Promise<Buffer> {
       },
     );
   });
+}
+
+function parseScryptHash(passwordHash: string):
+  | {
+      salt: string;
+      expectedKey: Buffer;
+      options: { cost: number; blockSize: number; parallelization: number };
+    }
+  | null {
+  const [algorithm, rawCost, rawBlockSize, rawParallelization, salt, rawKey] =
+    passwordHash.split('$');
+
+  if (
+    algorithm !== 'scrypt' ||
+    !rawCost ||
+    !rawBlockSize ||
+    !rawParallelization ||
+    !salt ||
+    !rawKey
+  ) {
+    return null;
+  }
+
+  const cost = Number(rawCost);
+  const blockSize = Number(rawBlockSize);
+  const parallelization = Number(rawParallelization);
+
+  if (
+    !Number.isInteger(cost) ||
+    !Number.isInteger(blockSize) ||
+    !Number.isInteger(parallelization)
+  ) {
+    return null;
+  }
+
+  try {
+    return {
+      salt,
+      expectedKey: Buffer.from(rawKey, 'base64url'),
+      options: {
+        cost,
+        blockSize,
+        parallelization,
+      },
+    };
+  } catch {
+    return null;
+  }
 }
