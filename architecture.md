@@ -650,7 +650,9 @@ No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido
 ## 12. Seguridad de datos
 
 - Nunca guardar passwords en texto plano.
-- Aplicar hashing fuerte antes de persistir `passwordHash`.
+- Aplicar hashing bcrypt antes de persistir `passwordHash`.
+- Usar la politica centralizada de passwords: longitud minima de 12 caracteres y bcrypt cost factor 12.
+- Comparar passwords solo mediante el helper seguro de hashing; no comparar strings de password ni hashes manualmente.
 - Nunca incluir `passwordHash` en DTOs de respuesta.
 - No imprimir `DATABASE_URL`, `JWT_SECRET` ni secretos de Cloudinary en logs.
 - No copiar secretos reales en documentacion, issues de Jira, comentarios, descripciones de PR ni ejemplos versionados.
@@ -707,13 +709,14 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Metadata de Cloudinary separada de los binarios.
 - JWT y roles preparados.
 - Seed explicito e idempotente para el primer administrador.
+- Hashing bcrypt centralizado para passwords.
 - Build, lint y tests unitarios configurados.
 
 ### Pendiente
 
 - Agregar `breed` a la entidad de dominio `Animal`, a `AnimalOrmEntity` y crear una migracion.
 - Agregar checks de `amountCents` y `bytes`.
-- Implementar hashing real de passwords en el flujo de alta/login de usuarios.
+- Integrar el hashing centralizado en el futuro flujo real de alta/login de usuarios.
 - Completar login real y emision de JWT.
 - Implementar subida real de archivos.
 - Implementar casos de uso completos por dominio.
