@@ -53,7 +53,7 @@ describe('initial admin seed', () => {
     expect(repository.users).toHaveLength(1);
     expect(repository.users[0].roles).toEqual([UserRole.ADMIN]);
     expect(repository.users[0].passwordHash).not.toBe(baseConfig.password);
-    expect(repository.users[0].passwordHash).toMatch(/^scrypt\$/);
+    expect(repository.users[0].passwordHash).toMatch(/^\$2[aby]\$/);
   });
 
   it('does not duplicate users on repeated executions', async () => {
