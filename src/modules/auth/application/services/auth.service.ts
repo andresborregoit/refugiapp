@@ -52,6 +52,9 @@ export class AuthService {
   }
 
   private invalidCredentials(): UnauthorizedException {
-    return new UnauthorizedException('Invalid email or password.');
+    return new UnauthorizedException({
+      code: 'INVALID_CREDENTIALS',
+      message: 'Invalid email or password.',
+    });
   }
 }

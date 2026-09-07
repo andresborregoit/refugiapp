@@ -3,11 +3,13 @@
 ## Responsabilidad
 - Contiene piezas transversales compartidas por varios modulos.
 - Puede incluir enums globales, decoradores, guards, filtros, excepciones e interfaces comunes.
+- Contiene helpers transversales de seguridad que no pertenecen a un dominio concreto.
 
 ## Convenciones
 - No agregar logica de negocio especifica de animales, gastos, veterinarios o usuarios.
 - Los guards y decoradores deben ser reutilizables y no depender de controllers concretos.
 - Las excepciones comunes deben expresar errores tecnicos o de aplicacion general.
+- Los helpers de hashing no deben contener logica HTTP ni depender de TypeORM.
 - `BaseOrmEntity` solo debe contener columnas comunes de persistencia.
 
 ## Seguridad

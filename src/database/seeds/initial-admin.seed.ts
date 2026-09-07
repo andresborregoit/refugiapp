@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { hashPassword } from '../../common/security/password-hasher';
+import { PASSWORD_MIN_LENGTH, hashPassword } from '../../common/security/password-hasher';
 import { UserRole } from '../../common/enums/user-role.enum';
 import typeormDataSource from '../../config/typeorm.datasource';
 import { UserOrmEntity } from '../../modules/users/infrastructure/persistence/typeorm/entities/user.orm-entity';
@@ -44,9 +44,9 @@ export function readInitialAdminSeedConfig(
     throw new InitialAdminSeedConfigError('INITIAL_ADMIN_EMAIL must be a valid email.');
   }
 
-  if (password.length < 12) {
+  if (password.length < PASSWORD_MIN_LENGTH) {
     throw new InitialAdminSeedConfigError(
-      'INITIAL_ADMIN_PASSWORD must contain at least 12 characters.',
+      `INITIAL_ADMIN_PASSWORD must contain at least ${PASSWORD_MIN_LENGTH} characters.`,
     );
   }
 
