@@ -642,7 +642,8 @@ Flujo obligatorio:
 La migracion inicial ejecutada es:
 
 ```text
-InitSchema1787781241921
+src/database/migrations/1787781241921-InitSchema.ts
+Clase: InitSchema1787781241921
 ```
 
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
