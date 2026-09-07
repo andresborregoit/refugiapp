@@ -21,6 +21,7 @@ import { AppService } from '../src/app.service';
 import { AuthService } from '../src/modules/auth/application/services/auth.service';
 import { AuthController } from '../src/modules/auth/interfaces/controllers/auth.controller';
 import { LoginDto } from '../src/modules/auth/interfaces/dto/login.dto';
+import { UsersService } from '../src/modules/users/application/services/users.service';
 
 @Controller('test-errors')
 class TestErrorsController {
@@ -52,6 +53,12 @@ describe('AppController (e2e)', () => {
         AppService,
         AuthService,
         RolesGuard,
+        {
+          provide: UsersService,
+          useValue: {
+            findCredentialsByEmail: jest.fn().mockResolvedValue(null),
+          },
+        },
         {
           provide: JwtService,
           useValue: {
@@ -116,7 +123,7 @@ describe('AppController (e2e)', () => {
           expect.arrayContaining([
             'property extra should not exist',
             'email must be an email',
-            'password must be longer than or equal to 8 characters',
+            'password must be longer than or equal to 12 characters',
           ]),
         );
       });
