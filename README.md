@@ -307,7 +307,8 @@ El e2e inicial prueba el health check sin levantar la conexion real a Neon. Los 
 
 ## Siguiente etapa recomendada
 
-- Implementar hashing de passwords y flujo real de login.
+- Definir politicas definitivas de roles por endpoint.
+- Revisar normalizacion de emails a minusculas en todos los flujos de usuarios.
 - Implementar CRUD controlado de usuarios y animales.
 - Agregar `breed` a animales con cambios de dominio, ORM y migracion.
 - Agregar guards de roles en endpoints reales.
