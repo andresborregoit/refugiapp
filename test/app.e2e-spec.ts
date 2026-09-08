@@ -115,16 +115,13 @@ describe('AppController (e2e)', () => {
           expect.objectContaining({
             statusCode: 400,
             code: 'BAD_REQUEST',
-            message: 'Bad Request',
+            message: [
+              'property extra should not exist',
+              'email must be an email',
+              'password must be longer than or equal to 12 characters',
+            ],
             path: '/api/v1/test-errors/validation',
           }),
-        );
-        expect(body.details).toEqual(
-          expect.arrayContaining([
-            'property extra should not exist',
-            'email must be an email',
-            'password must be longer than or equal to 12 characters',
-          ]),
         );
       });
   });

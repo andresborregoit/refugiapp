@@ -1,24 +1,21 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class ErrorResponseDto {
-  @ApiProperty({ example: 400 })
+  @ApiProperty({ example: 409 })
   statusCode!: number;
 
-  @ApiProperty({ example: 'BAD_REQUEST' })
+  @ApiProperty({ example: 'RESOURCE_CONFLICT' })
   code!: string;
 
-  @ApiProperty({ example: 'Bad Request' })
-  message!: string;
+  @ApiProperty({ example: 'User already exists.' })
+  message!: string | string[];
 
-  @ApiPropertyOptional({
-    example: ['email must be an email'],
-    type: [String],
-  })
-  details?: string[];
+  @ApiProperty({ example: 'Conflict' })
+  error!: string;
 
-  @ApiProperty({ example: '2026-09-03T12:00:00.000Z' })
+  @ApiProperty({ example: '2026-09-07T12:00:00.000Z' })
   timestamp!: string;
 
-  @ApiProperty({ example: '/api/v1/auth/login' })
+  @ApiProperty({ example: '/api/v1/users' })
   path!: string;
 }

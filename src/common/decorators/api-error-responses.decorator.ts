@@ -23,13 +23,22 @@ const descriptions: Record<DocumentedErrorStatus, string> = {
   [HttpStatus.CONFLICT]: 'The request conflicts with the current resource state.',
 };
 
-export function ApiErrorResponses(...statuses: DocumentedErrorStatus[]) {
+export function ApiErrorResponses(
+  ...statuses: DocumentedErrorStatus[]
+): MethodDecorator & ClassDecorator {
+  const documentedStatuses: DocumentedErrorStatus[] = statuses.length
+    ? statuses
+    : [
+        HttpStatus.BAD_REQUEST,
+        HttpStatus.UNAUTHORIZED,
+        HttpStatus.FORBIDDEN,
+        HttpStatus.NOT_FOUND,
+        HttpStatus.CONFLICT,
+      ];
+
   return applyDecorators(
-    ...statuses.map((status) => {
-      const options = {
-        description: descriptions[status],
-        type: ErrorResponseDto,
-      };
+    ...documentedStatuses.map((status) => {
+      const options = { type: ErrorResponseDto, description: descriptions[status] };
 
       switch (status) {
         case HttpStatus.BAD_REQUEST:
@@ -42,6 +51,8 @@ export function ApiErrorResponses(...statuses: DocumentedErrorStatus[]) {
           return ApiNotFoundResponse(options);
         case HttpStatus.CONFLICT:
           return ApiConflictResponse(options);
+        default:
+          throw new Error(`Unsupported documented HTTP status: ${status}`);
       }
     }),
   );
