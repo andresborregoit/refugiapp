@@ -1,3 +1,4 @@
+import { CreateUserCredentials } from '../entities/create-user-credentials.entity';
 import { User } from '../entities/user.entity';
 import { UserCredentials } from '../entities/user-credentials.entity';
 
@@ -7,4 +8,7 @@ export interface UserRepository {
   findById(id: string): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
   findCredentialsByEmail(email: string): Promise<UserCredentials | null>;
+  create(input: CreateUserCredentials): Promise<User>;
+  softDelete(id: string): Promise<void>;
+  activate(id: string): Promise<User | null>;
 }
