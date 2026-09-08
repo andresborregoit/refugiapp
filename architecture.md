@@ -27,7 +27,7 @@ Este documento describe el estado real del proyecto. Las funcionalidades que aun
 | Proveedor cloud | Neon | Base remota de desarrollo y produccion |
 | ORM | TypeORM | Solo en infrastructure y configuracion comun |
 | IDs | UUID | Todos los identificadores principales |
-| Autenticacion | JWT + Passport | Preparado para login real |
+| Autenticacion | JWT + Passport | Login real mediante email, password hasheado y JWT |
 | Archivos | Cloudinary | PostgreSQL almacena metadata, no binarios |
 | Validacion | class-validator + Joi | DTOs HTTP y variables de entorno |
 | Testing | Jest + Supertest | Tests unitarios y e2e |
@@ -142,7 +142,7 @@ src/modules/<module>/
 
 Gestiona la autenticacion JWT, la estrategia Passport, los guards y la emision de tokens.
 
-No persiste usuarios directamente. La validacion de credenciales debe delegar en `UsersService` y en el contrato de repositorio de usuarios.
+No persiste usuarios directamente. La validacion de credenciales delega en `UsersService` y en el contrato de repositorio de usuarios.
 
 El payload JWT minimo definido es:
 

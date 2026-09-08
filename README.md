@@ -93,7 +93,7 @@ test/
 
 Modulos iniciales:
 
-- `auth`: JWT, Passport strategy, guard y endpoint base de login pendiente de implementacion real.
+- `auth`: JWT, Passport strategy, guard y login real mediante email, password hasheado y JWT.
 - `users`: usuarios internos y roles.
 - `animals`: ficha general del animal e historial general del refugio.
 - `medical-records`: historial clinico/veterinario.
@@ -268,7 +268,7 @@ Con el servidor corriendo:
 http://localhost:3000/api/v1/docs
 ```
 
-Swagger incluye bearer auth para probar endpoints protegidos cuando se implemente autenticacion real.
+Swagger incluye bearer auth para probar endpoints protegidos.
 
 ## Tests
 

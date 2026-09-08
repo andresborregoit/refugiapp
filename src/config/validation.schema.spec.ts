@@ -2,7 +2,7 @@ import { envValidationSchema } from './validation.schema';
 
 describe('environment validation schema', () => {
   const baseEnvironment = {
-    DATABASE_URL: 'postgresql://user:password@localhost/refugiapp',
+    DATABASE_URL: 'postgresql://localhost/refugiapp',
     JWT_SECRET: 'a-secure-jwt-secret-with-more-than-32-characters',
     CLOUDINARY_CLOUD_NAME: 'refugiapp-test',
     CLOUDINARY_API_KEY: 'cloudinary-api-key',

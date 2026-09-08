@@ -29,6 +29,7 @@ Thumbs.db
 tmp/
 temp/
 
-
+# Agents
 .codex
 .data
+.opencode
