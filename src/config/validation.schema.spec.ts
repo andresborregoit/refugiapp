@@ -10,8 +10,12 @@ describe('environment validation schema', () => {
   };
 
   it('accepts valid development configuration', () => {
+    const environment = Object.fromEntries(
+      Object.entries(baseEnvironment).filter(([key]) => !key.startsWith('CLOUDINARY_')),
+    );
+
     const result = envValidationSchema.validate({
-      ...baseEnvironment,
+      ...environment,
       NODE_ENV: 'development',
     });
 
@@ -90,10 +94,21 @@ describe('environment validation schema', () => {
     expect(result.error?.details.some(({ path }) => path[0] === 'DATABASE_URL')).toBe(true);
   });
 
-  it('requires Cloudinary credentials in every environment', () => {
+  it('allows missing Cloudinary credentials outside production', () => {
     const result = envValidationSchema.validate({
       ...baseEnvironment,
       CLOUDINARY_API_SECRET: '',
+      NODE_ENV: 'test',
+    });
+
+    expect(result.error).toBeUndefined();
+  });
+
+  it('requires Cloudinary credentials in production', () => {
+    const result = envValidationSchema.validate({
+      ...baseEnvironment,
+      CLOUDINARY_API_SECRET: '',
+      NODE_ENV: 'production',
     });
 
     expect(result.error?.details.some(({ path }) => path[0] === 'CLOUDINARY_API_SECRET')).toBe(

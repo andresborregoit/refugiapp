@@ -52,8 +52,20 @@ export const envValidationSchema = Joi.object({
   JWT_ISSUER: Joi.string().default('refugiapp-api'),
   JWT_AUDIENCE: Joi.string().default('refugiapp-mobile'),
 
-  CLOUDINARY_CLOUD_NAME: Joi.string().min(1).required(),
-  CLOUDINARY_API_KEY: Joi.string().min(1).required(),
-  CLOUDINARY_API_SECRET: Joi.string().min(1).required(),
+  CLOUDINARY_CLOUD_NAME: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(1).required(),
+    otherwise: Joi.string().allow('').default(''),
+  }),
+  CLOUDINARY_API_KEY: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(1).required(),
+    otherwise: Joi.string().allow('').default(''),
+  }),
+  CLOUDINARY_API_SECRET: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(1).required(),
+    otherwise: Joi.string().allow('').default(''),
+  }),
   CLOUDINARY_SECURE: Joi.boolean().default(true),
 });
