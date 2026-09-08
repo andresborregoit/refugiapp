@@ -185,6 +185,10 @@ Gestiona la ficha general del animal y su historial no clinico.
 
 No debe almacenar diagnosticos ni tratamientos. Esa informacion pertenece a `medical-records`.
 
+La consulta de animales se realiza mediante `GET /animals` y `GET /animals/:id`. El listado usa paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. Admite filtros combinables por `status`, `species`, `sex` y busqueda parcial por `name`.
+
+El orden es estable y determinista: `createdAt ASC` y `id ASC` como desempate. TypeORM excluye por defecto los registros con `deletedAt`; las consultas no deben usar `withDeleted`.
+
 ### `medical-records`
 
 Gestiona consultas, vacunas, desparasitaciones, cirugias, tratamientos y otros registros clinicos.
@@ -725,6 +729,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Metadata de Cloudinary separada de los binarios.
 - JWT y roles preparados.
 - Login real mediante email, password hasheado y JWT.
+- Listado y consulta de animales con paginacion, filtros, orden estable y exclusion de soft-delete.
 - Seed explicito e idempotente para el primer administrador.
 - Hashing bcrypt centralizado para passwords.
 - Build, lint y tests unitarios configurados.

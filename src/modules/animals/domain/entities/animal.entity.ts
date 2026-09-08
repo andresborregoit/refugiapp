@@ -9,5 +9,8 @@ export class Animal {
     public readonly sex: AnimalSex,
     public readonly status: AnimalStatus,
     public readonly intakeDate: Date,
+    public readonly birthDate: Date | null = null,
+    public readonly notes: string | null = null,
+    public readonly profilePhotoMediaId: string | null = null,
   ) {}
 }
