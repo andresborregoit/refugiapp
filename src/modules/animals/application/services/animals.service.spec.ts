@@ -9,6 +9,7 @@ describe('AnimalsService', () => {
     'animal-id',
     'Luna',
     'dog',
+    'mixed',
     AnimalSex.FEMALE,
     AnimalStatus.ADMITTED,
     new Date('2026-01-01'),

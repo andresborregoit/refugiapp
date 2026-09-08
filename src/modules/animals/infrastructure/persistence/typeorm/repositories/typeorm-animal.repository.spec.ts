@@ -23,6 +23,7 @@ describe('TypeOrmAnimalRepository', () => {
       id: 'animal-id',
       name: 'Luna',
       species: 'dog',
+      breed: 'mixed',
       sex: AnimalSex.FEMALE,
       status: AnimalStatus.ADMITTED,
       intakeDate: '2026-01-01',
@@ -58,6 +59,7 @@ describe('TypeOrmAnimalRepository', () => {
     expect(result).toMatchObject({ page: 3, limit: 10, total: 21 });
     expect(result.items[0]).toMatchObject({
       id: 'animal-id',
+      breed: 'mixed',
       birthDate: new Date('2025-01-01'),
       notes: 'Friendly',
       profilePhotoMediaId: 'media-id',

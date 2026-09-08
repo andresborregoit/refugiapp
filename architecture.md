@@ -281,6 +281,7 @@ Representa la ficha principal del animal.
 | `id` | `uuid` | No | PK |
 | `name` | `varchar(120)` | No | |
 | `species` | `varchar(80)` | No | Ejemplos: `dog`, `cat` |
+| `breed` | `varchar(80)` | Si | Raza, cuando se conoce |
 | `sex` | `animal_sex` | No | Default `unknown` |
 | `status` | `animal_status` | No | Default `admitted` |
 | `birthDate` | `date` | Si | Fecha real o estimada |
@@ -289,7 +290,7 @@ Representa la ficha principal del animal.
 | `notes` | `text` | Si | |
 | columnas comunes | | | |
 
-Nota: `breed` es un campo pendiente. No figura en la entidad de dominio `Animal`, en `AnimalOrmEntity` ni en la migracion inicial ejecutada. Debe agregarse al modelo de dominio, al ORM y a PostgreSQL mediante una migracion posterior antes de usarlo en produccion.
+Regla de fechas: si `birthDate` esta presente, no puede ser posterior a `intakeDate`.
 
 Enum `animal_sex`:
 
@@ -468,6 +469,7 @@ erDiagram
         uuid id PK
         varchar name
         varchar species
+        varchar breed
         animal_sex sex
         animal_status status
         date birthDate
@@ -720,6 +722,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Soft delete comun.
 - Enums PostgreSQL.
 - Tipo clinico `deworming` en el enum `medical_record_type`.
+- Campo opcional `breed` en animales mediante migracion posterior a la inicial.
 - Relaciones ORM principales.
 - Foreign keys de la migracion inicial.
 - Neon configurado mediante `DATABASE_URL`.
@@ -736,7 +739,6 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 
 ### Pendiente
 
-- Agregar `breed` a la entidad de dominio `Animal`, a `AnimalOrmEntity` y crear una migracion.
 - Agregar checks de `amountCents` y `bytes`.
 - Implementar subida real de archivos.
 - Implementar casos de uso completos por dominio.

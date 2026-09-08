@@ -69,6 +69,7 @@ describe('Animals (e2e)', () => {
           id: 'animal-id',
           name: 'Luna',
           species: 'dog',
+          breed: 'mixed',
           sex: AnimalSex.FEMALE,
           status: AnimalStatus.ADMITTED,
           intakeDate: new Date('2026-01-01'),
