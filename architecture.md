@@ -164,6 +164,21 @@ Responsabilidades:
 
 `passwordHash` pertenece a persistencia y nunca debe exponerse en respuestas HTTP.
 
+### 5.1 Matriz de autorizacion por roles
+
+Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@UseGuards`. Los permisos declarativos se indican con `@Roles`; no deben implementarse comprobaciones de roles dentro de los controllers.
+
+`JwtAuthGuard` rechaza solicitudes sin autenticacion valida con `401`. `RolesGuard` rechaza usuarios autenticados sin el permiso requerido con `403`.
+
+| Endpoint | `admin` | `shelter_manager` | `veterinarian` |
+| --- | --- | --- | --- |
+| `POST /users` | Permitido | Rechazado | Rechazado |
+| `POST /users/:id/deactivate` | Permitido | Rechazado | Rechazado |
+| `POST /users/:id/activate` | Permitido | Rechazado | Rechazado |
+| `GET /users/me` | Permitido | Permitido | Permitido |
+
+`POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
+
 ### `animals`
 
 Gestiona la ficha general del animal y su historial no clinico.
@@ -721,7 +736,6 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Implementar subida real de archivos.
 - Implementar casos de uso completos por dominio.
 - Crear tests de integracion con PostgreSQL.
-- Definir politicas definitivas de roles por endpoint.
 - Revisar normalizacion de emails a minusculas.
 
 Los pendientes no deben considerarse implementados hasta que exista codigo, migracion y test cuando corresponda.

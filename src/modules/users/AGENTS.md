@@ -13,3 +13,5 @@
 ## Seguridad
 - No exponer `passwordHash` en DTOs de respuesta.
 - Usar el helper centralizado de hashing antes de persistir passwords.
+- Los endpoints de creacion, activacion y desactivacion de usuarios requieren `admin` mediante `JwtAuthGuard`, `RolesGuard` y `@Roles(UserRole.ADMIN)`.
+- `GET /users/me` requiere autenticacion JWT, pero admite los roles `admin`, `shelter_manager` y `veterinarian`.

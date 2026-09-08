@@ -13,6 +13,11 @@ import { User } from '../src/modules/users/domain/entities/user.entity';
 
 const adminPayload = { sub: 'admin-id', email: 'admin@refugiapp.local', roles: [UserRole.ADMIN] };
 const managerPayload = { sub: 'manager-id', email: 'manager@refugiapp.local', roles: [UserRole.SHELTER_MANAGER] };
+const veterinarianPayload = {
+  sub: 'veterinarian-id',
+  email: 'veterinarian@refugiapp.local',
+  roles: [UserRole.VETERINARIAN],
+};
 const VALID_UUID = '11111111-1111-1111-1111-111111111111';
 
 describe('Users (e2e)', () => {
@@ -34,6 +39,13 @@ describe('Users (e2e)', () => {
   class ManagerJwtAuthGuard {
     canActivate(context: any) {
       context.switchToHttp().getRequest().user = managerPayload;
+      return true;
+    }
+  }
+
+  class VeterinarianJwtAuthGuard {
+    canActivate(context: any) {
+      context.switchToHttp().getRequest().user = veterinarianPayload;
       return true;
     }
   }
@@ -179,7 +191,57 @@ describe('Users (e2e)', () => {
         .send(validDto)
         .expect(403);
 
+      await request(managerApp.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', 'Bearer manager-token')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.roles).toEqual([UserRole.SHELTER_MANAGER]);
+        });
+
       await managerApp.close();
+    });
+
+    it('allows a veterinarian to access their profile and rejects admin actions', async () => {
+      const veterinarianModuleRef = await Test.createTestingModule({
+        controllers: [UsersController],
+        providers: [
+          { provide: UsersService, useValue: mockUsersService },
+          RolesGuard,
+          {
+            provide: JwtService,
+            useValue: { verify: jest.fn().mockReturnValue(veterinarianPayload), sign: jest.fn() },
+          },
+          { provide: ConfigService, useValue: { get: jest.fn() } },
+        ],
+      })
+        .overrideGuard(JwtAuthGuard as any)
+        .useClass(VeterinarianJwtAuthGuard as any)
+        .compile();
+
+      const veterinarianApp = veterinarianModuleRef.createNestApplication();
+      veterinarianApp.setGlobalPrefix('api/v1');
+      veterinarianApp.useGlobalPipes(
+        new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      );
+      veterinarianApp.useGlobalFilters(new HttpExceptionFilter());
+      await veterinarianApp.init();
+
+      await request(veterinarianApp.getHttpServer())
+        .post('/api/v1/users')
+        .set('Authorization', 'Bearer veterinarian-token')
+        .send(validDto)
+        .expect(403);
+
+      await request(veterinarianApp.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', 'Bearer veterinarian-token')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.roles).toEqual([UserRole.VETERINARIAN]);
+        });
+
+      await veterinarianApp.close();
     });
 
     it('returns 401 when no token is provided', async () => {

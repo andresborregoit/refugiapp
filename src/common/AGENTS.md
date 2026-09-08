@@ -15,3 +15,4 @@
 ## Seguridad
 - Mantener `UserRole` como fuente unica para roles globales.
 - Los guards deben asumir que `request.user` viene de una estrategia de autenticacion previa.
+- Usar `JwtAuthGuard` para autenticacion y `RolesGuard` con `@Roles` para autorizacion declarativa; no duplicar comprobaciones de roles en controllers.
