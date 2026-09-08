@@ -24,14 +24,15 @@ Implementado:
 - Configuracion base de Cloudinary.
 - Entidades ORM iniciales para usuarios, animales, eventos historicos, veterinarios, registros medicos, gastos y assets de media.
 - Enum clinico `medical_record_type` con `deworming` incluido.
-- Migracion inicial `InitSchema1787781241921` en `src/database/migrations/1787781241921-InitSchema.ts`.
+- Login real mediante email, password hasheado y JWT.
+- Hashing bcrypt centralizado para passwords.
+- Seed explicito e idempotente para el administrador inicial.
+- Migracion inicial ejecutable `InitSchema1787781241921`, ubicada en `src/database/migrations/1787781241921-InitSchema.ts`.
 - Tests unitarios y e2e iniciales con Jest.
 - `AGENTS.md` por modulo para guiar futuras tareas con IA.
 
 Pendiente:
 
-- Flujo real de login y emision de JWT.
-- Hashing real de passwords.
 - Subida real de archivos a Cloudinary.
 - CRUDs y casos de uso finales por dominio.
 - Campo `breed` para animales. Todavia no existe en la entidad de dominio `Animal`, en `AnimalOrmEntity` ni en la migracion inicial; debe agregarse con una migracion posterior.
@@ -306,7 +307,8 @@ El e2e inicial prueba el health check sin levantar la conexion real a Neon. Los 
 
 ## Siguiente etapa recomendada
 
-- Implementar hashing de passwords y flujo real de login.
+- Definir politicas definitivas de roles por endpoint.
+- Revisar normalizacion de emails a minusculas en todos los flujos de usuarios.
 - Implementar CRUD controlado de usuarios y animales.
 - Agregar `breed` a animales con cambios de dominio, ORM y migracion.
 - Agregar guards de roles en endpoints reales.
