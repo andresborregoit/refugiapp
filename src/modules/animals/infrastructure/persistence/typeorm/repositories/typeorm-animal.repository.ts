@@ -61,6 +61,7 @@ export class TypeOrmAnimalRepository implements AnimalRepository {
       entity.id,
       entity.name,
       entity.species,
+      entity.breed ?? null,
       entity.sex,
       entity.status,
       new Date(entity.intakeDate),

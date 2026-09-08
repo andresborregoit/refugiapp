@@ -13,6 +13,9 @@ export class AnimalOrmEntity extends BaseOrmEntity {
   @Column({ type: 'varchar', length: 80 })
   species!: string;
 
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  breed?: string | null;
+
   @Column({
     type: 'enum',
     enum: AnimalSex,

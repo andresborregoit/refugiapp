@@ -23,6 +23,7 @@ Implementado:
 - Filtro base de errores HTTP.
 - Configuracion base de Cloudinary.
 - Entidades ORM iniciales para usuarios, animales, eventos historicos, veterinarios, registros medicos, gastos y assets de media.
+- Campo opcional `breed` para animales agregado mediante migracion posterior a la inicial.
 - Enum clinico `medical_record_type` con `deworming` incluido.
 - Login real mediante email, password hasheado y JWT.
 - Hashing bcrypt centralizado para passwords.
@@ -35,7 +36,6 @@ Pendiente:
 
 - Subida real de archivos a Cloudinary.
 - CRUDs y casos de uso finales por dominio.
-- Campo `breed` para animales. Todavia no existe en la entidad de dominio `Animal`, en `AnimalOrmEntity` ni en la migracion inicial; debe agregarse con una migracion posterior.
 
 ## Arquitectura
 
@@ -162,6 +162,8 @@ La migracion inicial ya existe y no debe regenerarse:
 ```txt
 src/database/migrations/1787781241921-InitSchema.ts
 ```
+
+La migracion `1788897600000-AddBreedToAnimals.ts` agrega el campo opcional `breed` a `animals`.
 
 Para cambios nuevos de schema, modificar primero las entidades ORM, generar una migracion nueva con nombre descriptivo, revisar el SQL generado y versionar codigo y migracion juntos.
 
@@ -310,7 +312,6 @@ El e2e inicial prueba el health check sin levantar la conexion real a Neon. Los 
 - Definir politicas definitivas de roles por endpoint.
 - Revisar normalizacion de emails a minusculas en todos los flujos de usuarios.
 - Implementar CRUD controlado de usuarios y animales.
-- Agregar `breed` a animales con cambios de dominio, ORM y migracion.
 - Agregar guards de roles en endpoints reales.
 - Implementar subida de fotos/tickets a Cloudinary.
 - Crear endpoints de historial general y clinico por animal.

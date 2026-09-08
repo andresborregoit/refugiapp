@@ -12,6 +12,9 @@ export class AnimalResponseDto {
   @ApiProperty()
   species!: string;
 
+  @ApiPropertyOptional({ nullable: true })
+  breed?: string | null;
+
   @ApiProperty({ enum: AnimalSex })
   sex!: AnimalSex;
 
