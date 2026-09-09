@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -26,6 +27,7 @@ import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 import { AnimalsService } from '../../application/services/animals.service';
 import { AnimalResponseDto } from '../dto/animal-response.dto';
+import { ChangeAnimalStatusDto } from '../dto/change-animal-status.dto';
 import { CreateAnimalDto } from '../dto/create-animal.dto';
 import { ListAnimalsQueryDto } from '../dto/list-animals.query.dto';
 import { PaginatedAnimalsResponseDto } from '../dto/paginated-animals-response.dto';
@@ -70,5 +72,26 @@ export class AnimalsController {
   @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
   findById(@Param('id', ParseUUIDPipe) id: string): Promise<AnimalResponseDto> {
     return this.animalsService.findById(id);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SHELTER_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change animal status with transition validation' })
+  @ApiOkResponse({ type: AnimalResponseDto })
+  @ApiErrorResponses(
+    HttpStatus.BAD_REQUEST,
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+    HttpStatus.CONFLICT,
+  )
+  changeStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ChangeAnimalStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AnimalResponseDto> {
+    return this.animalsService.changeStatus(id, dto.status, user.id, dto.occurredAt);
   }
 }

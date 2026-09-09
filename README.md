@@ -31,6 +31,9 @@ Implementado:
 - Migracion inicial ejecutable `InitSchema1787781241921`, ubicada en `src/database/migrations/1787781241921-InitSchema.ts`.
 - Tests unitarios y e2e iniciales con Jest.
 - `AGENTS.md` por modulo para guiar futuras tareas con IA.
+- Validacion de transiciones de estado de animales con matriz acotada.
+- Evento `status_change` transaccional con metadata de auditoria.
+- Creacion y listado de eventos generales por animal con paginacion y filtros.
 
 Pendiente:
 
@@ -314,6 +317,4 @@ El e2e inicial prueba el health check sin levantar la conexion real a Neon. Los 
 - Implementar CRUD controlado de usuarios y animales.
 - Agregar guards de roles en endpoints reales.
 - Implementar subida de fotos/tickets a Cloudinary.
-- Crear endpoints de historial general y clinico por animal.
 - Definir estrategia de tests con base de datos de test.
-- Agregar paginacion, filtros y convenciones de respuesta.
