@@ -182,6 +182,11 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `PATCH /animals/:id/status` | Permitido | Permitido | Rechazado |
 | `POST /animals/:animalId/events` | Permitido | Permitido | Rechazado |
 | `GET /animals/:animalId/events` | Permitido | Permitido | Permitido |
+| `POST /veterinarians` | Permitido | Permitido | Rechazado |
+| `GET /veterinarians` | Permitido | Permitido | Permitido |
+| `GET /veterinarians/:id` | Permitido | Permitido | Permitido |
+| `PATCH /veterinarians/:id` | Permitido | Permitido | Rechazado |
+| `POST /veterinarians/:id/deactivate` | Permitido | Permitido | Rechazado |
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
@@ -224,6 +229,10 @@ Cada registro debe pertenecer a un animal. El veterinario responsable es opciona
 Gestiona el perfil profesional del veterinario: matricula, datos de contacto, notas y estado.
 
 No contiene credenciales. Cuando corresponde, se vincula opcionalmente con `users` mediante `userId`.
+
+La administracion se realiza mediante `POST /veterinarians`, `GET /veterinarians`, `GET /veterinarians/:id`, `PATCH /veterinarians/:id` y `POST /veterinarians/:id/deactivate`. El listado usa paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. Admite filtros por `name`, `licenseNumber` e `isActive`; por defecto lista veterinarios activos.
+
+La desactivacion no borra ni aplica soft delete. Solo actualiza `isActive=false` para conservar la vinculacion historica desde `medical_records`.
 
 ### `expenses`
 
@@ -295,6 +304,8 @@ Representa el perfil profesional, separado de la identidad de login.
 | columnas comunes | | | |
 
 La relacion `userId` es opcional porque un veterinario puede existir como contacto profesional sin tener acceso al sistema.
+
+No se almacenan passwords ni hashes en este modulo. Las credenciales pertenecen a `users`.
 
 ### 6.4 `animals`
 
@@ -760,6 +771,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Listado y consulta de animales con paginacion, filtros, orden estable y exclusion de soft-delete.
 - Cambio de estado de animales con validacion de transiciones, evento `status_change` transaccional con metadata y proteccion por roles.
 - Creacion y listado de eventos generales por animal con paginacion, filtro por tipo, orden cronologico inverso y proteccion por roles.
+- CRUD de perfiles profesionales de veterinarios, con matricula unica, `userId` opcional, escritura protegida por roles y desactivacion por `isActive=false`.
 - Seed explicito e idempotente para el primer administrador.
 - Hashing bcrypt centralizado para passwords.
 - Build, lint y tests unitarios configurados.
