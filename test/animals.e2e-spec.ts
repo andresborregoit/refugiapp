@@ -1,48 +1,83 @@
-import { ExecutionContext, INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  UnauthorizedException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { UserRole } from '../src/common/enums/user-role.enum';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { RolesGuard } from '../src/common/guards/roles.guard';
+import { ResourceNotFoundException } from '../src/common/exceptions/resource-not-found.exception';
 import { JwtAuthGuard } from '../src/modules/auth/infrastructure/guards/jwt-auth.guard';
 import { AnimalsService } from '../src/modules/animals/application/services/animals.service';
 import { AnimalsController } from '../src/modules/animals/interfaces/controllers/animals.controller';
 import { AnimalSex } from '../src/modules/animals/domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../src/modules/animals/domain/enums/animal-status.enum';
-import { ResourceNotFoundException } from '../src/common/exceptions/resource-not-found.exception';
+
+const adminPayload = { id: 'admin-id', email: 'admin@refugiapp.local', roles: [UserRole.ADMIN] };
+const managerPayload = {
+  id: 'manager-id',
+  email: 'manager@refugiapp.local',
+  roles: [UserRole.SHELTER_MANAGER],
+};
+const veterinarianPayload = {
+  id: 'veterinarian-id',
+  email: 'veterinarian@refugiapp.local',
+  roles: [UserRole.VETERINARIAN],
+};
+const VALID_UUID = '11111111-1111-1111-1111-111111111111';
 
 describe('Animals (e2e)', () => {
   let app: INestApplication;
   const animalsService = {
+    create: jest.fn(),
     list: jest.fn(),
     findById: jest.fn(),
   };
 
-  class AuthenticatedJwtGuard {
+  class AdminJwtAuthGuard {
     canActivate(context: ExecutionContext): boolean {
-      context.switchToHttp().getRequest().user = {
-        id: 'admin-id',
-        email: 'admin@refugiapp.local',
-        roles: [UserRole.ADMIN],
-      };
+      context.switchToHttp().getRequest().user = adminPayload;
       return true;
     }
   }
 
-  beforeAll(async () => {
+  class ManagerJwtAuthGuard {
+    canActivate(context: ExecutionContext): boolean {
+      context.switchToHttp().getRequest().user = managerPayload;
+      return true;
+    }
+  }
+
+  class VeterinarianJwtAuthGuard {
+    canActivate(context: ExecutionContext): boolean {
+      context.switchToHttp().getRequest().user = veterinarianPayload;
+      return true;
+    }
+  }
+
+  class NoTokenJwtAuthGuard {
+    canActivate(): boolean {
+      throw new UnauthorizedException();
+    }
+  }
+
+  async function createAppWithGuard(
+    guard: new () => { canActivate(context: ExecutionContext): boolean },
+  ): Promise<INestApplication> {
     const moduleRef = await Test.createTestingModule({
       controllers: [AnimalsController],
-      providers: [AnimalsService, RolesGuard],
+      providers: [{ provide: AnimalsService, useValue: animalsService }, RolesGuard],
     })
-      .overrideProvider(AnimalsService)
-      .useValue(animalsService)
       .overrideGuard(JwtAuthGuard)
-      .useClass(AuthenticatedJwtGuard)
+      .useClass(guard)
       .compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(
+    const testApp = moduleRef.createNestApplication();
+    testApp.setGlobalPrefix('api/v1');
+    testApp.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,
@@ -50,8 +85,14 @@ describe('Animals (e2e)', () => {
         transformOptions: { enableImplicitConversion: true },
       }),
     );
-    app.useGlobalFilters(new HttpExceptionFilter());
-    await app.init();
+    testApp.useGlobalFilters(new HttpExceptionFilter());
+    await testApp.init();
+
+    return testApp;
+  }
+
+  beforeAll(async () => {
+    app = await createAppWithGuard(AdminJwtAuthGuard);
   });
 
   beforeEach(() => {
@@ -60,6 +101,109 @@ describe('Animals (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  describe('POST /api/v1/animals', () => {
+    const validDto = {
+      name: 'Luna',
+      species: 'dog',
+      intakeDate: '2026-01-10',
+    };
+
+    it('creates an animal when called by an admin', async () => {
+      animalsService.create.mockResolvedValue({
+        id: VALID_UUID,
+        name: 'Luna',
+        species: 'dog',
+        breed: null,
+        sex: AnimalSex.UNKNOWN,
+        status: AnimalStatus.ADMITTED,
+        intakeDate: new Date('2026-01-10'),
+        birthDate: null,
+        notes: null,
+        profilePhotoMediaId: null,
+      });
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/animals')
+        .set('Authorization', 'Bearer admin-token')
+        .send(validDto)
+        .expect(201);
+
+      expect(res.body).toMatchObject({ id: VALID_UUID, name: 'Luna', species: 'dog' });
+      expect(animalsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Luna', species: 'dog', intakeDate: '2026-01-10' }),
+        'admin-id',
+      );
+    });
+
+    it('returns 400 when the DTO is invalid', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/animals')
+        .set('Authorization', 'Bearer admin-token')
+        .send({ species: 'dog', intakeDate: 'not-a-date' })
+        .expect(400);
+
+      expect(animalsService.create).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when the profile photo media asset does not exist', async () => {
+      animalsService.create.mockRejectedValue(
+        new ResourceNotFoundException('MediaAsset', '22222222-2222-4222-8222-222222222222'),
+      );
+
+      await request(app.getHttpServer())
+        .post('/api/v1/animals')
+        .set('Authorization', 'Bearer admin-token')
+        .send({ ...validDto, profilePhotoMediaId: '22222222-2222-4222-8222-222222222222' })
+        .expect(404)
+        .expect(({ body }) => {
+          expect(body.code).toBe('RESOURCE_NOT_FOUND');
+        });
+    });
+
+    it('returns 403 when called by a veterinarian', async () => {
+      const veterinarianApp = await createAppWithGuard(VeterinarianJwtAuthGuard);
+
+      await request(veterinarianApp.getHttpServer())
+        .post('/api/v1/animals')
+        .set('Authorization', 'Bearer veterinarian-token')
+        .send(validDto)
+        .expect(403);
+
+      expect(animalsService.create).not.toHaveBeenCalled();
+
+      await veterinarianApp.close();
+    });
+
+    it('creates an animal when called by a shelter manager', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+      animalsService.create.mockResolvedValue({ id: VALID_UUID, name: 'Luna' });
+
+      await request(managerApp.getHttpServer())
+        .post('/api/v1/animals')
+        .set('Authorization', 'Bearer manager-token')
+        .send(validDto)
+        .expect(201);
+
+      expect(animalsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Luna' }),
+        'manager-id',
+      );
+
+      await managerApp.close();
+    });
+
+    it('returns 401 when no token is provided', async () => {
+      const noTokenApp = await createAppWithGuard(NoTokenJwtAuthGuard);
+
+      await request(noTokenApp.getHttpServer())
+        .post('/api/v1/animals')
+        .send(validDto)
+        .expect(401);
+
+      await noTokenApp.close();
+    });
   });
 
   it('returns a paginated filtered list', async () => {

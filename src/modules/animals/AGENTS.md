@@ -20,3 +20,10 @@
 - El listado y la consulta individual excluyen registros con `deletedAt` mediante el comportamiento por defecto de TypeORM.
 - El orden estable del listado es `createdAt ASC, id ASC`.
 - La consulta y el listado requieren JWT y admiten `admin`, `shelter_manager` y `veterinarian`.
+
+## Escritura
+- `POST /animals` requiere JWT y admite solo `admin` y `shelter_manager`.
+- El caso de uso valida nombre, especie, sexo, estado y fecha de ingreso; los defaults son `sex = unknown` y `status = admitted`.
+- Si se informa `profilePhotoMediaId`, el caso de uso verifica que el asset exista en `media`; si no existe responde `404`.
+- La creacion persiste el animal y un evento automatico `intake` en una misma transaccion; el evento usa `occurredAt = intakeDate` y `createdByUserId` del usuario autenticado.
+- La descripcion del evento de ingreso es la constante de dominio `INTAKE_EVENT_DESCRIPTION`; no duplicarla en otros lugares.

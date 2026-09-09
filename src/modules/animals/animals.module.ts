@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MediaModule } from '../media/media.module';
 import { AnimalsService } from './application/services/animals.service';
 import { ANIMAL_REPOSITORY } from './domain/repositories/animal.repository';
 import { AnimalHistoryEventOrmEntity } from './infrastructure/persistence/typeorm/entities/animal-history-event.orm-entity';
@@ -8,7 +9,7 @@ import { TypeOrmAnimalRepository } from './infrastructure/persistence/typeorm/re
 import { AnimalsController } from './interfaces/controllers/animals.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AnimalOrmEntity, AnimalHistoryEventOrmEntity])],
+  imports: [TypeOrmModule.forFeature([AnimalOrmEntity, AnimalHistoryEventOrmEntity]), MediaModule],
   controllers: [AnimalsController],
   providers: [
     AnimalsService,

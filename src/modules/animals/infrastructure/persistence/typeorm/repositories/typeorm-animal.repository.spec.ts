@@ -1,21 +1,140 @@
 import { Repository } from 'typeorm';
 import { AnimalSex } from '../../../../domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../../../domain/enums/animal-status.enum';
+import { AnimalHistoryEventType } from '../../../../domain/enums/animal-history-event-type.enum';
+import { CreateAnimal } from '../../../../domain/entities/create-animal.entity';
+import { INTAKE_EVENT_DESCRIPTION } from '../../../../domain/entities/animal-history-event.entity';
+import { AnimalHistoryEventOrmEntity } from '../entities/animal-history-event.orm-entity';
 import { AnimalOrmEntity } from '../entities/animal.orm-entity';
 import { TypeOrmAnimalRepository } from './typeorm-animal.repository';
 
 describe('TypeOrmAnimalRepository', () => {
-  let repository: jest.Mocked<Pick<Repository<AnimalOrmEntity>, 'findAndCount' | 'findOne'>>;
+  const transactionManager = {
+    create: jest.fn(),
+    save: jest.fn(),
+  };
+  let repository: {
+    findAndCount: jest.Mock;
+    findOne: jest.Mock;
+    manager: { transaction: jest.Mock };
+  };
   let animalRepository: TypeOrmAnimalRepository;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    transactionManager.create.mockImplementation(
+      (target: new () => object, data: object) => Object.assign(new target(), data),
+    );
+    transactionManager.save.mockImplementation(async (entity: { id?: string }) => {
+      if (!entity.id) {
+        entity.id = 'generated-animal-id';
+      }
+
+      return entity;
+    });
     repository = {
       findAndCount: jest.fn(),
       findOne: jest.fn(),
+      manager: {
+        transaction: jest
+          .fn()
+          .mockImplementation(
+            async (run: (manager: unknown) => Promise<unknown>) => run(transactionManager),
+          ),
+      },
     };
     animalRepository = new TypeOrmAnimalRepository(
       repository as unknown as Repository<AnimalOrmEntity>,
     );
+  });
+
+  it('saves the animal and its automatic intake event in a single transaction', async () => {
+    const input = new CreateAnimal(
+      'Luna',
+      'dog',
+      'mixed',
+      AnimalSex.FEMALE,
+      AnimalStatus.ADMITTED,
+      new Date('2026-01-10T00:00:00.000Z'),
+      new Date('2025-06-01T00:00:00.000Z'),
+      null,
+      'media-id',
+      'user-id',
+    );
+
+    const result = await animalRepository.create(input);
+
+    expect(repository.manager.transaction).toHaveBeenCalled();
+
+    expect(transactionManager.create).toHaveBeenNthCalledWith(
+      1,
+      AnimalOrmEntity,
+      {
+        name: 'Luna',
+        species: 'dog',
+        breed: 'mixed',
+        sex: AnimalSex.FEMALE,
+        status: AnimalStatus.ADMITTED,
+        birthDate: '2025-06-01',
+        intakeDate: '2026-01-10',
+        profilePhotoMediaId: 'media-id',
+        notes: null,
+      },
+    );
+
+    expect(transactionManager.create).toHaveBeenNthCalledWith(
+      2,
+      AnimalHistoryEventOrmEntity,
+      {
+        animalId: 'generated-animal-id',
+        eventType: AnimalHistoryEventType.INTAKE,
+        description: INTAKE_EVENT_DESCRIPTION,
+        occurredAt: new Date('2026-01-10T00:00:00.000Z'),
+        createdByUserId: 'user-id',
+        metadata: {},
+      },
+    );
+
+    expect(transactionManager.save).toHaveBeenCalledTimes(2);
+
+    expect(result).toMatchObject({
+      id: 'generated-animal-id',
+      name: 'Luna',
+      species: 'dog',
+      breed: 'mixed',
+      sex: AnimalSex.FEMALE,
+      status: AnimalStatus.ADMITTED,
+      intakeDate: new Date('2026-01-10T00:00:00.000Z'),
+      birthDate: new Date('2025-06-01T00:00:00.000Z'),
+      notes: null,
+      profilePhotoMediaId: 'media-id',
+    });
+  });
+
+  it('stores null optional fields when they are not informed', async () => {
+    const input = new CreateAnimal(
+      'Luna',
+      'dog',
+      null,
+      AnimalSex.UNKNOWN,
+      AnimalStatus.ADMITTED,
+      new Date('2026-01-10T00:00:00.000Z'),
+    );
+
+    await animalRepository.create(input);
+
+    const animalData = transactionManager.create.mock.calls[0]![1] as Record<string, unknown>;
+
+    expect(animalData).toMatchObject({
+      breed: null,
+      birthDate: null,
+      profilePhotoMediaId: null,
+      notes: null,
+    });
+
+    const eventData = transactionManager.create.mock.calls[1]![1] as Record<string, unknown>;
+
+    expect(eventData).toMatchObject({ createdByUserId: null });
   });
 
   it('applies combined filters, pagination and stable ordering', async () => {
