@@ -1,0 +1,200 @@
+import { In, Repository } from 'typeorm';
+import { MediaOwnerType } from '../../../../../../modules/media/domain/enums/media-owner-type.enum';
+import { MediaAssetOrmEntity } from '../../../../../../modules/media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
+import { CreateMedicalRecord } from '../../../../domain/entities/create-medical-record.entity';
+import { MedicalRecordType } from '../../../../domain/enums/medical-record-type.enum';
+import { MedicalRecordOrmEntity } from '../entities/medical-record.orm-entity';
+import { TypeOrmMedicalRecordRepository } from './typeorm-medical-record.repository';
+
+describe('TypeOrmMedicalRecordRepository', () => {
+  const transactionManager = {
+    create: jest.fn(),
+    save: jest.fn(),
+    update: jest.fn(),
+  };
+  let repository: {
+    findOne: jest.Mock;
+    manager: { transaction: jest.Mock };
+  };
+  let mediaAssetRepository: {
+    update: jest.Mock;
+  };
+  let medicalRecordRepository: TypeOrmMedicalRecordRepository;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    transactionManager.create.mockImplementation(
+      (target: new () => object, data: object) => Object.assign(new target(), data),
+    );
+    transactionManager.save.mockImplementation(async (entity: { id?: string }) => {
+      if (!entity.id) {
+        entity.id = 'generated-record-id';
+      }
+
+      return entity;
+    });
+    repository = {
+      findOne: jest.fn(),
+      manager: {
+        transaction: jest
+          .fn()
+          .mockImplementation(
+            async (run: (manager: unknown) => Promise<unknown>) => run(transactionManager),
+          ),
+      },
+    };
+    mediaAssetRepository = {
+      update: jest.fn(),
+    };
+    medicalRecordRepository = new TypeOrmMedicalRecordRepository(
+      repository as unknown as Repository<MedicalRecordOrmEntity>,
+      mediaAssetRepository as unknown as Repository<MediaAssetOrmEntity>,
+    );
+  });
+
+  describe('create', () => {
+    it('saves the medical record in a transaction', async () => {
+      const input = new CreateMedicalRecord(
+        'animal-id',
+        MedicalRecordType.CONSULTATION,
+        'Annual checkup',
+        new Date('2026-03-10T10:00:00.000Z'),
+        'vet-id',
+        'Healthy',
+        null,
+        'No issues',
+      );
+
+      const result = await medicalRecordRepository.create(input);
+
+      expect(repository.manager.transaction).toHaveBeenCalled();
+      expect(transactionManager.create).toHaveBeenCalledWith(
+        MedicalRecordOrmEntity,
+        {
+          animalId: 'animal-id',
+          recordType: MedicalRecordType.CONSULTATION,
+          title: 'Annual checkup',
+          occurredAt: new Date('2026-03-10T10:00:00.000Z'),
+          veterinarianId: 'vet-id',
+          diagnosis: 'Healthy',
+          treatment: null,
+          notes: 'No issues',
+        },
+      );
+      expect(transactionManager.save).toHaveBeenCalledTimes(1);
+      expect(transactionManager.update).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        id: 'generated-record-id',
+        animalId: 'animal-id',
+        recordType: MedicalRecordType.CONSULTATION,
+        title: 'Annual checkup',
+        veterinarianId: 'vet-id',
+        diagnosis: 'Healthy',
+        treatment: null,
+        notes: 'No issues',
+      });
+    });
+
+    it('links attachments to the created record within the transaction', async () => {
+      const input = new CreateMedicalRecord(
+        'animal-id',
+        MedicalRecordType.VACCINATION,
+        'Rabies vaccine',
+        new Date('2026-03-10T10:00:00.000Z'),
+        null,
+        null,
+        null,
+        null,
+        ['media-1', 'media-2'],
+      );
+
+      await medicalRecordRepository.create(input);
+
+      expect(transactionManager.update).toHaveBeenCalledWith(
+        MediaAssetOrmEntity,
+        { id: In(['media-1', 'media-2']) },
+        { ownerType: MediaOwnerType.MEDICAL_RECORD, ownerId: 'generated-record-id' },
+      );
+    });
+
+    it('does not update media assets when there are no attachments', async () => {
+      const input = new CreateMedicalRecord(
+        'animal-id',
+        MedicalRecordType.CONSULTATION,
+        'Checkup',
+        new Date('2026-03-10T10:00:00.000Z'),
+        null,
+        null,
+        null,
+        null,
+        [],
+      );
+
+      await medicalRecordRepository.create(input);
+
+      expect(transactionManager.update).not.toHaveBeenCalled();
+    });
+
+    it('stores null optional fields when they are not informed', async () => {
+      const input = new CreateMedicalRecord(
+        'animal-id',
+        MedicalRecordType.OTHER,
+        'Misc',
+        new Date('2026-03-10T10:00:00.000Z'),
+        null,
+        null,
+        null,
+        null,
+      );
+
+      await medicalRecordRepository.create(input);
+
+      const data = transactionManager.create.mock.calls[0]![1] as Record<string, unknown>;
+
+      expect(data).toMatchObject({
+        veterinarianId: null,
+        diagnosis: null,
+        treatment: null,
+        notes: null,
+      });
+    });
+  });
+
+  describe('findById', () => {
+    it('returns a mapped record when found', async () => {
+      const ormEntity = Object.assign(new MedicalRecordOrmEntity(), {
+        id: 'record-id',
+        animalId: 'animal-id',
+        recordType: MedicalRecordType.CONSULTATION,
+        title: 'Checkup',
+        occurredAt: new Date('2026-03-10T10:00:00.000Z'),
+        veterinarianId: 'vet-id',
+        diagnosis: 'Healthy',
+        treatment: null,
+        notes: 'Good',
+        createdAt: new Date('2026-03-10T10:00:00.000Z'),
+      });
+      repository.findOne.mockResolvedValue(ormEntity);
+
+      const result = await medicalRecordRepository.findById('record-id');
+
+      expect(repository.findOne).toHaveBeenCalledWith({ where: { id: 'record-id' } });
+      expect(result).toMatchObject({
+        id: 'record-id',
+        animalId: 'animal-id',
+        recordType: MedicalRecordType.CONSULTATION,
+        title: 'Checkup',
+        veterinarianId: 'vet-id',
+        diagnosis: 'Healthy',
+        treatment: null,
+        notes: 'Good',
+      });
+    });
+
+    it('returns null when not found', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(medicalRecordRepository.findById('missing-id')).resolves.toBeNull();
+    });
+  });
+});

@@ -17,7 +17,7 @@ import {
 import { resolveEventOccurredAt } from '../../domain/services/animal-event-date';
 import { canTransitionStatus } from '../../domain/services/animal-status-transitions';
 import { CreateAnimalDto } from '../../interfaces/dto/create-animal.dto';
-import { mapDomainExceptionToBadRequest } from '../mappers/domain-to-http-exception.mapper';
+import { mapDomainExceptionToBadRequest } from '../../../../common/mappers/domain-to-http-exception.mapper';
 
 @Injectable()
 export class AnimalsService {

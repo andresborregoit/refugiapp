@@ -35,6 +35,7 @@ Implementado:
 - Validacion de transiciones de estado de animales con matriz acotada.
 - Evento `status_change` transaccional con metadata de auditoria.
 - Creacion y listado de eventos generales por animal con paginacion y filtros.
+- Creacion de registros medicos (`POST /medical-records`) con validacion de animal, veterinario opcional, fecha con limites, adjuntos via media y proteccion por roles.
 
 Pendiente:
 
