@@ -6,6 +6,7 @@ import { MediaAssetOrmEntity } from '../media/infrastructure/persistence/typeorm
 import { VeterinariansModule } from '../veterinarians/veterinarians.module';
 import { MedicalRecordsService } from './application/services/medical-records.service';
 import { MEDICAL_RECORD_REPOSITORY } from './domain/repositories/medical-record.repository';
+import { MedicalRecordChangeOrmEntity } from './infrastructure/persistence/typeorm/entities/medical-record-change.orm-entity';
 import { MedicalRecordOrmEntity } from './infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { TypeOrmMedicalRecordRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-medical-record.repository';
 import { AnimalMedicalRecordsController } from './interfaces/controllers/animal-medical-records.controller';
@@ -13,7 +14,7 @@ import { MedicalRecordsController } from './interfaces/controllers/medical-recor
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MedicalRecordOrmEntity, MediaAssetOrmEntity]),
+    TypeOrmModule.forFeature([MedicalRecordOrmEntity, MedicalRecordChangeOrmEntity, MediaAssetOrmEntity]),
     AnimalsModule,
     VeterinariansModule,
     MediaModule,

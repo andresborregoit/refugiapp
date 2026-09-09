@@ -9,6 +9,7 @@ import { MedicalRecord } from '../../domain/entities/medical-record.entity';
 import { VeterinarianRepository } from '../../../veterinarians/domain/repositories/veterinarian.repository';
 import { MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
 import { CreateMedicalRecordDto } from '../../interfaces/dto/create-medical-record.dto';
+import { UpdateMedicalRecordDto } from '../../interfaces/dto/update-medical-record.dto';
 import { MedicalRecordsService } from './medical-records.service';
 
 describe('MedicalRecordsService', () => {
@@ -21,6 +22,7 @@ describe('MedicalRecordsService', () => {
     AnimalStatus.ADMITTED,
     new Date('2026-01-01'),
   );
+  const now = new Date('2026-03-10T10:00:00.000Z');
   const record = new MedicalRecord(
     'record-id',
     'animal-id',
@@ -31,12 +33,32 @@ describe('MedicalRecordsService', () => {
     'Healthy',
     null,
     'No issues',
+    now,
+    now,
+    null,
+  );
+  const deletedRecord = new MedicalRecord(
+    'record-id',
+    'animal-id',
+    MedicalRecordType.CONSULTATION,
+    'Annual checkup',
     new Date('2026-03-10T10:00:00.000Z'),
+    'vet-id',
+    'Healthy',
+    null,
+    'No issues',
+    now,
+    now,
+    new Date('2026-04-01T00:00:00.000Z'),
   );
   const medicalRecordRepository = {
     findById: jest.fn(),
+    findByIdWithDeleted: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
+    softDelete: jest.fn(),
+    restore: jest.fn(),
   };
   const animalRepository = {
     findById: jest.fn(),
@@ -68,6 +90,13 @@ describe('MedicalRecordsService', () => {
       recordType: MedicalRecordType.CONSULTATION,
       title: '  Annual checkup  ',
       occurredAt: '2026-03-10T10:00:00.000Z',
+      ...overrides,
+    });
+  }
+
+  function updateDto(overrides: Partial<UpdateMedicalRecordDto> = {}): UpdateMedicalRecordDto {
+    return Object.assign(new UpdateMedicalRecordDto(), {
+      title: '  Updated title  ',
       ...overrides,
     });
   }
@@ -214,13 +243,192 @@ describe('MedicalRecordsService', () => {
     it('returns the record when it exists', async () => {
       medicalRecordRepository.findById.mockResolvedValue(record);
 
-      await expect(medicalRecordsServiceFindById('record-id')).resolves.toBe(record);
+      await expect(service.findById('record-id')).resolves.toBe(record);
     });
 
     it('returns null when the record does not exist', async () => {
       medicalRecordRepository.findById.mockResolvedValue(null);
 
-      await expect(medicalRecordsServiceFindById('missing-id')).resolves.toBeNull();
+      await expect(service.findById('missing-id')).resolves.toBeNull();
+    });
+  });
+
+  describe('update', () => {
+    it('updates a record with trimmed fields', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      const updatedRecord = new MedicalRecord(
+        'record-id',
+        'animal-id',
+        MedicalRecordType.CONSULTATION,
+        'Updated title',
+        new Date('2026-03-10T10:00:00.000Z'),
+        'vet-id',
+        'Healthy',
+        null,
+        'No issues',
+        now,
+        now,
+        null,
+      );
+      medicalRecordRepository.update.mockResolvedValue(updatedRecord);
+
+      const result = await service.update('record-id', updateDto(), 'actor-id');
+
+      expect(medicalRecordRepository.findById).toHaveBeenCalledWith('record-id');
+      expect(medicalRecordRepository.update).toHaveBeenCalledWith(
+        'record-id',
+        expect.objectContaining({ title: 'Updated title', changedByUserId: 'actor-id' }),
+      );
+      expect(result).toBe(updatedRecord);
+    });
+
+    it('validates veterinarian when provided', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      veterinarianRepository.findById.mockResolvedValue({ id: 'new-vet', isActive: true });
+      medicalRecordRepository.update.mockResolvedValue(record);
+
+      await service.update('record-id', updateDto({ veterinarianId: 'new-vet' }), 'actor-id');
+
+      expect(veterinarianRepository.findById).toHaveBeenCalledWith('new-vet');
+    });
+
+    it('throws ResourceNotFoundException when the record does not exist', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.update('missing-id', updateDto(), 'actor-id'),
+      ).rejects.toThrow(ResourceNotFoundException);
+      expect(medicalRecordRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('throws ResourceNotFoundException when veterinarian does not exist', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      veterinarianRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.update('record-id', updateDto({ veterinarianId: 'missing-vet' }), 'actor-id'),
+      ).rejects.toThrow(ResourceNotFoundException);
+      expect(medicalRecordRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('throws VETERINARIAN_INACTIVE when the veterinarian is deactivated', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      veterinarianRepository.findById.mockResolvedValue({ id: 'inactive-vet', isActive: false });
+
+      await expect(
+        service.update('record-id', updateDto({ veterinarianId: 'inactive-vet' }), 'actor-id'),
+      ).rejects.toThrow(ResourceConflictException);
+    });
+
+    it('validates occurredAt against intakeDate when provided', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      animalRepository.findById.mockResolvedValue(animal);
+
+      await expect(
+        service.update('record-id', updateDto({ occurredAt: '2025-01-01T00:00:00.000Z' }), 'actor-id'),
+      ).rejects.toThrow();
+      expect(medicalRecordRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('validates occurredAt against future when provided', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      animalRepository.findById.mockResolvedValue(animal);
+
+      await expect(
+        service.update('record-id', updateDto({ occurredAt: '2099-01-01T00:00:00.000Z' }), 'actor-id'),
+      ).rejects.toThrow();
+      expect(medicalRecordRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('allows null veterinarianId to unlink veterinarian', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      medicalRecordRepository.update.mockResolvedValue(record);
+
+      await service.update('record-id', updateDto({ veterinarianId: null }), 'actor-id');
+
+      expect(veterinarianRepository.findById).not.toHaveBeenCalled();
+      expect(medicalRecordRepository.update).toHaveBeenCalledWith(
+        'record-id',
+        expect.objectContaining({ veterinarianId: null }),
+      );
+    });
+
+    it('throws ResourceNotFoundException when repository returns null', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      medicalRecordRepository.update.mockResolvedValue(null);
+
+      await expect(
+        service.update('record-id', updateDto(), 'actor-id'),
+      ).rejects.toThrow(ResourceNotFoundException);
+    });
+  });
+
+  describe('softDelete', () => {
+    it('soft-deletes an existing record', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      medicalRecordRepository.softDelete.mockResolvedValue(undefined);
+
+      await service.softDelete('record-id', 'actor-id');
+
+      expect(medicalRecordRepository.findById).toHaveBeenCalledWith('record-id');
+      expect(medicalRecordRepository.softDelete).toHaveBeenCalledWith('record-id', 'actor-id');
+    });
+
+    it('throws ResourceNotFoundException when the record does not exist', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(null);
+
+      await expect(service.softDelete('missing-id', 'actor-id')).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(medicalRecordRepository.softDelete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('restore', () => {
+    it('restores a soft-deleted record', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(deletedRecord);
+      medicalRecordRepository.restore.mockResolvedValue(record);
+
+      const result = await service.restore('record-id', 'actor-id');
+
+      expect(medicalRecordRepository.findByIdWithDeleted).toHaveBeenCalledWith('record-id');
+      expect(medicalRecordRepository.restore).toHaveBeenCalledWith('record-id', 'actor-id');
+      expect(result).toBe(record);
+    });
+
+    it('throws ResourceNotFoundException when the record does not exist', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(null);
+
+      await expect(service.restore('missing-id', 'actor-id')).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(medicalRecordRepository.restore).not.toHaveBeenCalled();
+    });
+
+    it('throws RECORD_NOT_DELETED when the record is not deleted', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(record);
+
+      await expect(service.restore('record-id', 'actor-id')).rejects.toThrow(
+        ResourceConflictException,
+      );
+
+      try {
+        await service.restore('record-id', 'actor-id');
+      } catch (error) {
+        expect((error as ResourceConflictException).getResponse()).toEqual(
+          expect.objectContaining({ code: 'RECORD_NOT_DELETED' }),
+        );
+      }
+      expect(medicalRecordRepository.restore).not.toHaveBeenCalled();
+    });
+
+    it('throws ResourceNotFoundException when repository returns null', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(deletedRecord);
+      medicalRecordRepository.restore.mockResolvedValue(null);
+
+      await expect(service.restore('record-id', 'actor-id')).rejects.toThrow(
+        ResourceNotFoundException,
+      );
     });
   });
 
@@ -273,8 +481,4 @@ describe('MedicalRecordsService', () => {
       expect(medicalRecordRepository.findMany).not.toHaveBeenCalled();
     });
   });
-
-  function medicalRecordsServiceFindById(id: string) {
-    return service.findById(id);
-  }
 });
