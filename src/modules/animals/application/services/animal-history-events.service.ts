@@ -15,7 +15,7 @@ import {
 import { AnimalHistoryEvent } from '../../domain/entities/animal-history-event.entity';
 import { CreateAnimalHistoryEvent } from '../../domain/entities/create-animal-history-event.entity';
 import { resolveEventOccurredAt } from '../../domain/services/animal-event-date';
-import { mapDomainExceptionToBadRequest } from '../mappers/domain-to-http-exception.mapper';
+import { mapDomainExceptionToBadRequest } from '../../../../common/mappers/domain-to-http-exception.mapper';
 
 @Injectable()
 export class AnimalHistoryEventsService {
