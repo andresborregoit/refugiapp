@@ -176,6 +176,9 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `POST /users/:id/deactivate` | Permitido | Rechazado | Rechazado |
 | `POST /users/:id/activate` | Permitido | Rechazado | Rechazado |
 | `GET /users/me` | Permitido | Permitido | Permitido |
+| `POST /animals` | Permitido | Permitido | Rechazado |
+| `GET /animals` | Permitido | Permitido | Permitido |
+| `GET /animals/:id` | Permitido | Permitido | Permitido |
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
@@ -184,6 +187,8 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 Gestiona la ficha general del animal y su historial no clinico.
 
 No debe almacenar diagnosticos ni tratamientos. Esa informacion pertenece a `medical-records`.
+
+La creacion se realiza mediante `POST /animals`. El caso de uso valida nombre, especie, sexo, estado y fecha de ingreso, valida la existencia de la foto de perfil en `media_assets` cuando se informa y persiste en una misma transaccion el animal y un evento automatico de ingreso (`intake`) asociado al usuario creador autenticado. No almacena datos clinicos.
 
 La consulta de animales se realiza mediante `GET /animals` y `GET /animals/:id`. El listado usa paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. Admite filtros combinables por `status`, `species`, `sex` y busqueda parcial por `name`.
 
@@ -732,6 +737,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Metadata de Cloudinary separada de los binarios.
 - JWT y roles preparados.
 - Login real mediante email, password hasheado y JWT.
+- Creacion de animales (`POST /animals`) con evento automatico de ingreso transaccional, validacion de foto de perfil contra `media_assets` y escritura protegida por roles.
 - Listado y consulta de animales con paginacion, filtros, orden estable y exclusion de soft-delete.
 - Seed explicito e idempotente para el primer administrador.
 - Hashing bcrypt centralizado para passwords.

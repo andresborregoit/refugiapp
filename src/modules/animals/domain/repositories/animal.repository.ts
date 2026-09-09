@@ -1,4 +1,5 @@
 import { Animal } from '../entities/animal.entity';
+import { CreateAnimal } from '../entities/create-animal.entity';
 import { AnimalSex } from '../enums/animal-sex.enum';
 import { AnimalStatus } from '../enums/animal-status.enum';
 
@@ -21,6 +22,7 @@ export interface PaginatedAnimals {
 }
 
 export interface AnimalRepository {
+  create(input: CreateAnimal): Promise<Animal>;
   findById(id: string): Promise<Animal | null>;
   findMany(query: AnimalListQuery): Promise<PaginatedAnimals>;
 }
