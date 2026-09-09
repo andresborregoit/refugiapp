@@ -188,6 +188,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `PATCH /veterinarians/:id` | Permitido | Permitido | Rechazado |
 | `POST /veterinarians/:id/deactivate` | Permitido | Permitido | Rechazado |
 | `POST /medical-records` | Permitido | Rechazado | Permitido |
+| `GET /animals/:animalId/medical-records` | Permitido | Rechazado | Permitido |
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
@@ -230,6 +231,8 @@ La creacion se realiza mediante `POST /medical-records`. El caso de uso valida q
 Los adjuntos clinicos se gestionan mediante `media_assets` con `ownerType=medical_record`. Cuando se informan `attachmentMediaIds`, el caso de uso valida la existencia de cada asset (404 si no existe) y los vincula al registro creado en la misma transaccion actualizando `ownerType` y `ownerId` en `media_assets`.
 
 La persistencia del registro y la vinculacion de adjuntos ocurren dentro de una misma transaccion. No se persiste el actor que creo el registro (no existe columna `createdByUserId` en `medical_records`).
+
+La consulta de la evolucion clinica se realiza mediante `GET /animals/:animalId/medical-records`. Requiere JWT y admite solo `admin` y `veterinarian`. El caso de uso valida que el animal exista antes de listar y la consulta siempre filtra por `animalId`, con paginacion segura (`page` minimo 1, `limit` entre 1 y 100, default 20), filtros opcionales por `recordType`, `from` y `to`, y orden `occurredAt DESC, id DESC`.
 
 ### `veterinarians`
 
@@ -780,6 +783,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Creacion y listado de eventos generales por animal con paginacion, filtro por tipo, orden cronologico inverso y proteccion por roles.
 - CRUD de perfiles profesionales de veterinarios, con matricula unica, `userId` opcional, escritura protegida por roles y desactivacion por `isActive=false`.
 - Creacion de registros medicos (`POST /medical-records`) con validacion de animal, veterinario opcional (activo), fecha con limites, adjuntos vinculados transaccionalmente via `media_assets` y proteccion por roles.
+- Consulta de evolucion clinica por animal (`GET /animals/:animalId/medical-records`) con filtros por tipo y rango de fechas, paginacion segura, orden cronologico inverso y proteccion por roles.
 - Seed explicito e idempotente para el primer administrador.
 - Hashing bcrypt centralizado para passwords.
 - Build, lint y tests unitarios configurados.

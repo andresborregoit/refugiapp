@@ -22,4 +22,10 @@
 - Los campos de texto (`title`, `diagnosis`, `treatment`, `notes`) se normalizan con trim; los vacios se almacenan como `null`.
 
 ## Consultas
+- `GET /animals/:animalId/medical-records` requiere JWT y admite solo `admin` y `veterinarian`.
+- La consulta valida que el animal exista antes de listar; si no existe responde `404`.
+- El listado siempre filtra por `animalId` y no debe exponer registros de otros animales.
+- Admite paginacion con `page` minimo 1, `limit` entre 1 y 100, default `page=1` y `limit=20`.
+- Admite filtros opcionales por `recordType`, `from` y `to` sobre `occurredAt`.
+- El orden es cronologico inverso y determinista: `occurredAt DESC, id DESC`.
 - `GET /medical-records` y `GET /medical-records/:id` no estan implementados aun.

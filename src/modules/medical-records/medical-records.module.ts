@@ -8,6 +8,7 @@ import { MedicalRecordsService } from './application/services/medical-records.se
 import { MEDICAL_RECORD_REPOSITORY } from './domain/repositories/medical-record.repository';
 import { MedicalRecordOrmEntity } from './infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { TypeOrmMedicalRecordRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-medical-record.repository';
+import { AnimalMedicalRecordsController } from './interfaces/controllers/animal-medical-records.controller';
 import { MedicalRecordsController } from './interfaces/controllers/medical-records.controller';
 
 @Module({
@@ -17,7 +18,7 @@ import { MedicalRecordsController } from './interfaces/controllers/medical-recor
     VeterinariansModule,
     MediaModule,
   ],
-  controllers: [MedicalRecordsController],
+  controllers: [MedicalRecordsController, AnimalMedicalRecordsController],
   providers: [
     MedicalRecordsService,
     {

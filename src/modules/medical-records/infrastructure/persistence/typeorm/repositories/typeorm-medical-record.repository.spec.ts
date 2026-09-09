@@ -14,6 +14,7 @@ describe('TypeOrmMedicalRecordRepository', () => {
   };
   let repository: {
     findOne: jest.Mock;
+    findAndCount: jest.Mock;
     manager: { transaction: jest.Mock };
   };
   let mediaAssetRepository: {
@@ -35,6 +36,7 @@ describe('TypeOrmMedicalRecordRepository', () => {
     });
     repository = {
       findOne: jest.fn(),
+      findAndCount: jest.fn(),
       manager: {
         transaction: jest
           .fn()
@@ -195,6 +197,85 @@ describe('TypeOrmMedicalRecordRepository', () => {
       repository.findOne.mockResolvedValue(null);
 
       await expect(medicalRecordRepository.findById('missing-id')).resolves.toBeNull();
+    });
+  });
+
+  describe('findMany', () => {
+    it('filters by animalId, recordType and date range with reverse chronological order', async () => {
+      const ormEntity = Object.assign(new MedicalRecordOrmEntity(), {
+        id: 'record-id',
+        animalId: 'animal-id',
+        recordType: MedicalRecordType.VACCINATION,
+        title: 'Rabies vaccine',
+        occurredAt: new Date('2026-03-10T10:00:00.000Z'),
+        veterinarianId: null,
+        diagnosis: null,
+        treatment: null,
+        notes: null,
+        createdAt: new Date('2026-03-10T10:00:00.000Z'),
+      });
+      repository.findAndCount.mockResolvedValue([[ormEntity], 5]);
+
+      const result = await medicalRecordRepository.findMany({
+        animalId: 'animal-id',
+        page: 2,
+        limit: 2,
+        recordType: MedicalRecordType.VACCINATION,
+        from: new Date('2026-03-01T00:00:00.000Z'),
+        to: new Date('2026-03-31T23:59:59.000Z'),
+      });
+
+      const options = repository.findAndCount.mock.calls[0]![0]!;
+
+      expect(options.where).toMatchObject({
+        animalId: 'animal-id',
+        recordType: MedicalRecordType.VACCINATION,
+      });
+      expect(options.where.occurredAt).toBeDefined();
+      expect(options.order).toEqual({ occurredAt: 'DESC', id: 'DESC' });
+      expect(options.skip).toBe(2);
+      expect(options.take).toBe(2);
+      expect(options.withDeleted).toBeUndefined();
+      expect(result).toMatchObject({ page: 2, limit: 2, total: 5 });
+      expect(result.items[0]).toMatchObject({
+        id: 'record-id',
+        animalId: 'animal-id',
+        recordType: MedicalRecordType.VACCINATION,
+      });
+    });
+
+    it('filters only by animalId when optional filters are omitted', async () => {
+      repository.findAndCount.mockResolvedValue([[], 0]);
+
+      await medicalRecordRepository.findMany({
+        animalId: 'animal-id',
+        page: 1,
+        limit: 20,
+      });
+
+      const options = repository.findAndCount.mock.calls[0]![0]!;
+
+      expect(options.where).toEqual({ animalId: 'animal-id' });
+    });
+
+    it('supports one-sided date ranges', async () => {
+      repository.findAndCount.mockResolvedValue([[], 0]);
+
+      await medicalRecordRepository.findMany({
+        animalId: 'animal-id',
+        page: 1,
+        limit: 20,
+        from: new Date('2026-03-01T00:00:00.000Z'),
+      });
+      await medicalRecordRepository.findMany({
+        animalId: 'animal-id',
+        page: 1,
+        limit: 20,
+        to: new Date('2026-03-31T23:59:59.000Z'),
+      });
+
+      expect(repository.findAndCount.mock.calls[0]![0]!.where.occurredAt).toBeDefined();
+      expect(repository.findAndCount.mock.calls[1]![0]!.where.occurredAt).toBeDefined();
     });
   });
 });

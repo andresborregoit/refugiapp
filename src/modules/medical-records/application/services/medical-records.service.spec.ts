@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { Animal } from '../../../animals/domain/entities/animal.entity';
@@ -34,6 +35,7 @@ describe('MedicalRecordsService', () => {
   );
   const medicalRecordRepository = {
     findById: jest.fn(),
+    findMany: jest.fn(),
     create: jest.fn(),
   };
   const animalRepository = {
@@ -219,6 +221,56 @@ describe('MedicalRecordsService', () => {
       medicalRecordRepository.findById.mockResolvedValue(null);
 
       await expect(medicalRecordsServiceFindById('missing-id')).resolves.toBeNull();
+    });
+  });
+
+  describe('listByAnimal', () => {
+    it('throws ResourceNotFoundException when the animal does not exist', async () => {
+      animalRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.listByAnimal('missing-id', { page: 1, limit: 20 }),
+      ).rejects.toThrow(ResourceNotFoundException);
+      expect(medicalRecordRepository.findMany).not.toHaveBeenCalled();
+    });
+
+    it('delegates to the repository after confirming the animal exists', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      const paginated = { items: [record], page: 2, limit: 10, total: 1 };
+      medicalRecordRepository.findMany.mockResolvedValue(paginated);
+
+      const result = await service.listByAnimal('animal-id', {
+        page: 2,
+        limit: 10,
+        recordType: MedicalRecordType.VACCINATION,
+        from: '2026-03-01T00:00:00.000Z',
+        to: '2026-03-31T23:59:59.000Z',
+      });
+
+      expect(animalRepository.findById).toHaveBeenCalledWith('animal-id');
+      expect(medicalRecordRepository.findMany).toHaveBeenCalledWith({
+        animalId: 'animal-id',
+        page: 2,
+        limit: 10,
+        recordType: MedicalRecordType.VACCINATION,
+        from: new Date('2026-03-01T00:00:00.000Z'),
+        to: new Date('2026-03-31T23:59:59.000Z'),
+      });
+      expect(result).toBe(paginated);
+    });
+
+    it('throws BadRequestException when from is after to', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+
+      await expect(
+        service.listByAnimal('animal-id', {
+          page: 1,
+          limit: 20,
+          from: '2026-04-01T00:00:00.000Z',
+          to: '2026-03-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(medicalRecordRepository.findMany).not.toHaveBeenCalled();
     });
   });
 
