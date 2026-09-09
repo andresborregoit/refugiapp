@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { DomainException } from '../../../../common/exceptions/domain.exception';
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
@@ -9,11 +9,14 @@ import { ANIMAL_REPOSITORY, AnimalRepository } from '../../../animals/domain/rep
 import { CreateMedicalRecord } from '../../domain/entities/create-medical-record.entity';
 import { MedicalRecord } from '../../domain/entities/medical-record.entity';
 import {
+  MedicalRecordListQuery,
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,
+  PaginatedMedicalRecords,
 } from '../../domain/repositories/medical-record.repository';
 import { validateRecordOccurredAt } from '../../domain/services/medical-record-date';
 import { CreateMedicalRecordDto } from '../../interfaces/dto/create-medical-record.dto';
+import { ListMedicalRecordsQueryDto } from '../../interfaces/dto/list-medical-records.query.dto';
 
 @Injectable()
 export class MedicalRecordsService {
@@ -89,5 +92,37 @@ export class MedicalRecordsService {
 
   findById(id: string) {
     return this.medicalRecordRepository.findById(id);
+  }
+
+  async listByAnimal(
+    animalId: string,
+    query: ListMedicalRecordsQueryDto,
+  ): Promise<PaginatedMedicalRecords> {
+    const animal = await this.animalRepository.findById(animalId);
+
+    if (!animal) {
+      throw new ResourceNotFoundException('Animal', animalId);
+    }
+
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+
+    if (from && to && from > to) {
+      throw new BadRequestException({
+        code: 'INVALID_DATE_RANGE',
+        message: 'from must be less than or equal to to.',
+      });
+    }
+
+    const repositoryQuery: MedicalRecordListQuery = {
+      animalId,
+      page: query.page,
+      limit: query.limit,
+      recordType: query.recordType,
+      from,
+      to,
+    };
+
+    return this.medicalRecordRepository.findMany(repositoryQuery);
   }
 }
