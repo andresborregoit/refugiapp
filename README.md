@@ -29,6 +29,7 @@ Implementado:
 - Hashing bcrypt centralizado para passwords.
 - Seed explicito e idempotente para el administrador inicial.
 - Migracion inicial ejecutable `InitSchema1787781241921`, ubicada en `src/database/migrations/1787781241921-InitSchema.ts`.
+- CRUD de perfiles profesionales de veterinarios sin credenciales, con matricula unica, `userId` opcional y desactivacion por `isActive=false`.
 - Tests unitarios y e2e iniciales con Jest.
 - `AGENTS.md` por modulo para guiar futuras tareas con IA.
 - Validacion de transiciones de estado de animales con matriz acotada.
