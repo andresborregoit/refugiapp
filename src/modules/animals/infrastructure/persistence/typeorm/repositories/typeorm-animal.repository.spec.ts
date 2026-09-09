@@ -3,7 +3,8 @@ import { AnimalSex } from '../../../../domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../../../domain/enums/animal-status.enum';
 import { AnimalHistoryEventType } from '../../../../domain/enums/animal-history-event-type.enum';
 import { CreateAnimal } from '../../../../domain/entities/create-animal.entity';
-import { INTAKE_EVENT_DESCRIPTION } from '../../../../domain/entities/animal-history-event.entity';
+import { ChangeAnimalStatus } from '../../../../domain/entities/change-animal-status.entity';
+import { buildStatusChangeEventDescription, INTAKE_EVENT_DESCRIPTION } from '../../../../domain/entities/animal-history-event.entity';
 import { AnimalHistoryEventOrmEntity } from '../entities/animal-history-event.orm-entity';
 import { AnimalOrmEntity } from '../entities/animal.orm-entity';
 import { TypeOrmAnimalRepository } from './typeorm-animal.repository';
@@ -12,6 +13,8 @@ describe('TypeOrmAnimalRepository', () => {
   const transactionManager = {
     create: jest.fn(),
     save: jest.fn(),
+    update: jest.fn(),
+    findOneOrFail: jest.fn(),
   };
   let repository: {
     findAndCount: jest.Mock;
@@ -32,6 +35,20 @@ describe('TypeOrmAnimalRepository', () => {
 
       return entity;
     });
+    transactionManager.findOneOrFail.mockResolvedValue(
+      Object.assign(new AnimalOrmEntity(), {
+        id: 'animal-id',
+        name: 'Luna',
+        species: 'dog',
+        breed: 'mixed',
+        sex: AnimalSex.FEMALE,
+        status: AnimalStatus.UNDER_TREATMENT,
+        intakeDate: '2026-01-01',
+        birthDate: '2025-06-01',
+        notes: null,
+        profilePhotoMediaId: 'media-id',
+      }),
+    );
     repository = {
       findAndCount: jest.fn(),
       findOne: jest.fn(),
@@ -198,5 +215,66 @@ describe('TypeOrmAnimalRepository', () => {
 
     await expect(animalRepository.findById('deleted-id')).resolves.toBeNull();
     expect(repository.findOne).toHaveBeenCalledWith({ where: { id: 'deleted-id' } });
+  });
+
+  describe('changeStatus', () => {
+    it('updates the status and creates a status_change event in a transaction', async () => {
+      const input = new ChangeAnimalStatus(
+        'animal-id',
+        AnimalStatus.ADMITTED,
+        AnimalStatus.UNDER_TREATMENT,
+        new Date('2026-03-10T10:00:00.000Z'),
+        'actor-id',
+      );
+
+      const result = await animalRepository.changeStatus(input);
+
+      expect(repository.manager.transaction).toHaveBeenCalled();
+      expect(transactionManager.update).toHaveBeenCalledWith(
+        AnimalOrmEntity,
+        'animal-id',
+        { status: AnimalStatus.UNDER_TREATMENT },
+      );
+      expect(transactionManager.create).toHaveBeenCalledWith(
+        AnimalHistoryEventOrmEntity,
+        {
+          animalId: 'animal-id',
+          eventType: AnimalHistoryEventType.STATUS_CHANGE,
+          description: buildStatusChangeEventDescription(
+            AnimalStatus.ADMITTED,
+            AnimalStatus.UNDER_TREATMENT,
+          ),
+          occurredAt: new Date('2026-03-10T10:00:00.000Z'),
+          createdByUserId: 'actor-id',
+          metadata: { from: AnimalStatus.ADMITTED, to: AnimalStatus.UNDER_TREATMENT },
+        },
+      );
+      expect(transactionManager.save).toHaveBeenCalledTimes(1);
+      expect(transactionManager.findOneOrFail).toHaveBeenCalledWith(
+        AnimalOrmEntity,
+        { where: { id: 'animal-id' } },
+      );
+      expect(result).toMatchObject({
+        id: 'animal-id',
+        status: AnimalStatus.UNDER_TREATMENT,
+      });
+    });
+
+    it('does not use withDeleted for status updates', async () => {
+      const input = new ChangeAnimalStatus(
+        'animal-id',
+        AnimalStatus.ADMITTED,
+        AnimalStatus.DECEASED,
+        new Date('2026-06-01T00:00:00.000Z'),
+        'actor-id',
+      );
+
+      await animalRepository.changeStatus(input);
+
+      expect(transactionManager.findOneOrFail).toHaveBeenCalledWith(
+        AnimalOrmEntity,
+        { where: { id: 'animal-id' } },
+      );
+    });
   });
 });

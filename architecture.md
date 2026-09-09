@@ -179,6 +179,9 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `POST /animals` | Permitido | Permitido | Rechazado |
 | `GET /animals` | Permitido | Permitido | Permitido |
 | `GET /animals/:id` | Permitido | Permitido | Permitido |
+| `PATCH /animals/:id/status` | Permitido | Permitido | Rechazado |
+| `POST /animals/:animalId/events` | Permitido | Permitido | Rechazado |
+| `GET /animals/:animalId/events` | Permitido | Permitido | Permitido |
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
@@ -193,6 +196,22 @@ La creacion se realiza mediante `POST /animals`. El caso de uso valida nombre, e
 La consulta de animales se realiza mediante `GET /animals` y `GET /animals/:id`. El listado usa paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. Admite filtros combinables por `status`, `species`, `sex` y busqueda parcial por `name`.
 
 El orden es estable y determinista: `createdAt ASC` y `id ASC` como desempate. TypeORM excluye por defecto los registros con `deletedAt`; las consultas no deben usar `withDeleted`.
+
+El cambio de estado se realiza mediante `PATCH /animals/:id/status`. El caso de uso valida la transicion contra una matriz acotada de movimientos permitidos y rechaza con `409` las transiciones invalidas o al mismo estado. Cada cambio persiste un evento `status_change` en la misma transaccion, con `metadata {from, to}` y el `createdByUserId` del actor autenticado.
+
+Transiciones permitidas:
+
+```text
+admitted           → under_treatment | available_for_adoption | deceased
+under_treatment    → admitted | available_for_adoption | deceased
+available_for_adoption → under_treatment | adopted | deceased
+adopted            → (terminal)
+deceased           → (terminal)
+```
+
+Los eventos generales se gestionan mediante `POST /animals/:animalId/events` y `GET /animals/:animalId/events`. Los tipos creables manualmente son `general_note`, `behavior_note` y `transfer`. Los tipos `intake`, `status_change` y `adoption` estan reservados al sistema. La fecha del evento (`occurredAt`) es opcional y defaultea al momento del request; se rechazan fechas futuras y anteriores a `intakeDate`. El listado usa paginacion (1..100, default 20), filtro por `eventType` y orden `occurredAt DESC, id DESC`.
+
+Los datos clinicos (diagnosticos, tratamientos, vacunas) pertenecen exclusivamente a `medical-records` y no deben registrarse en eventos generales.
 
 ### `medical-records`
 
@@ -739,6 +758,8 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Login real mediante email, password hasheado y JWT.
 - Creacion de animales (`POST /animals`) con evento automatico de ingreso transaccional, validacion de foto de perfil contra `media_assets` y escritura protegida por roles.
 - Listado y consulta de animales con paginacion, filtros, orden estable y exclusion de soft-delete.
+- Cambio de estado de animales con validacion de transiciones, evento `status_change` transaccional con metadata y proteccion por roles.
+- Creacion y listado de eventos generales por animal con paginacion, filtro por tipo, orden cronologico inverso y proteccion por roles.
 - Seed explicito e idempotente para el primer administrador.
 - Hashing bcrypt centralizado para passwords.
 - Build, lint y tests unitarios configurados.

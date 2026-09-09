@@ -1,9 +1,11 @@
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
+import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { MediaService } from '../../../media/application/services/media.service';
 import { AnimalSex } from '../../domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../domain/enums/animal-status.enum';
 import { Animal } from '../../domain/entities/animal.entity';
 import { CreateAnimal } from '../../domain/entities/create-animal.entity';
+import { ChangeAnimalStatus } from '../../domain/entities/change-animal-status.entity';
 import { CreateAnimalDto } from '../../interfaces/dto/create-animal.dto';
 import { AnimalsService } from './animals.service';
 
@@ -21,6 +23,7 @@ describe('AnimalsService', () => {
     create: jest.fn(),
     findById: jest.fn(),
     findMany: jest.fn(),
+    changeStatus: jest.fn(),
   };
   const mediaService = {
     findById: jest.fn(),
@@ -128,5 +131,82 @@ describe('AnimalsService', () => {
     animalRepository.findById.mockResolvedValue(null);
 
     await expect(service.findById('missing-id')).rejects.toThrow(ResourceNotFoundException);
+  });
+
+  describe('changeStatus', () => {
+    const updatedAnimal = new Animal(
+      'animal-id',
+      'Luna',
+      'dog',
+      'mixed',
+      AnimalSex.FEMALE,
+      AnimalStatus.UNDER_TREATMENT,
+      new Date('2026-01-01'),
+    );
+
+    it('throws ResourceNotFoundException when the animal does not exist', async () => {
+      animalRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.changeStatus('missing-id', AnimalStatus.UNDER_TREATMENT, 'actor-id'),
+      ).rejects.toThrow(ResourceNotFoundException);
+    });
+
+    it('throws STATUS_UNCHANGED when the status is the same', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+
+      await expect(
+        service.changeStatus('animal-id', AnimalStatus.ADMITTED, 'actor-id'),
+      ).rejects.toThrow(ResourceConflictException);
+
+      try {
+        await service.changeStatus('animal-id', AnimalStatus.ADMITTED, 'actor-id');
+      } catch (error) {
+        expect((error as ResourceConflictException).getResponse()).toEqual(
+          expect.objectContaining({ code: 'STATUS_UNCHANGED' }),
+        );
+      }
+    });
+
+    it('throws INVALID_STATUS_TRANSITION when the transition is not allowed', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+
+      await expect(
+        service.changeStatus('animal-id', AnimalStatus.ADOPTED, 'actor-id'),
+      ).rejects.toThrow(ResourceConflictException);
+
+      try {
+        await service.changeStatus('animal-id', AnimalStatus.ADOPTED, 'actor-id');
+      } catch (error) {
+        expect((error as ResourceConflictException).getResponse()).toEqual(
+          expect.objectContaining({ code: 'INVALID_STATUS_TRANSITION' }),
+        );
+      }
+    });
+
+    it('delegates to the repository for a valid transition', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      animalRepository.changeStatus.mockResolvedValue(updatedAnimal);
+
+      const result = await service.changeStatus(
+        'animal-id',
+        AnimalStatus.UNDER_TREATMENT,
+        'actor-id',
+      );
+
+      expect(animalRepository.changeStatus).toHaveBeenCalledWith(
+        expect.any(ChangeAnimalStatus),
+      );
+      const input = animalRepository.changeStatus.mock.calls[0]![0] as ChangeAnimalStatus;
+
+      expect(input).toMatchObject({
+        animalId: 'animal-id',
+        from: AnimalStatus.ADMITTED,
+        to: AnimalStatus.UNDER_TREATMENT,
+        actorId: 'actor-id',
+      });
+      expect(input.occurredAt).toBeInstanceOf(Date);
+      expect(result).toBe(updatedAnimal);
+    });
   });
 });

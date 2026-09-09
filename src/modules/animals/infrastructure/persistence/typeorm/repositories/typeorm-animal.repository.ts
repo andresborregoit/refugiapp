@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { Animal } from '../../../../domain/entities/animal.entity';
-import { INTAKE_EVENT_DESCRIPTION } from '../../../../domain/entities/animal-history-event.entity';
+import { buildStatusChangeEventDescription, INTAKE_EVENT_DESCRIPTION } from '../../../../domain/entities/animal-history-event.entity';
+import { ChangeAnimalStatus } from '../../../../domain/entities/change-animal-status.entity';
 import { CreateAnimal } from '../../../../domain/entities/create-animal.entity';
 import { AnimalHistoryEventType } from '../../../../domain/enums/animal-history-event-type.enum';
 import {
@@ -89,6 +90,29 @@ export class TypeOrmAnimalRepository implements AnimalRepository {
       limit: query.limit,
       total,
     };
+  }
+
+  async changeStatus(input: ChangeAnimalStatus): Promise<Animal> {
+    return this.repository.manager.transaction(async (manager) => {
+      await manager.update(AnimalOrmEntity, input.animalId, { status: input.to });
+
+      await manager.save(
+        manager.create(AnimalHistoryEventOrmEntity, {
+          animalId: input.animalId,
+          eventType: AnimalHistoryEventType.STATUS_CHANGE,
+          description: buildStatusChangeEventDescription(input.from, input.to),
+          occurredAt: input.occurredAt,
+          createdByUserId: input.actorId,
+          metadata: { from: input.from, to: input.to },
+        }),
+      );
+
+      const updated = await manager.findOneOrFail(AnimalOrmEntity, {
+        where: { id: input.animalId },
+      });
+
+      return this.toDomain(updated);
+    });
   }
 
   private toDomain(entity: AnimalOrmEntity): Animal {
