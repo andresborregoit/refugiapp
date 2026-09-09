@@ -1,4 +1,4 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseOrmEntity } from '../../../../../../common/entities/base-orm.entity';
 import { ExpenseCategory } from '../../../../domain/enums/expense-category.enum';
 import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
@@ -8,6 +8,7 @@ import { AnimalOrmEntity } from '../../../../../animals/infrastructure/persisten
 @Entity({ name: 'expenses' })
 @Index(['animalId'])
 @Index(['incurredAt'])
+@Check('CHK_expenses_amountCents_non_negative', '"amountCents" >= 0')
 export class ExpenseOrmEntity extends BaseOrmEntity {
   @Column({ type: 'uuid' })
   animalId!: string;
