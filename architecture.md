@@ -446,7 +446,7 @@ Representa un gasto asociado a un animal.
 | `id` | `uuid` | No | PK |
 | `animalId` | `uuid` | No | FK a `animals.id` |
 | `category` | `expense_category` | No | |
-| `amountCents` | `integer` | No | Importe en centavos |
+| `amountCents` | `integer` | No | Importe en centavos, `CHECK amountCents >= 0` |
 | `currency` | `char(3)` | No | Default `ARS` |
 | `description` | `varchar(180)` | No | |
 | `ticketMediaId` | `uuid` | Si | FK a `media_assets.id` |
@@ -478,7 +478,7 @@ Representa un recurso almacenado externamente en Cloudinary.
 | `cloudinaryPublicId` | `varchar(255)` | No | Unico |
 | `secureUrl` | `varchar(2048)` | No | URL HTTPS |
 | `format` | `varchar(40)` | Si | |
-| `bytes` | `integer` | Si | Tamano del recurso |
+| `bytes` | `integer` | Si | Tamano del recurso, `CHECK bytes IS NULL OR bytes >= 0` |
 | `uploadedByUserId` | `uuid` | Si | FK a `users.id` |
 | `metadata` | `jsonb` | No | Default `{}` |
 | columnas comunes | | | |
@@ -784,7 +784,7 @@ currency = ARS
 
 Esto representa ARS 12,50 si la moneda utiliza dos decimales. La conversion y el formateo pertenecen a la capa de presentacion, no a PostgreSQL.
 
-La validacion `amountCents >= 0` debe agregarse en DTO, dominio y en una futura migracion como `CHECK` si el negocio no permite gastos negativos.
+La validacion `amountCents >= 0` se aplica en DTO, dominio y PostgreSQL mediante `CHECK`. Los gastos negativos no estan permitidos.
 
 ### Cloudinary
 
@@ -811,6 +811,7 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Enums PostgreSQL.
 - Tipo clinico `deworming` en el enum `medical_record_type`.
 - Campo opcional `breed` en animales mediante migracion posterior a la inicial.
+- Checks de integridad para `expenses.amountCents >= 0` y `media_assets.bytes IS NULL OR bytes >= 0` mediante migracion posterior a la inicial.
 - Relaciones ORM principales.
 - Foreign keys de la migracion inicial.
 - Neon configurado mediante `DATABASE_URL`.
@@ -836,7 +837,6 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 
 ### Pendiente
 
-- Agregar checks de `amountCents` y `bytes`.
 - Implementar subida real de archivos.
 - Implementar casos de uso completos por dominio.
 - Crear tests de integracion con PostgreSQL.

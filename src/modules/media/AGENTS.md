@@ -8,6 +8,7 @@
 - No almacenar binarios en PostgreSQL.
 - Cloudinary debe configurarse solo desde `ConfigService`.
 - `ownerType` y `ownerId` determinan a que entidad pertenece el asset.
+- `bytes` es opcional, pero cuando existe debe ser mayor o igual a 0 en DTO, dominio y PostgreSQL.
 - Fotos de animales, tickets de gastos y adjuntos clinicos deben pasar por este modulo.
 
 ## Seguridad

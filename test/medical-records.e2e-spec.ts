@@ -442,6 +442,8 @@ describe('MedicalRecords (e2e)', () => {
         null,
         null,
         new Date('2026-03-10T10:00:00.000Z'),
+        new Date('2026-03-10T10:00:00.000Z'),
+        null,
       ),
       overrides,
     );

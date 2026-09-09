@@ -6,6 +6,7 @@
 
 ## Convenciones
 - Guardar importes como `amountCents` para evitar errores de punto flotante.
+- `amountCents` debe ser mayor o igual a 0 en DTO, dominio y PostgreSQL.
 - Cada gasto debe referenciar `animalId`.
 - Comprobantes deben subirse con `media` y referenciarse por `ticketMediaId`.
 - No guardar binarios ni URLs externas directamente fuera del modelo de media.

@@ -26,6 +26,7 @@ export class TypeOrmMediaAssetRepository implements MediaAssetRepository {
       entity.resourceType,
       entity.cloudinaryPublicId,
       entity.secureUrl,
+      entity.bytes ?? null,
     );
   }
 }
