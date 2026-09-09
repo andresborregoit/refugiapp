@@ -12,5 +12,7 @@ export class MedicalRecord {
     public readonly treatment: string | null,
     public readonly notes: string | null,
     public readonly createdAt: Date,
+    public readonly updatedAt: Date,
+    public readonly deletedAt: Date | null,
   ) {}
 }

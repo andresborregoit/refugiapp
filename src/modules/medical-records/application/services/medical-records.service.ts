@@ -8,6 +8,7 @@ import { VETERINARIAN_REPOSITORY, VeterinarianRepository } from '../../../veteri
 import { ANIMAL_REPOSITORY, AnimalRepository } from '../../../animals/domain/repositories/animal.repository';
 import { CreateMedicalRecord } from '../../domain/entities/create-medical-record.entity';
 import { MedicalRecord } from '../../domain/entities/medical-record.entity';
+import { UpdateMedicalRecord } from '../../domain/entities/update-medical-record.entity';
 import {
   MedicalRecordListQuery,
   MEDICAL_RECORD_REPOSITORY,
@@ -17,6 +18,7 @@ import {
 import { validateRecordOccurredAt } from '../../domain/services/medical-record-date';
 import { CreateMedicalRecordDto } from '../../interfaces/dto/create-medical-record.dto';
 import { ListMedicalRecordsQueryDto } from '../../interfaces/dto/list-medical-records.query.dto';
+import { UpdateMedicalRecordDto } from '../../interfaces/dto/update-medical-record.dto';
 
 @Injectable()
 export class MedicalRecordsService {
@@ -92,6 +94,101 @@ export class MedicalRecordsService {
 
   findById(id: string) {
     return this.medicalRecordRepository.findById(id);
+  }
+
+  async update(id: string, dto: UpdateMedicalRecordDto, actorId: string): Promise<MedicalRecord> {
+    const record = await this.medicalRecordRepository.findById(id);
+
+    if (!record) {
+      throw new ResourceNotFoundException('MedicalRecord', id);
+    }
+
+    if (dto.veterinarianId !== undefined && dto.veterinarianId !== null) {
+      const vet = await this.veterinarianRepository.findById(dto.veterinarianId);
+
+      if (!vet) {
+        throw new ResourceNotFoundException('Veterinarian', dto.veterinarianId);
+      }
+
+      if (!vet.isActive) {
+        throw new ResourceConflictException(
+          'The veterinarian is inactive and cannot be linked to records.',
+          'VETERINARIAN_INACTIVE',
+        );
+      }
+    }
+
+    if (dto.occurredAt !== undefined) {
+      const animal = await this.animalRepository.findById(record.animalId);
+
+      if (!animal) {
+        throw new ResourceNotFoundException('Animal', record.animalId);
+      }
+
+      const occurredAt = new Date(dto.occurredAt);
+
+      try {
+        validateRecordOccurredAt(occurredAt, new Date(animal.intakeDate), new Date());
+      } catch (error) {
+        if (error instanceof DomainException) {
+          throw mapDomainExceptionToBadRequest(error);
+        }
+
+        throw error;
+      }
+    }
+
+    const input = new UpdateMedicalRecord(
+      actorId,
+      dto.recordType,
+      dto.title?.trim(),
+      dto.occurredAt ? new Date(dto.occurredAt) : undefined,
+      dto.veterinarianId,
+      dto.diagnosis?.trim() || null,
+      dto.treatment?.trim() || null,
+      dto.notes?.trim() || null,
+    );
+
+    const updated = await this.medicalRecordRepository.update(id, input);
+
+    if (!updated) {
+      throw new ResourceNotFoundException('MedicalRecord', id);
+    }
+
+    return updated;
+  }
+
+  async softDelete(id: string, actorId: string): Promise<void> {
+    const record = await this.medicalRecordRepository.findById(id);
+
+    if (!record) {
+      throw new ResourceNotFoundException('MedicalRecord', id);
+    }
+
+    await this.medicalRecordRepository.softDelete(id, actorId);
+  }
+
+  async restore(id: string, actorId: string): Promise<MedicalRecord> {
+    const record = await this.medicalRecordRepository.findByIdWithDeleted(id);
+
+    if (!record) {
+      throw new ResourceNotFoundException('MedicalRecord', id);
+    }
+
+    if (!record.deletedAt) {
+      throw new ResourceConflictException(
+        'The medical record is not deleted and cannot be restored.',
+        'RECORD_NOT_DELETED',
+      );
+    }
+
+    const restored = await this.medicalRecordRepository.restore(id, actorId);
+
+    if (!restored) {
+      throw new ResourceNotFoundException('MedicalRecord', id);
+    }
+
+    return restored;
   }
 
   async listByAnimal(

@@ -188,6 +188,9 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `PATCH /veterinarians/:id` | Permitido | Permitido | Rechazado |
 | `POST /veterinarians/:id/deactivate` | Permitido | Permitido | Rechazado |
 | `POST /medical-records` | Permitido | Rechazado | Permitido |
+| `PATCH /medical-records/:id` | Permitido | Rechazado | Permitido |
+| `DELETE /medical-records/:id` | Permitido | Rechazado | Permitido |
+| `POST /medical-records/:id/restore` | Permitido | Rechazado | Rechazado |
 | `GET /animals/:animalId/medical-records` | Permitido | Rechazado | Permitido |
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
@@ -412,7 +415,29 @@ other
 
 Los adjuntos clinicos no son columnas de esta tabla. Se asocian mediante `media_assets` usando `ownerType = medical_record` y `ownerId = medical_records.id`.
 
-### 6.7 `expenses`
+### 6.7 `medical_record_changes`
+
+Registra trazabilidad de cambios sensibles sobre registros clinicos.
+
+| Columna | Tipo | Null | Restricciones |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | PK |
+| `medicalRecordId` | `uuid` | No | FK a `medical_records.id` |
+| `changedByUserId` | `uuid` | Si | FK a `users.id` |
+| `changeType` | `medical_record_change_type` | No | |
+| `previousValues` | `jsonb` | No | Default `{}` |
+| `changedAt` | `timestamptz` | No | Fecha del cambio |
+| columnas comunes | | | `createdAt`, `updatedAt`, `deletedAt` |
+
+Enum `medical_record_change_type`:
+
+```text
+update
+soft_delete
+restore
+```
+
+### 6.8 `expenses`
 
 Representa un gasto asociado a un animal.
 
@@ -440,7 +465,7 @@ transport
 other
 ```
 
-### 6.8 `media_assets`
+### 6.9 `media_assets`
 
 Representa un recurso almacenado externamente en Cloudinary.
 
@@ -554,6 +579,18 @@ erDiagram
         timestamptz deletedAt
     }
 
+    MEDICAL_RECORD_CHANGES {
+        uuid id PK
+        uuid medicalRecordId FK
+        uuid changedByUserId FK
+        medical_record_change_type changeType
+        jsonb previousValues
+        timestamptz changedAt
+        timestamptz createdAt
+        timestamptz updatedAt
+        timestamptz deletedAt
+    }
+
     EXPENSES {
         uuid id PK
         uuid animalId FK
@@ -595,6 +632,8 @@ erDiagram
     MEDIA_ASSETS ||--o{ ANIMALS : "is profile photo"
     MEDIA_ASSETS ||--o{ EXPENSES : "is ticket"
     VETERINARIANS ||--o{ MEDICAL_RECORDS : "is responsible"
+    MEDICAL_RECORDS ||--o{ MEDICAL_RECORD_CHANGES : "has changes"
+    USERS ||--o{ MEDICAL_RECORD_CHANGES : "changes"
 ```
 
 ### Relacion polimorfica de media
@@ -622,6 +661,8 @@ Las relaciones implementadas en la migracion inicial son:
 | `animal_history_events` | `createdByUserId` | `users.id` | `SET NULL` |
 | `medical_records` | `animalId` | `animals.id` | `RESTRICT` |
 | `medical_records` | `veterinarianId` | `veterinarians.id` | `SET NULL` |
+| `medical_record_changes` | `medicalRecordId` | `medical_records.id` | `RESTRICT` |
+| `medical_record_changes` | `changedByUserId` | `users.id` | `SET NULL` |
 | `expenses` | `animalId` | `animals.id` | `RESTRICT` |
 | `expenses` | `ticketMediaId` | `media_assets.id` | `SET NULL` |
 | `expenses` | `createdByUserId` | `users.id` | `SET NULL` |
@@ -642,6 +683,8 @@ La migracion inicial crea:
 - Indice en `animal_history_events.occurredAt`.
 - Indice en `medical_records.animalId`.
 - Indice en `medical_records.occurredAt`.
+- Indice en `medical_record_changes.medicalRecordId`.
+- Indice en `medical_record_changes.changedAt`.
 - Indice en `expenses.animalId`.
 - Indice en `expenses.incurredAt`.
 - Indice compuesto en `media_assets.ownerType, ownerId`.
@@ -784,6 +827,9 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - CRUD de perfiles profesionales de veterinarios, con matricula unica, `userId` opcional, escritura protegida por roles y desactivacion por `isActive=false`.
 - Creacion de registros medicos (`POST /medical-records`) con validacion de animal, veterinario opcional (activo), fecha con limites, adjuntos vinculados transaccionalmente via `media_assets` y proteccion por roles.
 - Consulta de evolucion clinica por animal (`GET /animals/:animalId/medical-records`) con filtros por tipo y rango de fechas, paginacion segura, orden cronologico inverso y proteccion por roles.
+- Actualizacion parcial de registros medicos (`PATCH /medical-records/:id`) con validacion de campos, veterinario opcional (activo), fecha con limites, proteccion por roles y trazabilidad mediante `medical_record_changes`.
+- Baja logica de registros medicos (`DELETE /medical-records/:id`) con proteccion por roles y trazabilidad mediante `medical_record_changes`.
+- Restauracion de registros medicos eliminados (`POST /medical-records/:id/restore`) protegida solo para `admin` con trazabilidad.
 - Seed explicito e idempotente para el primer administrador.
 - Hashing bcrypt centralizado para passwords.
 - Build, lint y tests unitarios configurados.
