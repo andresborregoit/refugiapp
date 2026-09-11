@@ -9,11 +9,6 @@ import { CloudinaryStorageService } from './infrastructure/cloudinary/cloudinary
 import { MediaAssetOrmEntity } from './infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { TypeOrmMediaAssetRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-media-asset.repository';
 import { OwnerExistsCheckerImpl } from './infrastructure/persistence/owner-exists-checker.impl';
-import { AnimalsModule } from '../animals/animals.module';
-import { ExpensesModule } from '../expenses/expenses.module';
-import { MedicalRecordsModule } from '../medical-records/medical-records.module';
-import { UsersModule } from '../users/users.module';
-import { VeterinariansModule } from '../veterinarians/veterinarians.module';
 import { MediaController } from './interfaces/controllers/media.controller';
 
 @Module({
@@ -24,11 +19,6 @@ import { MediaController } from './interfaces/controllers/media.controller';
         fileSize: 10 * 1024 * 1024, // 10MB
       },
     }),
-    AnimalsModule,
-    ExpensesModule,
-    MedicalRecordsModule,
-    UsersModule,
-    VeterinariansModule,
   ],
   controllers: [MediaController],
   providers: [
@@ -38,10 +28,6 @@ import { MediaController } from './interfaces/controllers/media.controller';
     {
       provide: MEDIA_ASSET_REPOSITORY,
       useClass: TypeOrmMediaAssetRepository,
-    },
-    {
-      provide: OWNER_EXISTS_CHECKER,
-      useClass: OwnerExistsCheckerImpl,
     },
   ],
   exports: [MediaService, CloudinaryStorageService, MEDIA_ASSET_REPOSITORY],
