@@ -39,9 +39,11 @@ export class TypeOrmMedicalRecordRepository implements MedicalRecordRepository {
   }
 
   async findMany(query: MedicalRecordListQuery): Promise<PaginatedMedicalRecords> {
-    const where: FindOptionsWhere<MedicalRecordOrmEntity> = {
-      animalId: query.animalId,
-    };
+    const where: FindOptionsWhere<MedicalRecordOrmEntity> = {};
+
+    if (query.animalId) {
+      where.animalId = query.animalId;
+    }
 
     if (query.recordType) {
       where.recordType = query.recordType;

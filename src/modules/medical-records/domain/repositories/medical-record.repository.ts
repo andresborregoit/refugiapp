@@ -6,7 +6,7 @@ import { MedicalRecordType } from '../enums/medical-record-type.enum';
 export const MEDICAL_RECORD_REPOSITORY = Symbol('MEDICAL_RECORD_REPOSITORY');
 
 export interface MedicalRecordListQuery {
-  animalId: string;
+  animalId?: string;
   page: number;
   limit: number;
   recordType?: MedicalRecordType;

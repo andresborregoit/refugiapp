@@ -11,6 +11,9 @@ export class MediaAsset {
     public readonly publicId: string,
     public readonly secureUrl: string,
     public readonly bytes: number | null = null,
+    public readonly format: string | null = null,
+    public readonly uploadedByUserId: string | null = null,
+    public readonly metadata: Record<string, unknown> = {},
   ) {
     if (bytes !== null && bytes < 0) {
       throw new DomainException(
