@@ -481,4 +481,57 @@ describe('MedicalRecordsService', () => {
       expect(medicalRecordRepository.findMany).not.toHaveBeenCalled();
     });
   });
+
+  describe('list', () => {
+    it('delegates to the repository without animalId filter', async () => {
+      const paginated = { items: [record], page: 1, limit: 20, total: 1 };
+      medicalRecordRepository.findMany.mockResolvedValue(paginated);
+
+      const result = await service.list({
+        page: 1,
+        limit: 20,
+      });
+
+      expect(medicalRecordRepository.findMany).toHaveBeenCalledWith({
+        page: 1,
+        limit: 20,
+        recordType: undefined,
+        from: undefined,
+        to: undefined,
+      });
+      expect(result).toBe(paginated);
+    });
+
+    it('applies filters when provided', async () => {
+      medicalRecordRepository.findMany.mockResolvedValue({ items: [], page: 1, limit: 20, total: 0 });
+
+      await service.list({
+        page: 1,
+        limit: 20,
+        recordType: MedicalRecordType.CONSULTATION,
+        from: '2026-03-01T00:00:00.000Z',
+        to: '2026-03-31T23:59:59.000Z',
+      });
+
+      expect(medicalRecordRepository.findMany).toHaveBeenCalledWith({
+        page: 1,
+        limit: 20,
+        recordType: MedicalRecordType.CONSULTATION,
+        from: new Date('2026-03-01T00:00:00.000Z'),
+        to: new Date('2026-03-31T23:59:59.000Z'),
+      });
+    });
+
+    it('throws BadRequestException when from is after to', async () => {
+      await expect(
+        service.list({
+          page: 1,
+          limit: 20,
+          from: '2026-04-01T00:00:00.000Z',
+          to: '2026-03-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(medicalRecordRepository.findMany).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -18,6 +18,34 @@ export class TypeOrmMediaAssetRepository implements MediaAssetRepository {
     return entity ? this.toDomain(entity) : null;
   }
 
+  async create(asset: MediaAsset): Promise<MediaAsset> {
+    const ormEntity = this.repository.create({
+      id: asset.id,
+      ownerType: asset.ownerType,
+      ownerId: asset.ownerId,
+      resourceType: asset.resourceType,
+      cloudinaryPublicId: asset.publicId,
+      secureUrl: asset.secureUrl,
+      bytes: asset.bytes,
+      format: asset.format,
+      uploadedByUserId: asset.uploadedByUserId,
+      metadata: asset.metadata,
+    });
+
+    const saved = await this.repository.save(ormEntity);
+
+    return this.toDomain(saved);
+  }
+
+  async deleteByPublicId(publicId: string): Promise<void> {
+    await this.repository.delete({ cloudinaryPublicId: publicId });
+  }
+
+  async existsByPublicId(publicId: string): Promise<boolean> {
+    const count = await this.repository.count({ where: { cloudinaryPublicId: publicId } });
+    return count > 0;
+  }
+
   private toDomain(entity: MediaAssetOrmEntity): MediaAsset {
     return new MediaAsset(
       entity.id,
@@ -27,6 +55,9 @@ export class TypeOrmMediaAssetRepository implements MediaAssetRepository {
       entity.cloudinaryPublicId,
       entity.secureUrl,
       entity.bytes ?? null,
+      entity.format ?? null,
+      entity.uploadedByUserId ?? null,
+      entity.metadata,
     );
   }
 }

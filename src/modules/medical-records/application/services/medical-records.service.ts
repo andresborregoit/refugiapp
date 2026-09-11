@@ -222,4 +222,26 @@ export class MedicalRecordsService {
 
     return this.medicalRecordRepository.findMany(repositoryQuery);
   }
+
+  async list(query: ListMedicalRecordsQueryDto): Promise<PaginatedMedicalRecords> {
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+
+    if (from && to && from > to) {
+      throw new BadRequestException({
+        code: 'INVALID_DATE_RANGE',
+        message: 'from must be less than or equal to to.',
+      });
+    }
+
+    const repositoryQuery: MedicalRecordListQuery = {
+      page: query.page,
+      limit: query.limit,
+      recordType: query.recordType,
+      from,
+      to,
+    };
+
+    return this.medicalRecordRepository.findMany(repositoryQuery);
+  }
 }
