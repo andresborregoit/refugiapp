@@ -55,4 +55,5 @@
 - Admite paginacion con `page` minimo 1, `limit` entre 1 y 100, default `page=1` y `limit=20`.
 - Admite filtros opcionales por `recordType`, `from` y `to` sobre `occurredAt`.
 - El orden es cronologico inverso y determinista: `occurredAt DESC, id DESC`.
-- `GET /medical-records` y `GET /medical-records/:id` no estan implementados aun.
+- `GET /medical-records` lista todos los registros con paginacion y los mismos filtros, sin filtrar por animal; admite solo `admin` y `veterinarian`.
+- `GET /medical-records/:id` consulta un registro por id; si no existe responde `404 RESOURCE_NOT_FOUND`.

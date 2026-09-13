@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AnimalsModule } from '../animals/animals.module';
 import { MediaModule } from '../media/media.module';
@@ -15,9 +15,9 @@ import { MedicalRecordsController } from './interfaces/controllers/medical-recor
 @Module({
   imports: [
     TypeOrmModule.forFeature([MedicalRecordOrmEntity, MedicalRecordChangeOrmEntity, MediaAssetOrmEntity]),
-    AnimalsModule,
-    VeterinariansModule,
-    MediaModule,
+    forwardRef(() => AnimalsModule),
+    forwardRef(() => VeterinariansModule),
+    forwardRef(() => MediaModule),
   ],
   controllers: [MedicalRecordsController, AnimalMedicalRecordsController],
   providers: [

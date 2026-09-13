@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MediaModule } from '../media/media.module';
 import { AnimalHistoryEventsService } from './application/services/animal-history-events.service';
@@ -13,7 +13,7 @@ import { AnimalHistoryEventsController } from './interfaces/controllers/animal-h
 import { AnimalsController } from './interfaces/controllers/animals.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AnimalOrmEntity, AnimalHistoryEventOrmEntity]), MediaModule],
+  imports: [TypeOrmModule.forFeature([AnimalOrmEntity, AnimalHistoryEventOrmEntity]), forwardRef(() => MediaModule)],
   controllers: [AnimalsController, AnimalHistoryEventsController],
   providers: [
     AnimalsService,
