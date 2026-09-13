@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { ANIMAL_REPOSITORY, AnimalRepository } from '../../../animals/domain/repositories/animal.repository';
+import { assertMediaLinkable } from '../../../media/application/services/media-linker';
 import { MEDIA_ASSET_REPOSITORY, MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
+import { MediaLinkingContext } from '../../../media/domain/services/media-owner-policy';
 import { CreateExpense } from '../../domain/entities/create-expense.entity';
 import { Expense } from '../../domain/entities/expense.entity';
 import {
@@ -39,6 +41,8 @@ export class ExpensesService {
       if (!asset) {
         throw new ResourceNotFoundException('MediaAsset', ticketMediaId);
       }
+
+      assertMediaLinkable(asset, MediaLinkingContext.EXPENSE_TICKET);
     }
 
     const input = new CreateExpense(

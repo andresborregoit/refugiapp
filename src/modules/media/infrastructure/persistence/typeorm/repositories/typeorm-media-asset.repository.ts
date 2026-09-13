@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MediaAsset } from '../../../../domain/entities/media-asset.entity';
-import { MediaAssetRepository } from '../../../../domain/repositories/media-asset.repository';
+import {
+  MediaAssetListQuery,
+  MediaAssetRepository,
+  PaginatedMediaAssets,
+} from '../../../../domain/repositories/media-asset.repository';
 import { MediaAssetOrmEntity } from '../entities/media-asset.orm-entity';
 
 @Injectable()
@@ -16,6 +20,22 @@ export class TypeOrmMediaAssetRepository implements MediaAssetRepository {
     const entity = await this.repository.findOne({ where: { id } });
 
     return entity ? this.toDomain(entity) : null;
+  }
+
+  async findByOwner(query: MediaAssetListQuery): Promise<PaginatedMediaAssets> {
+    const [entities, total] = await this.repository.findAndCount({
+      where: { ownerType: query.ownerType, ownerId: query.ownerId },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
+
+    return {
+      items: entities.map((entity) => this.toDomain(entity)),
+      page: query.page,
+      limit: query.limit,
+      total,
+    };
   }
 
   async create(asset: MediaAsset): Promise<MediaAsset> {
@@ -37,8 +57,8 @@ export class TypeOrmMediaAssetRepository implements MediaAssetRepository {
     return this.toDomain(saved);
   }
 
-  async deleteByPublicId(publicId: string): Promise<void> {
-    await this.repository.delete({ cloudinaryPublicId: publicId });
+  async softDeleteById(id: string): Promise<void> {
+    await this.repository.softDelete({ id });
   }
 
   async existsByPublicId(publicId: string): Promise<boolean> {
@@ -49,8 +69,8 @@ export class TypeOrmMediaAssetRepository implements MediaAssetRepository {
   private toDomain(entity: MediaAssetOrmEntity): MediaAsset {
     return new MediaAsset(
       entity.id,
-      entity.ownerType,
-      entity.ownerId,
+      entity.ownerType ?? null,
+      entity.ownerId ?? null,
       entity.resourceType,
       entity.cloudinaryPublicId,
       entity.secureUrl,

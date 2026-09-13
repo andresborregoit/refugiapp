@@ -36,10 +36,12 @@ Implementado:
 - Evento `status_change` transaccional con metadata de auditoria.
 - Creacion y listado de eventos generales por animal con paginacion y filtros.
 - Creacion de registros medicos (`POST /medical-records`) con validacion de animal, veterinario opcional, fecha con limites, adjuntos via media y proteccion por roles.
+- Subida de media (`POST /media/upload`) con validacion de propietario (o assets huerfanos), mimetype, tamano, autorizacion por roles y compensacion remota si falla la persistencia.
+- Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional.
+- Listado de assets por propietario (`GET /media`) con paginacion y baja logica con limpieza remota en Cloudinary.
 
 Pendiente:
 
-- Subida real de archivos a Cloudinary.
 - CRUDs y casos de uso finales por dominio.
 
 ## Arquitectura
@@ -236,7 +238,7 @@ CLOUDINARY_API_SECRET=your-api-secret
 CLOUDINARY_SECURE=true
 ```
 
-El modulo `media` ya contiene el provider base de Cloudinary y un servicio para construir carpetas de upload. La subida real de archivos se implementara en una etapa posterior.
+El modulo `media` contiene el provider base de Cloudinary, el servicio de subida con validacion de propietario/mimetype/tamano, listado por propietario y baja logica con limpieza remota.
 
 ## Configuracion local segura
 
@@ -318,5 +320,4 @@ El e2e inicial prueba el health check sin levantar la conexion real a Neon. Los 
 - Revisar normalizacion de emails a minusculas en todos los flujos de usuarios.
 - Implementar CRUD controlado de usuarios y animales.
 - Agregar guards de roles en endpoints reales.
-- Implementar subida de fotos/tickets a Cloudinary.
 - Definir estrategia de tests con base de datos de test.

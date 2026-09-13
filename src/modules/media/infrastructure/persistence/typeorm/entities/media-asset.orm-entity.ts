@@ -13,11 +13,12 @@ export class MediaAssetOrmEntity extends BaseOrmEntity {
     type: 'enum',
     enum: MediaOwnerType,
     enumName: 'media_owner_type',
+    nullable: true,
   })
-  ownerType!: MediaOwnerType;
+  ownerType?: MediaOwnerType | null;
 
-  @Column({ type: 'uuid' })
-  ownerId!: string;
+  @Column({ type: 'uuid', nullable: true })
+  ownerId?: string | null;
 
   @Column({
     type: 'enum',

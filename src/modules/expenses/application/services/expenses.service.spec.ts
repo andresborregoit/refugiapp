@@ -1,10 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
+import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { Animal } from '../../../animals/domain/entities/animal.entity';
 import { AnimalSex } from '../../../animals/domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../../animals/domain/enums/animal-status.enum';
 import { AnimalRepository } from '../../../animals/domain/repositories/animal.repository';
 import { MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
+import { MediaOwnerType } from '../../../media/domain/enums/media-owner-type.enum';
 import { Expense } from '../../domain/entities/expense.entity';
 import { ExpenseCategory } from '../../domain/enums/expense-category.enum';
 import { CreateExpenseDto } from '../../interfaces/dto/create-expense.dto';
@@ -97,7 +99,11 @@ describe('ExpensesService', () => {
 
     it('validates the ticket media asset when provided', async () => {
       animalRepository.findById.mockResolvedValue(animal);
-      mediaAssetRepository.findById.mockResolvedValue({ id: 'media-id' });
+      mediaAssetRepository.findById.mockResolvedValue({
+        id: 'media-id',
+        ownerType: null,
+        ownerId: null,
+      });
       expenseRepository.save.mockResolvedValue(expense);
 
       await service.create(createDto({ ticketMediaId: 'media-id' }), 'actor-id');
@@ -106,6 +112,34 @@ describe('ExpensesService', () => {
       expect(expenseRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({ ticketMediaId: 'media-id' }),
       );
+    });
+
+    it('throws 409 when the ticket media asset belongs to another owner type', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      mediaAssetRepository.findById.mockResolvedValue({
+        id: 'media-id',
+        ownerType: MediaOwnerType.ANIMAL,
+        ownerId: 'other-animal',
+      });
+
+      await expect(
+        service.create(createDto({ ticketMediaId: 'media-id' }), 'actor-id'),
+      ).rejects.toThrow(ResourceConflictException);
+      expect(expenseRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 when the ticket media asset is already owned', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      mediaAssetRepository.findById.mockResolvedValue({
+        id: 'media-id',
+        ownerType: MediaOwnerType.EXPENSE_TICKET,
+        ownerId: 'other-expense',
+      });
+
+      await expect(
+        service.create(createDto({ ticketMediaId: 'media-id' }), 'actor-id'),
+      ).rejects.toThrow(ResourceConflictException);
+      expect(expenseRepository.save).not.toHaveBeenCalled();
     });
 
     it('throws ResourceNotFoundException when the animal does not exist', async () => {

@@ -1,9 +1,23 @@
-import { Inject, Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
+import { UserRole } from '../../../../common/enums/user-role.enum';
+import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { MediaAsset } from '../../domain/entities/media-asset.entity';
 import { MediaOwnerType } from '../../domain/enums/media-owner-type.enum';
 import { MediaResourceType } from '../../domain/enums/media-resource-type.enum';
-import { MEDIA_ASSET_REPOSITORY, MediaAssetRepository } from '../../domain/repositories/media-asset.repository';
+import {
+  MEDIA_ASSET_REPOSITORY,
+  MediaAssetListQuery,
+  MediaAssetRepository,
+  PaginatedMediaAssets,
+} from '../../domain/repositories/media-asset.repository';
 import { OWNER_EXISTS_CHECKER, OwnerExistsChecker } from '../../domain/repositories/owner-exists-checker';
 import { CloudinaryStorageService } from '../../infrastructure/cloudinary/cloudinary-storage.service';
 
@@ -38,17 +52,26 @@ export class MediaService {
     fileBuffer: Buffer,
     filename: string,
     mimetype: string,
-    ownerType: MediaOwnerType,
-    ownerId: string,
-    uploadedByUserId: string,
+    ownerType: MediaOwnerType | null,
+    ownerId: string | null,
+    user: AuthenticatedUser,
   ): Promise<MediaAsset> {
-    const ownerExists = await this.ownerExistsChecker.exists(ownerType, ownerId);
-
-    if (!ownerExists) {
-      throw new BadRequestException(
-        `${ownerType} with id ${ownerId} does not exist.`,
-      );
+    if ((ownerType === null) !== (ownerId === null)) {
+      throw new BadRequestException({
+        code: 'INVALID_OWNER',
+        message: 'ownerType and ownerId must be provided together or omitted.',
+      });
     }
+
+    if (ownerType !== null && ownerId !== null) {
+      const ownerExists = await this.ownerExistsChecker.exists(ownerType, ownerId);
+
+      if (!ownerExists) {
+        throw new ResourceNotFoundException(ownerType, ownerId);
+      }
+    }
+
+    this.assertCanUpload(user, ownerType);
 
     this.validateMimetype(mimetype);
     this.validateFileSize(fileBuffer.length);
@@ -65,7 +88,7 @@ export class MediaService {
         maxFileSize: MAX_FILE_SIZE_BYTES,
       });
     } catch (error) {
-      this.logger.error(`Cloudinary upload failed for ${ownerType}/${ownerId}: ${error}`);
+      this.logger.error(`Cloudinary upload failed for ${ownerType ?? 'orphan'}/${ownerId}: ${error}`);
       throw error;
     }
 
@@ -78,7 +101,7 @@ export class MediaService {
       cloudinaryResult.secureUrl,
       cloudinaryResult.bytes,
       cloudinaryResult.format,
-      uploadedByUserId,
+      user.id,
       { originalFilename: filename, mimetype },
     );
 
@@ -91,19 +114,71 @@ export class MediaService {
     }
   }
 
-  async delete(id: string): Promise<void> {
+  async listByOwner(query: MediaAssetListQuery): Promise<PaginatedMediaAssets> {
+    const ownerExists = await this.ownerExistsChecker.exists(query.ownerType, query.ownerId);
+
+    if (!ownerExists) {
+      throw new ResourceNotFoundException(query.ownerType, query.ownerId);
+    }
+
+    return this.mediaAssetRepository.findByOwner(query);
+  }
+
+  async delete(id: string, user: AuthenticatedUser): Promise<void> {
     const asset = await this.mediaAssetRepository.findById(id);
 
     if (!asset) {
-      throw new BadRequestException(`MediaAsset with id ${id} does not exist.`);
+      throw new ResourceNotFoundException('MediaAsset', id);
     }
 
-    await this.cloudinaryStorageService.delete(asset.publicId);
-    await this.mediaAssetRepository.deleteByPublicId(asset.publicId);
+    this.assertCanDelete(user, asset);
+
+    await this.mediaAssetRepository.softDeleteById(id);
+
+    try {
+      await this.cloudinaryStorageService.delete(asset.publicId);
+    } catch (error) {
+      this.logger.error(
+        `Cloudinary cleanup failed for soft-deleted asset ${id} (${asset.publicId}): ${error}`,
+      );
+    }
   }
 
-  buildUploadFolder(ownerType: MediaOwnerType, ownerId: string): string {
+  buildUploadFolder(ownerType: MediaOwnerType | null, ownerId: string | null): string {
     return this.cloudinaryStorageService.buildUploadFolder(ownerType, ownerId);
+  }
+
+  private assertCanUpload(
+    user: AuthenticatedUser,
+    ownerType: MediaOwnerType | null,
+  ): void {
+    if (this.isPrivileged(user)) {
+      return;
+    }
+
+    if (ownerType !== null && ownerType !== MediaOwnerType.MEDICAL_RECORD) {
+      throw new ForbiddenException(
+        'Veterinarians can only upload clinical attachments.',
+      );
+    }
+  }
+
+  private assertCanDelete(user: AuthenticatedUser, asset: MediaAsset): void {
+    if (this.isPrivileged(user)) {
+      return;
+    }
+
+    if (asset.ownerType !== MediaOwnerType.MEDICAL_RECORD) {
+      throw new ForbiddenException(
+        'Veterinarians can only delete clinical attachments.',
+      );
+    }
+  }
+
+  private isPrivileged(user: AuthenticatedUser): boolean {
+    return (
+      user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.SHELTER_MANAGER)
+    );
   }
 
   private validateMimetype(mimetype: string): void {

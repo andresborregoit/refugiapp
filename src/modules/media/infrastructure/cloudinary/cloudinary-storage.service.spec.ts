@@ -40,6 +40,10 @@ describe('CloudinaryStorageService', () => {
         'refugiapp/medical_record/record-id',
       );
     });
+
+    it('should use an orphan folder when no owner is provided', () => {
+      expect(service.buildUploadFolder(null, null)).toBe('refugiapp/orphan');
+    });
   });
 
   describe('upload', () => {

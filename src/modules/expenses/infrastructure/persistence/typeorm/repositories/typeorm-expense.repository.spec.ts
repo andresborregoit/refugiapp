@@ -1,4 +1,6 @@
 import { Repository } from 'typeorm';
+import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
+import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { CreateExpense } from '../../../../domain/entities/create-expense.entity';
 import { ExpenseCategory } from '../../../../domain/enums/expense-category.enum';
 import { ExpenseOrmEntity } from '../entities/expense.orm-entity';
@@ -9,16 +11,22 @@ describe('TypeOrmExpenseRepository', () => {
   let repository: {
     create: jest.Mock;
     save: jest.Mock;
+    update: jest.Mock;
     findOne: jest.Mock;
     findAndCount: jest.Mock;
     softDelete: jest.Mock;
+    manager: { transaction: jest.Mock };
   };
   let expenseRepository: TypeOrmExpenseRepository;
 
   beforeEach(() => {
     jest.clearAllMocks();
     repository = {
-      create: jest.fn().mockImplementation((data: object) => Object.assign(new ExpenseOrmEntity(), data)),
+      create: jest
+        .fn()
+        .mockImplementation(
+          (target: new () => object, data: object) => Object.assign(new target(), data),
+        ),
       save: jest.fn().mockImplementation(async (entity: { id?: string }) => {
         if (!entity.id) {
           entity.id = 'generated-expense-id';
@@ -26,9 +34,15 @@ describe('TypeOrmExpenseRepository', () => {
 
         return entity;
       }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       findOne: jest.fn(),
       findAndCount: jest.fn(),
       softDelete: jest.fn().mockResolvedValue({ affected: 1 }),
+      manager: {
+        transaction: jest.fn().mockImplementation(async (callback: (manager: unknown) => unknown) =>
+          callback(repository),
+        ),
+      },
     };
     expenseRepository = new TypeOrmExpenseRepository(
       repository as unknown as Repository<ExpenseOrmEntity>,
@@ -50,7 +64,7 @@ describe('TypeOrmExpenseRepository', () => {
 
       const result = await expenseRepository.save(input);
 
-      expect(repository.create).toHaveBeenCalledWith({
+      expect(repository.create).toHaveBeenCalledWith(ExpenseOrmEntity, {
         animalId: 'animal-id',
         category: ExpenseCategory.MEDICINE,
         amountCents: 1250,
@@ -61,6 +75,11 @@ describe('TypeOrmExpenseRepository', () => {
         createdByUserId: 'user-id',
       });
       expect(repository.save).toHaveBeenCalledTimes(1);
+      expect(repository.update).toHaveBeenCalledWith(
+        MediaAssetOrmEntity,
+        { id: 'media-id' },
+        { ownerType: MediaOwnerType.EXPENSE_TICKET, ownerId: 'generated-expense-id' },
+      );
       expect(result).toMatchObject({
         id: 'generated-expense-id',
         animalId: 'animal-id',
@@ -86,7 +105,7 @@ describe('TypeOrmExpenseRepository', () => {
 
       await expenseRepository.save(input);
 
-      const data = repository.create.mock.calls[0]![0] as Record<string, unknown>;
+      const data = repository.create.mock.calls[0]![1] as Record<string, unknown>;
 
       expect(data).toMatchObject({
         ticketMediaId: null,

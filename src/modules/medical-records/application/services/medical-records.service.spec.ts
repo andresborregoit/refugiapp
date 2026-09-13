@@ -8,6 +8,7 @@ import { MedicalRecordType } from '../../domain/enums/medical-record-type.enum';
 import { MedicalRecord } from '../../domain/entities/medical-record.entity';
 import { VeterinarianRepository } from '../../../veterinarians/domain/repositories/veterinarian.repository';
 import { MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
+import { MediaOwnerType } from '../../../media/domain/enums/media-owner-type.enum';
 import { CreateMedicalRecordDto } from '../../interfaces/dto/create-medical-record.dto';
 import { UpdateMedicalRecordDto } from '../../interfaces/dto/update-medical-record.dto';
 import { MedicalRecordsService } from './medical-records.service';
@@ -133,7 +134,11 @@ describe('MedicalRecordsService', () => {
     it('creates a record with all optional fields populated', async () => {
       animalRepository.findById.mockResolvedValue(animal);
       veterinarianRepository.findById.mockResolvedValue({ id: 'vet-id', isActive: true });
-      mediaAssetRepository.findById.mockResolvedValue({ id: 'media-id' });
+      mediaAssetRepository.findById.mockResolvedValue({
+        id: 'media-id',
+        ownerType: null,
+        ownerId: null,
+      });
       medicalRecordRepository.create.mockResolvedValue(record);
 
       await service.create(
@@ -224,7 +229,7 @@ describe('MedicalRecordsService', () => {
     it('validates all attachment media assets before creating', async () => {
       animalRepository.findById.mockResolvedValue(animal);
       mediaAssetRepository.findById
-        .mockResolvedValueOnce({ id: 'media-1' })
+        .mockResolvedValueOnce({ id: 'media-1', ownerType: null, ownerId: null })
         .mockResolvedValueOnce(null);
       medicalRecordRepository.create.mockResolvedValue(record);
 
@@ -235,6 +240,34 @@ describe('MedicalRecordsService', () => {
       ).rejects.toThrow(ResourceNotFoundException);
 
       expect(mediaAssetRepository.findById).toHaveBeenCalledTimes(2);
+      expect(medicalRecordRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 when an attachment belongs to another owner type', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      mediaAssetRepository.findById.mockResolvedValue({
+        id: 'media-id',
+        ownerType: MediaOwnerType.EXPENSE_TICKET,
+        ownerId: 'expense-id',
+      });
+
+      await expect(
+        service.create(createDto({ attachmentMediaIds: ['media-id'] })),
+      ).rejects.toThrow(ResourceConflictException);
+      expect(medicalRecordRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 when an attachment is already owned', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      mediaAssetRepository.findById.mockResolvedValue({
+        id: 'media-id',
+        ownerType: MediaOwnerType.MEDICAL_RECORD,
+        ownerId: 'other-record',
+      });
+
+      await expect(
+        service.create(createDto({ attachmentMediaIds: ['media-id'] })),
+      ).rejects.toThrow(ResourceConflictException);
       expect(medicalRecordRepository.create).not.toHaveBeenCalled();
     });
   });

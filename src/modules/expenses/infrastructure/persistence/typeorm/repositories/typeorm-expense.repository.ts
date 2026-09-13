@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
+import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { CreateExpense } from '../../../../domain/entities/create-expense.entity';
 import { Expense } from '../../../../domain/entities/expense.entity';
 import {
@@ -18,20 +20,30 @@ export class TypeOrmExpenseRepository implements ExpenseRepository {
   ) {}
 
   async save(input: CreateExpense): Promise<Expense> {
-    const entity = await this.repository.save(
-      this.repository.create({
-        animalId: input.animalId,
-        category: input.category,
-        amountCents: input.amountCents,
-        currency: input.currency,
-        description: input.description,
-        incurredAt: input.incurredAt,
-        ticketMediaId: input.ticketMediaId,
-        createdByUserId: input.createdByUserId,
-      }),
-    );
+    return this.repository.manager.transaction(async (manager) => {
+      const entity = await manager.save(
+        manager.create(ExpenseOrmEntity, {
+          animalId: input.animalId,
+          category: input.category,
+          amountCents: input.amountCents,
+          currency: input.currency,
+          description: input.description,
+          incurredAt: input.incurredAt,
+          ticketMediaId: input.ticketMediaId,
+          createdByUserId: input.createdByUserId,
+        }),
+      );
 
-    return this.toDomain(entity);
+      if (input.ticketMediaId) {
+        await manager.update(
+          MediaAssetOrmEntity,
+          { id: input.ticketMediaId },
+          { ownerType: MediaOwnerType.EXPENSE_TICKET, ownerId: entity.id },
+        );
+      }
+
+      return this.toDomain(entity);
+    });
   }
 
   async findById(id: string): Promise<Expense | null> {

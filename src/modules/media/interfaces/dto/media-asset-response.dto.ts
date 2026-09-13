@@ -8,13 +8,15 @@ export class MediaAssetResponseDto {
   @IsUUID()
   id!: string;
 
-  @ApiProperty({ enum: MediaOwnerType })
+  @ApiPropertyOptional({ enum: MediaOwnerType, nullable: true })
+  @IsOptional()
   @IsEnum(MediaOwnerType)
-  ownerType!: MediaOwnerType;
+  ownerType?: MediaOwnerType | null;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
   @IsUUID()
-  ownerId!: string;
+  ownerId?: string | null;
 
   @ApiProperty({ enum: MediaResourceType })
   @IsEnum(MediaResourceType)

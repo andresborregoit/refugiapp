@@ -31,7 +31,11 @@ export class CloudinaryStorageService {
     return this.client;
   }
 
-  buildUploadFolder(ownerType: MediaOwnerType, ownerId: string): string {
+  buildUploadFolder(ownerType: MediaOwnerType | null, ownerId: string | null): string {
+    if (ownerType === null || ownerId === null) {
+      return 'refugiapp/orphan';
+    }
+
     return `refugiapp/${ownerType}/${ownerId}`;
   }
 
