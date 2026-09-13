@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { ExpenseCategory } from '../../domain/enums/expense-category.enum';
 
 export class CreateExpenseDto {
@@ -18,10 +18,14 @@ export class CreateExpenseDto {
 
   @ApiProperty({ example: 'ARS' })
   @IsString()
+  @MinLength(3)
+  @MaxLength(3)
   currency!: string;
 
   @ApiProperty()
   @IsString()
+  @MinLength(1)
+  @MaxLength(180)
   description!: string;
 
   @ApiProperty()

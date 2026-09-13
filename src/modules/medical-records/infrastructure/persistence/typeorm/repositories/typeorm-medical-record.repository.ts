@@ -203,6 +203,8 @@ export class TypeOrmMedicalRecordRepository implements MedicalRecordRepository {
         return null;
       }
 
+      const previousDeletedAt = entity.deletedAt;
+
       entity.deletedAt = null;
       const saved = await manager.save(MedicalRecordOrmEntity, entity);
 
@@ -211,7 +213,7 @@ export class TypeOrmMedicalRecordRepository implements MedicalRecordRepository {
           medicalRecordId: id,
           changedByUserId,
           changeType: MedicalRecordChangeType.RESTORE,
-          previousValues: { deletedAt: entity.deletedAt },
+          previousValues: { deletedAt: previousDeletedAt },
           changedAt: new Date(),
         }),
       );

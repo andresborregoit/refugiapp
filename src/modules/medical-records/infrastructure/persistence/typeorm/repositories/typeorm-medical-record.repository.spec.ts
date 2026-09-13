@@ -503,6 +503,7 @@ describe('TypeOrmMedicalRecordRepository', () => {
           medicalRecordId: 'record-id',
           changedByUserId: 'actor-id',
           changeType: MedicalRecordChangeType.RESTORE,
+          previousValues: { deletedAt: new Date('2026-04-01T00:00:00.000Z') },
         }),
       );
       expect(result).toBeDefined();

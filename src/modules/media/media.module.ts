@@ -1,6 +1,11 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MulterModule } from '@nestjs/platform-express';
+import { AnimalsModule } from '../animals/animals.module';
+import { ExpensesModule } from '../expenses/expenses.module';
+import { MedicalRecordsModule } from '../medical-records/medical-records.module';
+import { UsersModule } from '../users/users.module';
+import { VeterinariansModule } from '../veterinarians/veterinarians.module';
 import { MediaService } from './application/services/media.service';
 import { MEDIA_ASSET_REPOSITORY } from './domain/repositories/media-asset.repository';
 import { OWNER_EXISTS_CHECKER } from './domain/repositories/owner-exists-checker';
@@ -19,6 +24,11 @@ import { MediaController } from './interfaces/controllers/media.controller';
         fileSize: 10 * 1024 * 1024, // 10MB
       },
     }),
+    UsersModule,
+    VeterinariansModule,
+    forwardRef(() => AnimalsModule),
+    forwardRef(() => ExpensesModule),
+    forwardRef(() => MedicalRecordsModule),
   ],
   controllers: [MediaController],
   providers: [
@@ -29,7 +39,11 @@ import { MediaController } from './interfaces/controllers/media.controller';
       provide: MEDIA_ASSET_REPOSITORY,
       useClass: TypeOrmMediaAssetRepository,
     },
+    {
+      provide: OWNER_EXISTS_CHECKER,
+      useClass: OwnerExistsCheckerImpl,
+    },
   ],
-  exports: [MediaService, CloudinaryStorageService, MEDIA_ASSET_REPOSITORY],
+  exports: [MediaService, CloudinaryStorageService, MEDIA_ASSET_REPOSITORY, OWNER_EXISTS_CHECKER],
 })
 export class MediaModule {}

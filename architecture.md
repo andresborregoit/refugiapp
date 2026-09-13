@@ -192,6 +192,11 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `DELETE /medical-records/:id` | Permitido | Rechazado | Permitido |
 | `POST /medical-records/:id/restore` | Permitido | Rechazado | Rechazado |
 | `GET /animals/:animalId/medical-records` | Permitido | Rechazado | Permitido |
+| `POST /expenses` | Permitido | Permitido | Rechazado |
+| `GET /expenses` | Permitido | Permitido | Permitido |
+| `GET /expenses/:id` | Permitido | Permitido | Permitido |
+| `DELETE /expenses/:id` | Permitido | Permitido | Rechazado |
+| `GET /animals/:animalId/expenses` | Permitido | Permitido | Permitido |
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
@@ -252,6 +257,12 @@ La desactivacion no borra ni aplica soft delete. Solo actualiza `isActive=false`
 Gestiona gastos asociados a animales. Los importes se almacenan en centavos como `integer` para evitar errores de punto flotante.
 
 Los comprobantes se almacenan como metadata de `media-assets` y se referencian mediante `ticketMediaId`.
+
+La creacion se realiza mediante `POST /expenses`. El caso de uso valida que el animal exista y, cuando se informa `ticketMediaId`, que el asset exista en `media_assets`. Persiste `createdByUserId` con el id del usuario autenticado y normaliza `currency` y `description` con trim. `amountCents` se valida como entero no negativo en DTO, dominio y PostgreSQL.
+
+La consulta se realiza mediante `GET /expenses` (listado global) y `GET /animals/:animalId/expenses` (listado por animal). Ambos usan paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. El listado global admite filtros por `animalId`, `category` y rango de fechas `from`/`to` sobre `incurredAt`. El listado por animal valida que el animal exista y siempre filtra por `animalId`. El orden es `incurredAt DESC, id DESC`.
+
+La baja logica se realiza mediante `DELETE /expenses/:id` aplicando `deletedAt`. La escritura (creacion y baja) admite solo `admin` y `shelter_manager`; la lectura admite los tres roles autenticados.
 
 ### `media`
 
@@ -828,11 +839,16 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - CRUD de perfiles profesionales de veterinarios, con matricula unica, `userId` opcional, escritura protegida por roles y desactivacion por `isActive=false`.
 - Creacion de registros medicos (`POST /medical-records`) con validacion de animal, veterinario opcional (activo), fecha con limites, adjuntos vinculados transaccionalmente via `media_assets` y proteccion por roles.
 - Consulta de evolucion clinica por animal (`GET /animals/:animalId/medical-records`) con filtros por tipo y rango de fechas, paginacion segura, orden cronologico inverso y proteccion por roles.
+- Consulta global de registros medicos (`GET /medical-records`) y consulta por id (`GET /medical-records/:id`) con proteccion por roles y `404` para recursos inexistentes.
 - Actualizacion parcial de registros medicos (`PATCH /medical-records/:id`) con validacion de campos, veterinario opcional (activo), fecha con limites, proteccion por roles y trazabilidad mediante `medical_record_changes`.
 - Baja logica de registros medicos (`DELETE /medical-records/:id`) con proteccion por roles y trazabilidad mediante `medical_record_changes`.
 - Restauracion de registros medicos eliminados (`POST /medical-records/:id/restore`) protegida solo para `admin` con trazabilidad.
 - Seed explicito e idempotente para el primer administrador.
 - Hashing bcrypt centralizado para passwords.
+- Creacion de gastos (`POST /expenses`) con validacion de animal, comprobante opcional contra `media_assets`, `createdByUserId` del actor autenticado, importes en centavos no negativos y escritura protegida por roles.
+- Listado global de gastos (`GET /expenses`) con paginacion, filtros por animal, categoria y rango de fechas, y orden cronologico inverso.
+- Listado de gastos por animal (`GET /animals/:animalId/expenses`) con paginacion, filtros y proteccion por roles.
+- Baja logica de gastos (`DELETE /expenses/:id`) con proteccion por roles.
 - Build, lint y tests unitarios configurados.
 
 ### Pendiente

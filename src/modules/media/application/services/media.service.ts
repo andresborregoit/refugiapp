@@ -4,6 +4,7 @@ import { MediaAsset } from '../../domain/entities/media-asset.entity';
 import { MediaOwnerType } from '../../domain/enums/media-owner-type.enum';
 import { MediaResourceType } from '../../domain/enums/media-resource-type.enum';
 import { MEDIA_ASSET_REPOSITORY, MediaAssetRepository } from '../../domain/repositories/media-asset.repository';
+import { OWNER_EXISTS_CHECKER, OwnerExistsChecker } from '../../domain/repositories/owner-exists-checker';
 import { CloudinaryStorageService } from '../../infrastructure/cloudinary/cloudinary-storage.service';
 
 const ALLOWED_MIME_TYPES = [
@@ -24,6 +25,8 @@ export class MediaService {
   constructor(
     @Inject(MEDIA_ASSET_REPOSITORY)
     private readonly mediaAssetRepository: MediaAssetRepository,
+    @Inject(OWNER_EXISTS_CHECKER)
+    private readonly ownerExistsChecker: OwnerExistsChecker,
     private readonly cloudinaryStorageService: CloudinaryStorageService,
   ) {}
 
@@ -39,6 +42,14 @@ export class MediaService {
     ownerId: string,
     uploadedByUserId: string,
   ): Promise<MediaAsset> {
+    const ownerExists = await this.ownerExistsChecker.exists(ownerType, ownerId);
+
+    if (!ownerExists) {
+      throw new BadRequestException(
+        `${ownerType} with id ${ownerId} does not exist.`,
+      );
+    }
+
     this.validateMimetype(mimetype);
     this.validateFileSize(fileBuffer.length);
 

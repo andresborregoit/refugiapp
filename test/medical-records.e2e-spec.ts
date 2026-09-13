@@ -35,7 +35,11 @@ describe('MedicalRecords (e2e)', () => {
   const medicalRecordsService = {
     create: jest.fn(),
     findById: jest.fn(),
+    list: jest.fn(),
     listByAnimal: jest.fn(),
+    update: jest.fn(),
+    softDelete: jest.fn(),
+    restore: jest.fn(),
   };
 
   class AdminJwtAuthGuard {
@@ -424,6 +428,228 @@ describe('MedicalRecords (e2e)', () => {
         .expect(400);
 
       expect(medicalRecordsService.listByAnimal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/v1/medical-records', () => {
+    it('lists medical records when called by an admin', async () => {
+      medicalRecordsService.list.mockResolvedValue({
+        items: [createMedicalRecord()],
+        page: 1,
+        limit: 20,
+        total: 1,
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/medical-records')
+        .set('Authorization', 'Bearer admin-token')
+        .query({ recordType: MedicalRecordType.CONSULTATION })
+        .expect(200);
+
+      expect(res.body).toMatchObject({
+        page: 1,
+        limit: 20,
+        total: 1,
+        items: [{ id: 'record-id' }],
+      });
+      expect(medicalRecordsService.list).toHaveBeenCalledWith(
+        expect.objectContaining({ recordType: MedicalRecordType.CONSULTATION }),
+      );
+    });
+
+    it('returns 403 when called by a shelter_manager', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .get('/api/v1/medical-records')
+        .set('Authorization', 'Bearer manager-token')
+        .expect(403);
+
+      expect(medicalRecordsService.list).not.toHaveBeenCalled();
+
+      await managerApp.close();
+    });
+  });
+
+  describe('GET /api/v1/medical-records/:id', () => {
+    const recordId = '22222222-2222-4222-8222-222222222222';
+    const missingId = '99999999-9999-4999-8999-999999999999';
+
+    it('returns the medical record when found', async () => {
+      medicalRecordsService.findById.mockResolvedValue(createMedicalRecord());
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(200);
+
+      expect(res.body).toMatchObject({
+        id: 'record-id',
+        animalId: 'animal-id',
+        recordType: MedicalRecordType.CONSULTATION,
+        title: 'Annual checkup',
+      });
+      expect(medicalRecordsService.findById).toHaveBeenCalledWith(recordId);
+    });
+
+    it('returns 404 when the medical record does not exist', async () => {
+      medicalRecordsService.findById.mockResolvedValue(null);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/medical-records/${missingId}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404)
+        .expect(({ body }) => {
+          expect(body.code).toBe('RESOURCE_NOT_FOUND');
+        });
+    });
+  });
+
+  describe('PATCH /api/v1/medical-records/:id', () => {
+    const recordId = '22222222-2222-4222-8222-222222222222';
+    const missingId = '99999999-9999-4999-8999-999999999999';
+
+    it('updates a medical record when called by an admin', async () => {
+      medicalRecordsService.update.mockResolvedValue(
+        createMedicalRecord({ title: 'Updated title' }),
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/medical-records/${recordId}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ title: 'Updated title' })
+        .expect(200);
+
+      expect(medicalRecordsService.update).toHaveBeenCalledWith(
+        recordId,
+        expect.objectContaining({ title: 'Updated title' }),
+        adminPayload.id,
+      );
+    });
+
+    it('returns 403 when called by a shelter_manager', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .patch(`/api/v1/medical-records/${recordId}`)
+        .set('Authorization', 'Bearer manager-token')
+        .send({ title: 'Updated title' })
+        .expect(403);
+
+      expect(medicalRecordsService.update).not.toHaveBeenCalled();
+
+      await managerApp.close();
+    });
+
+    it('returns 404 when the medical record does not exist', async () => {
+      medicalRecordsService.update.mockRejectedValue(
+        new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'MedicalRecord with id missing-id was not found.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/medical-records/${missingId}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ title: 'Updated title' })
+        .expect(404);
+    });
+
+    it('returns 400 when title is empty', async () => {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/medical-records/${recordId}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ title: '' })
+        .expect(400);
+
+      expect(medicalRecordsService.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('DELETE /api/v1/medical-records/:id', () => {
+    const recordId = '22222222-2222-4222-8222-222222222222';
+    const missingId = '99999999-9999-4999-8999-999999999999';
+
+    it('soft-deletes a medical record when called by an admin', async () => {
+      medicalRecordsService.softDelete.mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/medical-records/${recordId}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(204);
+
+      expect(medicalRecordsService.softDelete).toHaveBeenCalledWith(recordId, adminPayload.id);
+    });
+
+    it('returns 403 when called by a shelter_manager', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .delete(`/api/v1/medical-records/${recordId}`)
+        .set('Authorization', 'Bearer manager-token')
+        .expect(403);
+
+      expect(medicalRecordsService.softDelete).not.toHaveBeenCalled();
+
+      await managerApp.close();
+    });
+
+    it('returns 404 when the medical record does not exist', async () => {
+      medicalRecordsService.softDelete.mockRejectedValue(
+        new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'MedicalRecord with id missing-id was not found.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/medical-records/${missingId}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404);
+    });
+  });
+
+  describe('POST /api/v1/medical-records/:id/restore', () => {
+    const recordId = '22222222-2222-4222-8222-222222222222';
+    const missingId = '99999999-9999-4999-8999-999999999999';
+
+    it('restores a medical record when called by an admin', async () => {
+      medicalRecordsService.restore.mockResolvedValue(createMedicalRecord());
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/medical-records/${recordId}/restore`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(200);
+
+      expect(medicalRecordsService.restore).toHaveBeenCalledWith(recordId, adminPayload.id);
+    });
+
+    it('returns 403 when called by a veterinarian', async () => {
+      const vetApp = await createAppWithGuard(VeterinarianJwtAuthGuard);
+
+      await request(vetApp.getHttpServer())
+        .post(`/api/v1/medical-records/${recordId}/restore`)
+        .set('Authorization', 'Bearer vet-token')
+        .expect(403);
+
+      expect(medicalRecordsService.restore).not.toHaveBeenCalled();
+
+      await vetApp.close();
+    });
+
+    it('returns 404 when the medical record does not exist', async () => {
+      medicalRecordsService.restore.mockRejectedValue(
+        new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'MedicalRecord with id missing-id was not found.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/medical-records/${missingId}/restore`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404);
     });
   });
 

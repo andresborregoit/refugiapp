@@ -24,6 +24,7 @@ import { ApiErrorResponses } from '../../../../common/decorators/api-error-respo
 import { CurrentUser } from '../../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../../common/decorators/roles.decorator';
 import { UserRole } from '../../../../common/enums/user-role.enum';
+import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
 import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
@@ -73,7 +74,7 @@ export class MedicalRecordsController {
     const record = await this.medicalRecordsService.findById(id);
 
     if (!record) {
-      throw new Error(`MedicalRecord with id ${id} not found.`);
+      throw new ResourceNotFoundException('MedicalRecord', id);
     }
 
     return record;
@@ -110,6 +111,7 @@ export class MedicalRecordsController {
   }
 
   @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
