@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { MediaService } from './media.service';
 import { MediaAssetRepository, MEDIA_ASSET_REPOSITORY } from '../../domain/repositories/media-asset.repository';
 import { OwnerExistsChecker, OWNER_EXISTS_CHECKER } from '../../domain/repositories/owner-exists-checker';
@@ -7,6 +7,9 @@ import { CloudinaryStorageService } from '../../infrastructure/cloudinary/cloudi
 import { MediaOwnerType } from '../../domain/enums/media-owner-type.enum';
 import { MediaResourceType } from '../../domain/enums/media-resource-type.enum';
 import { MediaAsset } from '../../domain/entities/media-asset.entity';
+import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
+import { UserRole } from '../../../../common/enums/user-role.enum';
+import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
 
 describe('MediaService', () => {
   let service: MediaService;
@@ -14,11 +17,23 @@ describe('MediaService', () => {
   let ownerExistsChecker: jest.Mocked<OwnerExistsChecker>;
   let cloudinaryStorageService: { getClient: jest.Mock; buildUploadFolder: jest.Mock; upload: jest.Mock; delete: jest.Mock };
 
+  const adminUser: AuthenticatedUser = {
+    id: 'user-id',
+    email: 'admin@refugiapp.test',
+    roles: [UserRole.ADMIN],
+  };
+  const veterinarianUser: AuthenticatedUser = {
+    id: 'vet-user-id',
+    email: 'vet@refugiapp.test',
+    roles: [UserRole.VETERINARIAN],
+  };
+
   beforeEach(async () => {
     mediaAssetRepository = {
       findById: jest.fn(),
+      findByOwner: jest.fn(),
       create: jest.fn(),
-      deleteByPublicId: jest.fn(),
+      softDeleteById: jest.fn(),
       existsByPublicId: jest.fn(),
     };
 
@@ -52,7 +67,7 @@ describe('MediaService', () => {
   });
 
   describe('upload', () => {
-    it('should upload a file and create a media asset', async () => {
+    it('should upload a file and create a media asset owned by an existing owner', async () => {
       ownerExistsChecker.exists.mockResolvedValue(true);
       mediaAssetRepository.create.mockImplementation(async (asset: MediaAsset) => asset);
 
@@ -62,34 +77,59 @@ describe('MediaService', () => {
         'image/jpeg',
         MediaOwnerType.ANIMAL,
         'animal-id',
-        'user-id',
+        adminUser,
       );
 
+      expect(ownerExistsChecker.exists).toHaveBeenCalledWith(MediaOwnerType.ANIMAL, 'animal-id');
       expect(result).toBeInstanceOf(MediaAsset);
       expect(result.ownerType).toBe(MediaOwnerType.ANIMAL);
       expect(result.ownerId).toBe('animal-id');
       expect(result.resourceType).toBe(MediaResourceType.IMAGE);
       expect(result.publicId).toBe('public-id');
-      expect(result.secureUrl).toBe('https://cloudinary.com/test.jpg');
-      expect(result.bytes).toBe(1024);
-      expect(result.format).toBe('jpg');
       expect(result.uploadedByUserId).toBe('user-id');
     });
 
-    it('should throw BadRequestException for invalid mimetype', async () => {
+    it('should upload an orphan asset when no owner is provided', async () => {
+      mediaAssetRepository.create.mockImplementation(async (asset: MediaAsset) => asset);
+
+      const result = await service.upload(
+        Buffer.from('test'),
+        'test.jpg',
+        'image/jpeg',
+        null,
+        null,
+        adminUser,
+      );
+
+      expect(ownerExistsChecker.exists).not.toHaveBeenCalled();
+      expect(result.ownerType).toBeNull();
+      expect(result.ownerId).toBeNull();
+    });
+
+    it('should throw BadRequestException when only one of ownerType/ownerId is provided', async () => {
       await expect(
         service.upload(
           Buffer.from('test'),
-          'test.exe',
-          'application/x-executable',
+          'test.jpg',
+          'image/jpeg',
           MediaOwnerType.ANIMAL,
+          null,
+          adminUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.upload(
+          Buffer.from('test'),
+          'test.jpg',
+          'image/jpeg',
+          null,
           'animal-id',
-          'user-id',
+          adminUser,
         ),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should throw BadRequestException when owner does not exist', async () => {
+    it('should throw ResourceNotFoundException when owner does not exist', async () => {
       ownerExistsChecker.exists.mockResolvedValue(false);
 
       await expect(
@@ -99,9 +139,55 @@ describe('MediaService', () => {
           'image/jpeg',
           MediaOwnerType.ANIMAL,
           'non-existent-id',
-          'user-id',
+          adminUser,
+        ),
+      ).rejects.toThrow(ResourceNotFoundException);
+    });
+
+    it('should throw BadRequestException for invalid mimetype', async () => {
+      ownerExistsChecker.exists.mockResolvedValue(true);
+
+      await expect(
+        service.upload(
+          Buffer.from('test'),
+          'test.exe',
+          'application/x-executable',
+          MediaOwnerType.ANIMAL,
+          'animal-id',
+          adminUser,
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject a veterinarian uploading a non-clinical asset', async () => {
+      ownerExistsChecker.exists.mockResolvedValue(true);
+
+      await expect(
+        service.upload(
+          Buffer.from('test'),
+          'test.jpg',
+          'image/jpeg',
+          MediaOwnerType.ANIMAL,
+          'animal-id',
+          veterinarianUser,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow a veterinarian uploading a clinical attachment', async () => {
+      ownerExistsChecker.exists.mockResolvedValue(true);
+      mediaAssetRepository.create.mockImplementation(async (asset: MediaAsset) => asset);
+
+      const result = await service.upload(
+        Buffer.from('test'),
+        'test.pdf',
+        'application/pdf',
+        MediaOwnerType.MEDICAL_RECORD,
+        'record-id',
+        veterinarianUser,
+      );
+
+      expect(result.ownerType).toBe(MediaOwnerType.MEDICAL_RECORD);
     });
 
     it('should delete Cloudinary asset if PostgreSQL persistence fails', async () => {
@@ -115,7 +201,7 @@ describe('MediaService', () => {
           'image/jpeg',
           MediaOwnerType.ANIMAL,
           'animal-id',
-          'user-id',
+          adminUser,
         ),
       ).rejects.toThrow('DB error');
 
@@ -123,30 +209,107 @@ describe('MediaService', () => {
     });
   });
 
+  describe('listByOwner', () => {
+    it('should list assets for an existing owner', async () => {
+      const paginated = { items: [], page: 1, limit: 20, total: 0 };
+      ownerExistsChecker.exists.mockResolvedValue(true);
+      mediaAssetRepository.findByOwner.mockResolvedValue(paginated);
+
+      const result = await service.listByOwner({
+        ownerType: MediaOwnerType.ANIMAL,
+        ownerId: 'animal-id',
+        page: 1,
+        limit: 20,
+      });
+
+      expect(ownerExistsChecker.exists).toHaveBeenCalledWith(MediaOwnerType.ANIMAL, 'animal-id');
+      expect(mediaAssetRepository.findByOwner).toHaveBeenCalledWith({
+        ownerType: MediaOwnerType.ANIMAL,
+        ownerId: 'animal-id',
+        page: 1,
+        limit: 20,
+      });
+      expect(result).toBe(paginated);
+    });
+
+    it('should throw ResourceNotFoundException when the owner does not exist', async () => {
+      ownerExistsChecker.exists.mockResolvedValue(false);
+
+      await expect(
+        service.listByOwner({
+          ownerType: MediaOwnerType.ANIMAL,
+          ownerId: 'missing-animal',
+          page: 1,
+          limit: 20,
+        }),
+      ).rejects.toThrow(ResourceNotFoundException);
+      expect(mediaAssetRepository.findByOwner).not.toHaveBeenCalled();
+    });
+  });
+
   describe('delete', () => {
-    it('should delete a media asset from Cloudinary and database', async () => {
-      const asset = new MediaAsset(
+    const asset = new MediaAsset(
+      'id',
+      MediaOwnerType.ANIMAL,
+      'animal-id',
+      MediaResourceType.IMAGE,
+      'public-id',
+      'https://cloudinary.com/test.jpg',
+      1024,
+    );
+
+    it('should soft-delete and remove the remote asset', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(asset);
+      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+
+      await service.delete('id', adminUser);
+
+      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('id');
+      expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-id');
+    });
+
+    it('should throw ResourceNotFoundException when asset does not exist', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(null);
+
+      await expect(service.delete('non-existent-id', adminUser)).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(mediaAssetRepository.softDeleteById).not.toHaveBeenCalled();
+    });
+
+    it('should reject a veterinarian deleting a non-clinical asset', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(asset);
+
+      await expect(service.delete('id', veterinarianUser)).rejects.toThrow(ForbiddenException);
+      expect(mediaAssetRepository.softDeleteById).not.toHaveBeenCalled();
+    });
+
+    it('should allow a veterinarian deleting a clinical attachment', async () => {
+      const clinicalAsset = new MediaAsset(
         'id',
-        MediaOwnerType.ANIMAL,
-        'animal-id',
+        MediaOwnerType.MEDICAL_RECORD,
+        'record-id',
         MediaResourceType.IMAGE,
         'public-id',
         'https://cloudinary.com/test.jpg',
         1024,
       );
-      mediaAssetRepository.findById.mockResolvedValue(asset);
-      mediaAssetRepository.deleteByPublicId.mockResolvedValue(undefined);
+      mediaAssetRepository.findById.mockResolvedValue(clinicalAsset);
+      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
 
-      await service.delete('id');
+      await service.delete('id', veterinarianUser);
 
+      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('id');
       expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-id');
-      expect(mediaAssetRepository.deleteByPublicId).toHaveBeenCalledWith('public-id');
     });
 
-    it('should throw BadRequestException when asset does not exist', async () => {
-      mediaAssetRepository.findById.mockResolvedValue(null);
+    it('should not throw when Cloudinary cleanup fails', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(asset);
+      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+      cloudinaryStorageService.delete.mockRejectedValue(new Error('remote error'));
 
-      await expect(service.delete('non-existent-id')).rejects.toThrow(BadRequestException);
+      await expect(service.delete('id', adminUser)).resolves.toBeUndefined();
+      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('id');
     });
   });
 

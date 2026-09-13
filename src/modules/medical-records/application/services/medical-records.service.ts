@@ -3,7 +3,9 @@ import { DomainException } from '../../../../common/exceptions/domain.exception'
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { mapDomainExceptionToBadRequest } from '../../../../common/mappers/domain-to-http-exception.mapper';
+import { assertMediaLinkable } from '../../../media/application/services/media-linker';
 import { MEDIA_ASSET_REPOSITORY, MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
+import { MediaLinkingContext } from '../../../media/domain/services/media-owner-policy';
 import { VETERINARIAN_REPOSITORY, VeterinarianRepository } from '../../../veterinarians/domain/repositories/veterinarian.repository';
 import { ANIMAL_REPOSITORY, AnimalRepository } from '../../../animals/domain/repositories/animal.repository';
 import { CreateMedicalRecord } from '../../domain/entities/create-medical-record.entity';
@@ -75,6 +77,8 @@ export class MedicalRecordsService {
       if (!asset) {
         throw new ResourceNotFoundException('MediaAsset', mediaId);
       }
+
+      assertMediaLinkable(asset, MediaLinkingContext.MEDICAL_RECORD_ATTACHMENT);
     }
 
     const input = new CreateMedicalRecord(

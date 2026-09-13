@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
+import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { Animal } from '../../../../domain/entities/animal.entity';
 import { buildStatusChangeEventDescription, INTAKE_EVENT_DESCRIPTION } from '../../../../domain/entities/animal-history-event.entity';
 import { ChangeAnimalStatus } from '../../../../domain/entities/change-animal-status.entity';
@@ -36,6 +38,14 @@ export class TypeOrmAnimalRepository implements AnimalRepository {
           notes: input.notes,
         }),
       );
+
+      if (input.profilePhotoMediaId) {
+        await manager.update(
+          MediaAssetOrmEntity,
+          { id: input.profilePhotoMediaId },
+          { ownerType: MediaOwnerType.ANIMAL, ownerId: animal.id },
+        );
+      }
 
       await manager.save(
         manager.create(AnimalHistoryEventOrmEntity, {

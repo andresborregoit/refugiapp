@@ -20,6 +20,21 @@ describe('MediaAsset', () => {
     expect(createMediaAsset().bytes).toBeNull();
   });
 
+  it('accepts an orphan asset without owner', () => {
+    const orphan = new MediaAsset(
+      'media-id',
+      null,
+      null,
+      MediaResourceType.IMAGE,
+      'animals/luna',
+      'https://res.cloudinary.com/demo/image/upload/animals/luna.jpg',
+      1024,
+    );
+
+    expect(orphan.ownerType).toBeNull();
+    expect(orphan.ownerId).toBeNull();
+  });
+
   it('accepts zero bytes', () => {
     expect(createMediaAsset(0).bytes).toBe(0);
   });

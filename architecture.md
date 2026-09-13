@@ -197,6 +197,12 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `GET /expenses/:id` | Permitido | Permitido | Permitido |
 | `DELETE /expenses/:id` | Permitido | Permitido | Rechazado |
 | `GET /animals/:animalId/expenses` | Permitido | Permitido | Permitido |
+| `POST /media/upload` | Permitido | Permitido | Permitido |
+| `GET /media` | Permitido | Permitido | Permitido |
+| `GET /media/:id` | Permitido | Permitido | Permitido |
+| `DELETE /media/:id` | Permitido | Permitido | Permitido |
+
+En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset.
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
@@ -269,6 +275,22 @@ La baja logica se realiza mediante `DELETE /expenses/:id` aplicando `deletedAt`.
 Gestiona metadata de archivos almacenados en Cloudinary.
 
 PostgreSQL no almacena binarios. La base conserva identificadores, URL segura, formato, tamano, propietario y metadata adicional.
+
+La subida se realiza mediante `POST /media/upload`. El caso de uso valida que `ownerType` y `ownerId` se informen juntos o se omitan; si se informan, valida que el propietario exista (404) contra el repositorio del dominio correspondiente. Si se omiten, el asset se guarda como huerfano y puede vincularse luego. Valida mimetype y tamano (maximo 10MB), sube el archivo a Cloudinary y, si falla la persistencia en PostgreSQL, compensa borrando el recurso remoto.
+
+La vinculacion polimorfica se controla en `domain/services/media-owner-policy.ts`:
+
+- Tickets (`expense_ticket`) solo asociados a gastos.
+- Fotos de perfil (`animal`) solo asociadas a animales.
+- Adjuntos clinicos (`medical_record`) solo asociados a registros medicos.
+
+Cada vinculo valida en la capa de aplicacion que el asset sea huerfano o del tipo esperado. Un asset huerfano se re-asigna en la misma transaccion que crea la entidad (`expenses`, `animals` o `medical-records`); un asset ya asignado a otra entidad se rechaza con `409` y un tipo incompatible tambien con `409`.
+
+La consulta de assets por propietario se realiza mediante `GET /media?ownerType=&ownerId=`. El caso de uso valida que el propietario exista (404) y pagina con `page` minimo 1, `limit` entre 1 y 100 (default 20) y orden `createdAt DESC, id DESC`, excluyendo soft-deleted.
+
+La baja logica se realiza mediante `DELETE /media/:id` aplicando `deletedAt` y luego intenta eliminar el archivo remoto en Cloudinary. Si la limpieza remota falla, se loguea el error y el registro permanece oculto por `deletedAt`.
+
+Los roles `admin` y `shelter_manager` pueden subir, listar y borrar cualquier asset. El rol `veterinarian` puede subir adjuntos clinicos (o huerfanos) y borrar solo assets de `medical_record`.
 
 ## 6. Modelo de datos
 
@@ -483,8 +505,8 @@ Representa un recurso almacenado externamente en Cloudinary.
 | Columna | Tipo | Null | Restricciones |
 | --- | --- | --- | --- |
 | `id` | `uuid` | No | PK |
-| `ownerType` | `media_owner_type` | No | Tipo de propietario |
-| `ownerId` | `uuid` | No | ID del propietario polimorfico |
+| `ownerType` | `media_owner_type` | Si | Tipo de propietario polimorfico; `null` solo para assets huerfanos |
+| `ownerId` | `uuid` | Si | ID del propietario polimorfico; `null` solo para assets huerfanos |
 | `resourceType` | `media_resource_type` | No | Default `image` |
 | `cloudinaryPublicId` | `varchar(255)` | No | Unico |
 | `secureUrl` | `varchar(2048)` | No | URL HTTPS |
@@ -657,6 +679,7 @@ Ademas de las relaciones directas del DER, `media_assets` puede apuntar a:
 (ownerType = medical_record, ownerId = medical_records.id)
 (ownerType = user, ownerId = users.id)
 (ownerType = veterinarian, ownerId = veterinarians.id)
+(ownerType = null, ownerId = null)  // asset huerfano, se vincula despues
 ```
 
 Esta relacion se valida en el servicio de aplicacion. No debe confiarse unicamente en `ownerType` recibido desde HTTP.
@@ -766,6 +789,8 @@ src/database/migrations/1787781241921-InitSchema.ts
 Clase: InitSchema1787781241921
 ```
 
+La migracion `1789300000000-AllowOrphanMediaAssets.ts` permite assets huerfanos haciendo nullable `ownerType` y `ownerId` en `media_assets`.
+
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
 
 ## 12. Seguridad de datos
@@ -803,13 +828,15 @@ PostgreSQL conserva metadata. Cloudinary conserva el archivo.
 
 El flujo esperado es:
 
-1. Validar usuario y propietario.
+1. Validar usuario y propietario (o permitir asset huerfano).
 2. Subir archivo a Cloudinary mediante `media`.
 3. Obtener `public_id`, URL, formato y tamano.
 4. Persistir `MediaAsset`.
-5. Asociar el asset con la entidad correspondiente.
+5. Vincular el asset con la entidad correspondiente, validando compatibilidad y re-asignando `ownerType`/`ownerId` en la misma transaccion cuando la entidad se crea.
 
 Si falla la persistencia despues de subir el archivo, el caso de uso debe contemplar compensacion o limpieza del recurso remoto.
+
+La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remoto; si la limpieza remota falla, se loguea el error.
 
 ## 14. Estado implementado y pendientes conocidos
 
@@ -849,6 +876,10 @@ Si falla la persistencia despues de subir el archivo, el caso de uso debe contem
 - Listado global de gastos (`GET /expenses`) con paginacion, filtros por animal, categoria y rango de fechas, y orden cronologico inverso.
 - Listado de gastos por animal (`GET /animals/:animalId/expenses`) con paginacion, filtros y proteccion por roles.
 - Baja logica de gastos (`DELETE /expenses/:id`) con proteccion por roles.
+- Subida de media (`POST /media/upload`) con validacion de propietario (o assets huerfanos), mimetype, tamano, autorizacion por roles y compensacion remota si falla la persistencia.
+- Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional y `409 INCOMPATIBLE_OWNER_TYPE` / `409 MEDIA_ALREADY_OWNED`.
+- Listado de assets por propietario (`GET /media`) con validacion de existencia del propietario, paginacion y exclusion de soft-deleted.
+- Baja logica de media (`DELETE /media/:id`) con limpieza remota en Cloudinary y permisos diferenciados para `veterinarian`.
 - Build, lint y tests unitarios configurados.
 
 ### Pendiente

@@ -1,4 +1,6 @@
 import { Repository } from 'typeorm';
+import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
+import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { AnimalSex } from '../../../../domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../../../domain/enums/animal-status.enum';
 import { AnimalHistoryEventType } from '../../../../domain/enums/animal-history-event-type.enum';
@@ -113,6 +115,12 @@ describe('TypeOrmAnimalRepository', () => {
     );
 
     expect(transactionManager.save).toHaveBeenCalledTimes(2);
+
+    expect(transactionManager.update).toHaveBeenCalledWith(
+      MediaAssetOrmEntity,
+      { id: 'media-id' },
+      { ownerType: MediaOwnerType.ANIMAL, ownerId: 'generated-animal-id' },
+    );
 
     expect(result).toMatchObject({
       id: 'generated-animal-id',

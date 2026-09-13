@@ -2,7 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DomainException } from '../../../../common/exceptions/domain.exception';
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
+import { assertMediaLinkable } from '../../../media/application/services/media-linker';
 import { MediaService } from '../../../media/application/services/media.service';
+import { MediaLinkingContext } from '../../../media/domain/services/media-owner-policy';
 import { ChangeAnimalStatus } from '../../domain/entities/change-animal-status.entity';
 import { CreateAnimal } from '../../domain/entities/create-animal.entity';
 import { Animal } from '../../domain/entities/animal.entity';
@@ -36,6 +38,8 @@ export class AnimalsService {
       if (!mediaAsset) {
         throw new ResourceNotFoundException('MediaAsset', profilePhotoMediaId);
       }
+
+      assertMediaLinkable(mediaAsset, MediaLinkingContext.ANIMAL_PROFILE_PHOTO);
     }
 
     const input = new CreateAnimal(

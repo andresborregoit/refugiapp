@@ -75,8 +75,8 @@ describe('AnimalsService', () => {
     it('creates an animal when the profile photo media asset exists', async () => {
       mediaService.findById.mockResolvedValue({
         id: 'media-id',
-        ownerType: 'animal',
-        ownerId: 'animal-id',
+        ownerType: null,
+        ownerId: null,
       });
       animalRepository.create.mockResolvedValue(animal);
 
@@ -108,6 +108,32 @@ describe('AnimalsService', () => {
       await expect(
         service.create(createDto({ profilePhotoMediaId: 'missing-media-id' }), 'user-id'),
       ).rejects.toThrow(ResourceNotFoundException);
+      expect(animalRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 when the profile photo belongs to another owner type', async () => {
+      mediaService.findById.mockResolvedValue({
+        id: 'media-id',
+        ownerType: 'user',
+        ownerId: 'user-id',
+      });
+
+      await expect(
+        service.create(createDto({ profilePhotoMediaId: 'media-id' }), 'user-id'),
+      ).rejects.toThrow(ResourceConflictException);
+      expect(animalRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 when the profile photo is already owned', async () => {
+      mediaService.findById.mockResolvedValue({
+        id: 'media-id',
+        ownerType: 'animal',
+        ownerId: 'other-animal',
+      });
+
+      await expect(
+        service.create(createDto({ profilePhotoMediaId: 'media-id' }), 'user-id'),
+      ).rejects.toThrow(ResourceConflictException);
       expect(animalRepository.create).not.toHaveBeenCalled();
     });
   });

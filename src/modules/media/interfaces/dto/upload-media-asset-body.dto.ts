@@ -1,15 +1,22 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsUUID } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
 import { MediaOwnerType } from '../../domain/enums/media-owner-type.enum';
 
 export class UploadMediaAssetBodyDto {
-  @ApiProperty({ enum: MediaOwnerType, description: 'The type of the owner entity' })
+  @ApiPropertyOptional({
+    enum: MediaOwnerType,
+    description:
+      'Owner entity type. Omit together with ownerId to upload an orphan asset and link it later.',
+  })
+  @IsOptional()
   @IsEnum(MediaOwnerType)
-  @IsNotEmpty()
-  ownerType!: MediaOwnerType;
+  ownerType?: MediaOwnerType;
 
-  @ApiProperty({ description: 'The UUID of the owner entity' })
+  @ApiPropertyOptional({
+    description:
+      'The UUID of the owner entity. Omit together with ownerType to upload an orphan asset.',
+  })
+  @IsOptional()
   @IsUUID()
-  @IsNotEmpty()
-  ownerId!: string;
+  ownerId?: string;
 }
