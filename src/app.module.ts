@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AnimalsModule } from './modules/animals/animals.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { MediaModule } from './modules/media/media.module';
@@ -38,6 +39,7 @@ import { envValidationSchema } from './config/validation.schema';
     VeterinariansModule,
     ExpensesModule,
     MediaModule,
+    AuditLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

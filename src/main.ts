@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { AuditForbiddenFilter } from './modules/audit-logs/interfaces/filters/audit-forbidden.filter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -23,7 +24,10 @@ async function bootstrap(): Promise<void> {
       },
     }),
   );
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(
+    new HttpExceptionFilter(),
+    app.get(AuditForbiddenFilter),
+  );
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Refugiapp API')

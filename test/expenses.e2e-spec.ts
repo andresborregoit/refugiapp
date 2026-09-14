@@ -412,7 +412,7 @@ describe('Expenses (e2e)', () => {
         .set('Authorization', 'Bearer admin-token')
         .expect(204);
 
-      expect(expensesService.softDelete).toHaveBeenCalledWith(expenseId);
+      expect(expensesService.softDelete).toHaveBeenCalledWith(expenseId, 'admin-id');
     });
 
     it('returns 403 when called by a veterinarian', async () => {

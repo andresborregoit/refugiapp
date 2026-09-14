@@ -8,6 +8,9 @@ import { MEDIA_ASSET_REPOSITORY, MediaAssetRepository } from '../../../media/dom
 import { MediaLinkingContext } from '../../../media/domain/services/media-owner-policy';
 import { VETERINARIAN_REPOSITORY, VeterinarianRepository } from '../../../veterinarians/domain/repositories/veterinarian.repository';
 import { ANIMAL_REPOSITORY, AnimalRepository } from '../../../animals/domain/repositories/animal.repository';
+import { AuditLogsService } from '../../../audit-logs/application/services/audit-logs.service';
+import { AuditAction } from '../../../audit-logs/domain/enums/audit-action.enum';
+import { AuditResourceType } from '../../../audit-logs/domain/enums/audit-resource-type.enum';
 import { CreateMedicalRecord } from '../../domain/entities/create-medical-record.entity';
 import { MedicalRecord } from '../../domain/entities/medical-record.entity';
 import { UpdateMedicalRecord } from '../../domain/entities/update-medical-record.entity';
@@ -33,9 +36,10 @@ export class MedicalRecordsService {
     private readonly veterinarianRepository: VeterinarianRepository,
     @Inject(MEDIA_ASSET_REPOSITORY)
     private readonly mediaAssetRepository: MediaAssetRepository,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
-  async create(dto: CreateMedicalRecordDto): Promise<MedicalRecord> {
+  async create(dto: CreateMedicalRecordDto, actorId: string): Promise<MedicalRecord> {
     const animal = await this.animalRepository.findById(dto.animalId);
 
     if (!animal) {
@@ -93,7 +97,22 @@ export class MedicalRecordsService {
       attachmentMediaIds,
     );
 
-    return this.medicalRecordRepository.create(input);
+    const created = await this.medicalRecordRepository.create(input);
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.MEDICAL_RECORD_CREATE,
+      resourceType: AuditResourceType.MEDICAL_RECORD,
+      resourceId: created.id,
+      metadata: {
+        animalId: created.animalId,
+        recordType: created.recordType,
+        veterinarianId: created.veterinarianId,
+        attachmentCount: attachmentMediaIds.length,
+      },
+    });
+
+    return created;
   }
 
   findById(id: string) {
@@ -159,6 +178,16 @@ export class MedicalRecordsService {
       throw new ResourceNotFoundException('MedicalRecord', id);
     }
 
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.MEDICAL_RECORD_UPDATE,
+      resourceType: AuditResourceType.MEDICAL_RECORD,
+      resourceId: id,
+      metadata: {
+        animalId: record.animalId,
+      },
+    });
+
     return updated;
   }
 
@@ -170,6 +199,16 @@ export class MedicalRecordsService {
     }
 
     await this.medicalRecordRepository.softDelete(id, actorId);
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.MEDICAL_RECORD_SOFT_DELETE,
+      resourceType: AuditResourceType.MEDICAL_RECORD,
+      resourceId: id,
+      metadata: {
+        animalId: record.animalId,
+      },
+    });
   }
 
   async restore(id: string, actorId: string): Promise<MedicalRecord> {
@@ -191,6 +230,16 @@ export class MedicalRecordsService {
     if (!restored) {
       throw new ResourceNotFoundException('MedicalRecord', id);
     }
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.MEDICAL_RECORD_RESTORE,
+      resourceType: AuditResourceType.MEDICAL_RECORD,
+      resourceId: id,
+      metadata: {
+        animalId: record.animalId,
+      },
+    });
 
     return restored;
   }

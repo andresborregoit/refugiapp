@@ -20,9 +20,12 @@ describe('UsersService', () => {
     softDelete: jest.fn(),
     activate: jest.fn(),
   };
+  const mockAuditLogsService = {
+    record: jest.fn(),
+  };
 
   beforeEach(() => {
-    service = new UsersService(mockRepository as any);
+    service = new UsersService(mockRepository as any, mockAuditLogsService as any);
     jest.clearAllMocks();
   });
 
@@ -47,7 +50,7 @@ describe('UsersService', () => {
         true,
       ));
 
-      await service.createUser(dto);
+      await service.createUser(dto, 'actor-id');
 
       expect(mockRepository.findByEmail).toHaveBeenCalledWith('newuser@refugiapp.local');
     });
@@ -64,7 +67,7 @@ describe('UsersService', () => {
         true,
       ));
 
-      const result = await service.createUser(dto);
+      const result = await service.createUser(dto, 'actor-id');
 
       expect(result.roles).toEqual([UserRole.SHELTER_MANAGER]);
     });
@@ -83,7 +86,7 @@ describe('UsersService', () => {
 
       const dtoWithRoles: CreateUserDto = { ...dto, roles: [UserRole.ADMIN, UserRole.VETERINARIAN] };
 
-      const result = await service.createUser(dtoWithRoles);
+      const result = await service.createUser(dtoWithRoles, 'actor-id');
 
       expect(result.roles).toEqual([UserRole.ADMIN, UserRole.VETERINARIAN]);
     });
@@ -100,7 +103,7 @@ describe('UsersService', () => {
         true,
       ));
 
-      await service.createUser(dto);
+      await service.createUser(dto, 'actor-id');
 
       expect(mockedHashPassword).toHaveBeenCalledWith(dto.password);
       expect(mockRepository.create).toHaveBeenCalledWith(
@@ -119,7 +122,7 @@ describe('UsersService', () => {
         true,
       ));
 
-      await expect(service.createUser(dto)).rejects.toThrow(ResourceConflictException);
+      await expect(service.createUser(dto, 'actor-id')).rejects.toThrow(ResourceConflictException);
     });
 
     it('returns a User without passwordHash', async () => {
@@ -134,9 +137,50 @@ describe('UsersService', () => {
         true,
       ));
 
-      const result = await service.createUser(dto);
+      const result = await service.createUser(dto, 'actor-id');
 
       expect(result).not.toHaveProperty('passwordHash');
+    });
+
+    it('records a user.create audit event with the actor id', async () => {
+      mockedHashPassword.mockResolvedValue('hashed-pw');
+      mockRepository.findByEmail.mockResolvedValue(null);
+      mockRepository.create.mockResolvedValue(new User(
+        'new-uuid',
+        'newuser@refugiapp.local',
+        'New',
+        'User',
+        [UserRole.SHELTER_MANAGER],
+        true,
+      ));
+
+      await service.createUser(dto, 'actor-id');
+
+      expect(mockAuditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: 'actor-id',
+          resourceId: 'new-uuid',
+          metadata: expect.objectContaining({ email: 'newuser@refugiapp.local' }),
+        }),
+      );
+    });
+
+    it('records a role assignment audit event when roles are explicitly provided', async () => {
+      mockedHashPassword.mockResolvedValue('hashed-pw');
+      mockRepository.findByEmail.mockResolvedValue(null);
+      mockRepository.create.mockResolvedValue(new User(
+        'new-uuid',
+        'newuser@refugiapp.local',
+        'New',
+        'User',
+        [UserRole.ADMIN],
+        true,
+      ));
+
+      await service.createUser({ ...dto, roles: [UserRole.ADMIN] }, 'actor-id');
+
+      const auditCalls = mockAuditLogsService.record.mock.calls.map((call) => call[0]);
+      expect(auditCalls.some((call) => call.action === 'user.role_assign')).toBe(true);
     });
   });
 
@@ -144,7 +188,7 @@ describe('UsersService', () => {
     it('throws ResourceNotFoundException when user does not exist', async () => {
       mockRepository.findById.mockResolvedValue(null);
 
-      await expect(service.deactivateUser('non-existent-id')).rejects.toThrow(ResourceNotFoundException);
+      await expect(service.deactivateUser('non-existent-id', 'actor-id')).rejects.toThrow(ResourceNotFoundException);
     });
 
     it('calls repository softDelete with the user id', async () => {
@@ -152,9 +196,15 @@ describe('UsersService', () => {
       mockRepository.findById.mockResolvedValue(user);
       mockRepository.softDelete.mockResolvedValue(undefined);
 
-      await service.deactivateUser('user-id');
+      await service.deactivateUser('user-id', 'actor-id');
 
       expect(mockRepository.softDelete).toHaveBeenCalledWith('user-id');
+      expect(mockAuditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: 'actor-id',
+          resourceId: 'user-id',
+        }),
+      );
     });
   });
 
@@ -162,14 +212,14 @@ describe('UsersService', () => {
     it('throws ResourceNotFoundException when user does not exist', async () => {
       mockRepository.activate.mockResolvedValue(null);
 
-      await expect(service.activateUser('non-existent-id')).rejects.toThrow(ResourceNotFoundException);
+      await expect(service.activateUser('non-existent-id', 'actor-id')).rejects.toThrow(ResourceNotFoundException);
     });
 
     it('returns the reactivated user', async () => {
       const reactivatedUser = new User('user-id', 'user@test.com', 'Test', 'User', [UserRole.ADMIN], true);
       mockRepository.activate.mockResolvedValue(reactivatedUser);
 
-      const result = await service.activateUser('user-id');
+      const result = await service.activateUser('user-id', 'actor-id');
 
       expect(result).toEqual(reactivatedUser);
     });

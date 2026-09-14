@@ -1,6 +1,9 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { ANIMAL_REPOSITORY, AnimalRepository } from '../../../animals/domain/repositories/animal.repository';
+import { AuditLogsService } from '../../../audit-logs/application/services/audit-logs.service';
+import { AuditAction } from '../../../audit-logs/domain/enums/audit-action.enum';
+import { AuditResourceType } from '../../../audit-logs/domain/enums/audit-resource-type.enum';
 import { assertMediaLinkable } from '../../../media/application/services/media-linker';
 import { MEDIA_ASSET_REPOSITORY, MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
 import { MediaLinkingContext } from '../../../media/domain/services/media-owner-policy';
@@ -24,6 +27,7 @@ export class ExpensesService {
     private readonly animalRepository: AnimalRepository,
     @Inject(MEDIA_ASSET_REPOSITORY)
     private readonly mediaAssetRepository: MediaAssetRepository,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async create(dto: CreateExpenseDto, actorId: string): Promise<Expense> {
@@ -56,7 +60,22 @@ export class ExpensesService {
       ticketMediaId,
     );
 
-    return this.expenseRepository.save(input);
+    const created = await this.expenseRepository.save(input);
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.EXPENSE_CREATE,
+      resourceType: AuditResourceType.EXPENSE,
+      resourceId: created.id,
+      metadata: {
+        animalId: created.animalId,
+        category: created.category,
+        amountCents: created.amountCents,
+        currency: created.currency,
+      },
+    });
+
+    return created;
   }
 
   async findById(id: string): Promise<Expense> {
@@ -90,7 +109,7 @@ export class ExpensesService {
     return this.expenseRepository.findMany(repositoryQuery);
   }
 
-  async softDelete(id: string): Promise<void> {
+  async softDelete(id: string, actorId: string): Promise<void> {
     const expense = await this.expenseRepository.findById(id);
 
     if (!expense) {
@@ -98,6 +117,16 @@ export class ExpensesService {
     }
 
     await this.expenseRepository.softDelete(id);
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.EXPENSE_SOFT_DELETE,
+      resourceType: AuditResourceType.EXPENSE,
+      resourceId: id,
+      metadata: {
+        animalId: expense.animalId,
+      },
+    });
   }
 
   private toRepositoryQuery(query: ListExpensesQueryDto): ExpenseListQuery {
