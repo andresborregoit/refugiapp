@@ -15,3 +15,5 @@
 - Usar el helper centralizado de hashing antes de persistir passwords.
 - Los endpoints de creacion, activacion y desactivacion de usuarios requieren `admin` mediante `JwtAuthGuard`, `RolesGuard` y `@Roles(UserRole.ADMIN)`.
 - `GET /users/me` requiere autenticacion JWT, pero admite los roles `admin`, `shelter_manager` y `veterinarian`.
+- `createUser`, `deactivateUser` y `activateUser` reciben el `actorId` autenticado y registran eventos en `audit_logs` (`user.create`, `user.deactivate`, `user.activate`, `user.role_assign`).
+- Los eventos de auditoria nunca incluyen `passwordHash` ni passwords; `metadata` solo lleva `email` y `roles`.

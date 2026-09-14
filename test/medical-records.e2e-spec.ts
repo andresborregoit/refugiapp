@@ -133,6 +133,7 @@ describe('MedicalRecords (e2e)', () => {
       });
       expect(medicalRecordsService.create).toHaveBeenCalledWith(
         expect.objectContaining(validDto),
+        'admin-id',
       );
     });
 

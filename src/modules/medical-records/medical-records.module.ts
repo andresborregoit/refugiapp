@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AnimalsModule } from '../animals/animals.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { MediaModule } from '../media/media.module';
 import { MediaAssetOrmEntity } from '../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { VeterinariansModule } from '../veterinarians/veterinarians.module';
@@ -18,6 +19,7 @@ import { MedicalRecordsController } from './interfaces/controllers/medical-recor
     forwardRef(() => AnimalsModule),
     forwardRef(() => VeterinariansModule),
     forwardRef(() => MediaModule),
+    AuditLogsModule,
   ],
   controllers: [MedicalRecordsController, AnimalMedicalRecordsController],
   providers: [

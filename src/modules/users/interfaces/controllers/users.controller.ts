@@ -43,8 +43,11 @@ export class UsersController {
   @ApiCreatedResponse({ type: UserResponseDto, description: 'User created successfully.' })
   @ApiConflictResponse({ description: 'Email already registered.' })
   @ApiErrorResponses(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.CONFLICT)
-  createUser(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
-    return this.usersService.createUser(dto);
+  createUser(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<UserResponseDto> {
+    return this.usersService.createUser(dto, user.id);
   }
 
   @Post(':id/deactivate')
@@ -55,8 +58,11 @@ export class UsersController {
   @ApiOperation({ summary: 'Deactivate a user (soft-delete, admin only)' })
   @ApiNoContentResponse({ description: 'User deactivated successfully.' })
   @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
-  deactivateUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.usersService.deactivateUser(id);
+  deactivateUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.usersService.deactivateUser(id, user.id);
   }
 
   @Post(':id/activate')
@@ -67,8 +73,11 @@ export class UsersController {
   @ApiOperation({ summary: 'Reactivate a deactivated user (admin only)' })
   @ApiOkResponse({ type: UserResponseDto, description: 'User reactivated successfully.' })
   @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
-  activateUser(@Param('id', ParseUUIDPipe) id: string): Promise<UserResponseDto> {
-    return this.usersService.activateUser(id);
+  activateUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<UserResponseDto> {
+    return this.usersService.activateUser(id, user.id);
   }
 
   @Get('me')

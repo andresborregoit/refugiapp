@@ -20,7 +20,7 @@
 - `occurredAt` no puede ser futura (`OCCURRED_AT_IN_FUTURE`) ni anterior al `intakeDate` del animal (`OCCURRED_AT_BEFORE_INTAKE`).
 - `attachmentMediaIds` es opcional; cada ID se valida contra `media_assets` (404 si no existe).
 - La persistencia del registro y la vinculacion de adjuntos ocurren en una misma transaccion.
-- No se persiste el actor que creo el registro (no existe columna `createdByUserId` en `medical_records`).
+- No se persiste el actor en una columna de `medical_records`; el actor del alta se registra en `audit_logs` como `medical_record.create`.
 - Los campos de texto (`title`, `diagnosis`, `treatment`, `notes`) se normalizan con trim; los vacios se almacenan como `null`.
 
 ## Actualizacion
@@ -47,6 +47,7 @@
 - La tabla `medical_record_changes` registra cada cambio sensible: actualizacion, baja logica y restauracion.
 - Cada cambio almacena: `medicalRecordId`, `changedByUserId`, `changeType`, `previousValues` (jsonb) y `changedAt`.
 - Los registros eliminados no aparecen en consultas normales; solo se acceden mediante `findByIdWithDeleted`.
+- Cada operacion de escritura (`create`, `update`, `soft_delete`, `restore`) tambien registra un evento espejo en `audit_logs` con el `actorId` autenticado.
 
 ## Consultas
 - `GET /animals/:animalId/medical-records` requiere JWT y admite solo `admin` y `veterinarian`.

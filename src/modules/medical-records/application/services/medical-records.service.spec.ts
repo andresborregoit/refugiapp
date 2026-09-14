@@ -73,6 +73,9 @@ describe('MedicalRecordsService', () => {
   const mediaAssetRepository = {
     findById: jest.fn(),
   };
+  const auditLogsService = {
+    record: jest.fn(),
+  };
   let service: MedicalRecordsService;
 
   beforeEach(() => {
@@ -82,6 +85,7 @@ describe('MedicalRecordsService', () => {
       animalRepository,
       veterinarianRepository as unknown as VeterinarianRepository,
       mediaAssetRepository as unknown as MediaAssetRepository,
+      auditLogsService as any,
     );
   });
 
@@ -107,7 +111,7 @@ describe('MedicalRecordsService', () => {
       animalRepository.findById.mockResolvedValue(animal);
       medicalRecordRepository.create.mockResolvedValue(record);
 
-      const result = await service.create(createDto());
+      const result = await service.create(createDto(), 'actor-id');
 
       expect(animalRepository.findById).toHaveBeenCalledWith('animal-id');
       expect(veterinarianRepository.findById).not.toHaveBeenCalled();
@@ -131,6 +135,21 @@ describe('MedicalRecordsService', () => {
       expect(result).toBe(record);
     });
 
+    it('records a medical_record.create audit event after persisting', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      medicalRecordRepository.create.mockResolvedValue(record);
+
+      await service.create(createDto(), 'actor-id');
+
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: 'actor-id',
+          resourceId: 'record-id',
+          metadata: expect.objectContaining({ animalId: 'animal-id' }),
+        }),
+      );
+    });
+
     it('creates a record with all optional fields populated', async () => {
       animalRepository.findById.mockResolvedValue(animal);
       veterinarianRepository.findById.mockResolvedValue({ id: 'vet-id', isActive: true });
@@ -149,6 +168,7 @@ describe('MedicalRecordsService', () => {
           notes: '  No issues  ',
           attachmentMediaIds: ['media-id'],
         }),
+        'actor-id',
       );
 
       expect(veterinarianRepository.findById).toHaveBeenCalledWith('vet-id');
@@ -167,7 +187,7 @@ describe('MedicalRecordsService', () => {
     it('throws ResourceNotFoundException when the animal does not exist', async () => {
       animalRepository.findById.mockResolvedValue(null);
 
-      await expect(service.create(createDto({ animalId: 'missing-id' }))).rejects.toThrow(
+      await expect(service.create(createDto({ animalId: 'missing-id' }), 'actor-id')).rejects.toThrow(
         ResourceNotFoundException,
       );
       expect(medicalRecordRepository.create).not.toHaveBeenCalled();
@@ -178,7 +198,7 @@ describe('MedicalRecordsService', () => {
       veterinarianRepository.findById.mockResolvedValue(null);
 
       await expect(
-        service.create(createDto({ veterinarianId: 'missing-vet' })),
+        service.create(createDto({ veterinarianId: 'missing-vet' }), 'actor-id'),
       ).rejects.toThrow(ResourceNotFoundException);
       expect(medicalRecordRepository.create).not.toHaveBeenCalled();
     });
@@ -188,11 +208,11 @@ describe('MedicalRecordsService', () => {
       veterinarianRepository.findById.mockResolvedValue({ id: 'vet-id', isActive: false });
 
       await expect(
-        service.create(createDto({ veterinarianId: 'vet-id' })),
+        service.create(createDto({ veterinarianId: 'vet-id' }), 'actor-id'),
       ).rejects.toThrow(ResourceConflictException);
 
       try {
-        await service.create(createDto({ veterinarianId: 'vet-id' }));
+        await service.create(createDto({ veterinarianId: 'vet-id' }), 'actor-id');
       } catch (error) {
         expect((error as ResourceConflictException).getResponse()).toEqual(
           expect.objectContaining({ code: 'VETERINARIAN_INACTIVE' }),
@@ -204,7 +224,7 @@ describe('MedicalRecordsService', () => {
       animalRepository.findById.mockResolvedValue(animal);
 
       await expect(
-        service.create(createDto({ occurredAt: '2099-01-01T00:00:00.000Z' })),
+        service.create(createDto({ occurredAt: '2099-01-01T00:00:00.000Z' }), 'actor-id'),
       ).rejects.toThrow();
     });
 
@@ -212,7 +232,7 @@ describe('MedicalRecordsService', () => {
       animalRepository.findById.mockResolvedValue(animal);
 
       await expect(
-        service.create(createDto({ occurredAt: '2025-01-01T00:00:00.000Z' })),
+        service.create(createDto({ occurredAt: '2025-01-01T00:00:00.000Z' }), 'actor-id'),
       ).rejects.toThrow();
     });
 
@@ -221,7 +241,7 @@ describe('MedicalRecordsService', () => {
       mediaAssetRepository.findById.mockResolvedValue(null);
 
       await expect(
-        service.create(createDto({ attachmentMediaIds: ['missing-media'] })),
+        service.create(createDto({ attachmentMediaIds: ['missing-media'] }), 'actor-id'),
       ).rejects.toThrow(ResourceNotFoundException);
       expect(medicalRecordRepository.create).not.toHaveBeenCalled();
     });
@@ -236,6 +256,7 @@ describe('MedicalRecordsService', () => {
       await expect(
         service.create(
           createDto({ attachmentMediaIds: ['media-1', 'missing-media'] }),
+          'actor-id',
         ),
       ).rejects.toThrow(ResourceNotFoundException);
 
@@ -252,7 +273,7 @@ describe('MedicalRecordsService', () => {
       });
 
       await expect(
-        service.create(createDto({ attachmentMediaIds: ['media-id'] })),
+        service.create(createDto({ attachmentMediaIds: ['media-id'] }), 'actor-id'),
       ).rejects.toThrow(ResourceConflictException);
       expect(medicalRecordRepository.create).not.toHaveBeenCalled();
     });
@@ -266,7 +287,7 @@ describe('MedicalRecordsService', () => {
       });
 
       await expect(
-        service.create(createDto({ attachmentMediaIds: ['media-id'] })),
+        service.create(createDto({ attachmentMediaIds: ['media-id'] }), 'actor-id'),
       ).rejects.toThrow(ResourceConflictException);
       expect(medicalRecordRepository.create).not.toHaveBeenCalled();
     });
@@ -313,6 +334,20 @@ describe('MedicalRecordsService', () => {
         expect.objectContaining({ title: 'Updated title', changedByUserId: 'actor-id' }),
       );
       expect(result).toBe(updatedRecord);
+    });
+
+    it('records a medical_record.update audit event', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      medicalRecordRepository.update.mockResolvedValue(record);
+
+      await service.update('record-id', updateDto(), 'actor-id');
+
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: 'actor-id',
+          resourceId: 'record-id',
+        }),
+      );
     });
 
     it('validates veterinarian when provided', async () => {
@@ -405,6 +440,9 @@ describe('MedicalRecordsService', () => {
 
       expect(medicalRecordRepository.findById).toHaveBeenCalledWith('record-id');
       expect(medicalRecordRepository.softDelete).toHaveBeenCalledWith('record-id', 'actor-id');
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ actorUserId: 'actor-id', resourceId: 'record-id' }),
+      );
     });
 
     it('throws ResourceNotFoundException when the record does not exist', async () => {
@@ -427,6 +465,9 @@ describe('MedicalRecordsService', () => {
       expect(medicalRecordRepository.findByIdWithDeleted).toHaveBeenCalledWith('record-id');
       expect(medicalRecordRepository.restore).toHaveBeenCalledWith('record-id', 'actor-id');
       expect(result).toBe(record);
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ actorUserId: 'actor-id', resourceId: 'record-id' }),
+      );
     });
 
     it('throws ResourceNotFoundException when the record does not exist', async () => {

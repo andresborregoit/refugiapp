@@ -39,6 +39,10 @@ Implementado:
 - Subida de media (`POST /media/upload`) con validacion de propietario (o assets huerfanos), mimetype, tamano, autorizacion por roles y compensacion remota si falla la persistencia.
 - Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional.
 - Listado de assets por propietario (`GET /media`) con paginacion y baja logica con limpieza remota en Cloudinary.
+- Auditoria transversal de operaciones sensibles (`audit_logs`, append-only) con actor, accion, recurso y timestamp.
+- Registro de eventos de usuarios, roles, registros clinicos, gastos, logins y denegaciones de acceso, sin almacenar passwords ni secretos.
+- Consulta de auditoria protegida para `admin` (`GET /audit-logs`, `GET /audit-logs/:id`) con paginacion y filtros.
+- Retencion de auditoria (`AUDIT_LOG_RETENTION_DAYS`) y purga fisica con `npm run audit:purge`.
 
 Pendiente:
 
@@ -90,6 +94,7 @@ src/
     veterinarians/
     expenses/
     media/
+    audit-logs/
   app.controller.ts
   app.module.ts
   app.service.ts
@@ -107,6 +112,7 @@ Modulos iniciales:
 - `veterinarians`: veterinarios responsables.
 - `expenses`: gastos asociados a animales y referencia a tickets.
 - `media`: metadata de archivos e imagenes en Cloudinary.
+- `audit-logs`: auditoria de operaciones sensibles con consulta protegida para `admin`.
 
 ## Instalacion
 
@@ -171,6 +177,8 @@ src/database/migrations/1787781241921-InitSchema.ts
 ```
 
 La migracion `1788897600000-AddBreedToAnimals.ts` agrega el campo opcional `breed` a `animals`.
+
+La migracion `1789399460070-AddAuditLogs.ts` crea la tabla append-only `audit_logs` con sus enums, indices y foreign key a `users`.
 
 Para cambios nuevos de schema, modificar primero las entidades ORM, generar una migracion nueva con nombre descriptivo, revisar el SQL generado y versionar codigo y migracion juntos.
 
@@ -297,6 +305,12 @@ E2E:
 
 ```bash
 npm run test:e2e
+```
+
+Purga de auditoria vencida:
+
+```bash
+npm run audit:purge
 ```
 
 El e2e inicial prueba el health check sin levantar la conexion real a Neon. Los e2e de funcionalidades deberian usar una base de test dedicada o contenedores.
