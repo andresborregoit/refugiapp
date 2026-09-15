@@ -350,6 +350,15 @@ Los estados por componente son `up`, `degraded` y `down`; el estado global es `o
 - `TRUST_PROXY_HOPS` debe coincidir con la cantidad exacta de proxies confiables delante de la API. Su valor por defecto es `0`, adecuado para acceso directo local.
 - CORS permanece habilitado para el frontend. Los valores por defecto de rate limiting permiten trafico interactivo normal y pueden ajustarse por entorno.
 
+### Despliegue reproducible
+
+- El artefacto de referencia es una imagen multi-stage construida desde el `Dockerfile` con Node.js 20.20.2 fijado por digest y dependencias instaladas mediante `npm ci`.
+- Development, staging y production usan la misma imagen. `APP_ENV` identifica el ambiente funcional y `NODE_ENV=production` se usa tanto en staging como en production.
+- Las migraciones compiladas se ejecutan como un job explicito mediante `npm run migration:run:prod`; nunca forman parte del comando de arranque de la API.
+- `TYPEORM_SYNCHRONIZE=false` es obligatorio en todos los ejemplos y la validacion de produccion rechaza cualquier intento de activarlo.
+- Una replica solo recibe trafico despues de responder `200` en `GET /api/v1/health/ready`. El Dockerfile y el pipeline usan ese endpoint como condicion de disponibilidad.
+- El runbook versionado define promocion de imagen por digest, verificaciones y rollback de aplicacion y base de datos.
+
 ## 6. Modelo de datos
 
 ### 6.1 Convenciones comunes
@@ -1016,6 +1025,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Suite de contrato de schema (`database-schema.persistence.e2e-spec.ts`) que valida contra PostgreSQL real enums, foreign keys con `ON DELETE`, indices/uniques, constraints `CHECK`, columnas comunes y soft delete, compartiendo el helper `test/utils/persistence-test-setup.ts` (base aislada, migraciones automaticas y limpieza de tablas, incluida `audit_logs`, entre tests).
 - CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios, validacion de migraciones y E2E en matriz Node 20+/22. El job `verify` actua como gate de merge.
 - Rate limiting global configurable, limite diferenciado para login, respuestas `429` consistentes y headers HTTP de seguridad mediante Helmet.
+- Despliegue reproducible por ambientes con imagen Node fijada, migraciones explicitas, readiness y runbook de rollback.
 
 ### Pendiente
 

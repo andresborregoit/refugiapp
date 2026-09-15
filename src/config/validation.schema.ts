@@ -16,6 +16,7 @@ const productionJwtSecretSchema = Joi.string()
 
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
+  APP_ENV: Joi.string().valid('development', 'staging', 'production').default('development'),
   PORT: Joi.number().port().default(3000),
   API_PREFIX: Joi.string().default('api/v1'),
   LOG_LEVEL: Joi.string().valid('log', 'error', 'warn', 'debug', 'verbose', 'fatal').default('log'),
