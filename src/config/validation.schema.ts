@@ -18,6 +18,9 @@ export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   PORT: Joi.number().port().default(3000),
   API_PREFIX: Joi.string().default('api/v1'),
+  LOG_LEVEL: Joi.string()
+    .valid('log', 'error', 'warn', 'debug', 'verbose', 'fatal')
+    .default('log'),
 
   DATABASE_URL: Joi.string()
     .uri({
@@ -35,6 +38,9 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.boolean().default(false),
   }),
   TYPEORM_LOGGING: Joi.boolean().default(false),
+
+  HEALTH_DB_TIMEOUT_MS: Joi.number().integer().min(100).max(10000).default(2000),
+  HEALTH_DEGRADED_LATENCY_MS: Joi.number().integer().min(0).max(10000).default(500),
 
   INITIAL_ADMIN_EMAIL: Joi.string().email().allow('').default(''),
   INITIAL_ADMIN_PASSWORD: Joi.string().min(12).allow('').default(''),

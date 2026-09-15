@@ -4,12 +4,16 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ErrorResponseDto } from '../interfaces/error-response.dto';
+import { getRequestId } from '../storage/request-context';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
@@ -21,8 +25,28 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const payload = this.buildPayload(exception, status, request.url);
+    this.logException(exception, status, payload);
 
     response.status(status).json(payload);
+  }
+
+  private logException(exception: unknown, status: number, payload: ErrorResponseDto): void {
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(
+        { msg: 'request.internal_error', statusCode: status, code: payload.code },
+        exception instanceof Error ? exception.stack : undefined,
+      );
+      return;
+    }
+
+    if (status >= HttpStatus.BAD_REQUEST) {
+      this.logger.warn({
+        msg: 'request.rejected',
+        statusCode: status,
+        code: payload.code,
+        message: payload.message,
+      });
+    }
   }
 
   private buildPayload(
@@ -34,7 +58,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const exceptionResponse = exception instanceof HttpException ? exception.getResponse() : null;
     const responseObject =
       typeof exceptionResponse === 'object' && exceptionResponse !== null
-        ? exceptionResponse as Record<string, unknown>
+        ? (exceptionResponse as Record<string, unknown>)
         : {};
     const message = isServerError
       ? 'Internal server error.'
@@ -51,6 +75,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : this.readError(responseObject, status),
       timestamp: new Date().toISOString(),
       path,
+      requestId: getRequestId(),
     };
   }
 

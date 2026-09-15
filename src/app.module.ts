@@ -7,6 +7,7 @@ import { AnimalsModule } from './modules/animals/animals.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
+import { HealthModule } from './modules/health/health.module';
 import { MediaModule } from './modules/media/media.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
 import { UsersModule } from './modules/users/users.module';
@@ -14,6 +15,7 @@ import { VeterinariansModule } from './modules/veterinarians/veterinarians.modul
 import { appConfig } from './config/app.config';
 import { cloudinaryConfig } from './config/cloudinary.config';
 import { databaseConfig } from './config/database.config';
+import { healthConfig } from './config/health.config';
 import { jwtConfig } from './config/jwt.config';
 import { createTypeOrmOptions } from './config/typeorm.config';
 import { envValidationSchema } from './config/validation.schema';
@@ -22,7 +24,7 @@ import { envValidationSchema } from './config/validation.schema';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig, cloudinaryConfig],
+      load: [appConfig, databaseConfig, jwtConfig, cloudinaryConfig, healthConfig],
       validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,
@@ -40,6 +42,7 @@ import { envValidationSchema } from './config/validation.schema';
     ExpensesModule,
     MediaModule,
     AuditLogsModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

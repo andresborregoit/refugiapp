@@ -112,6 +112,7 @@ src/
     expenses/
     media/
     audit-logs/
+    health/
   app.controller.ts
   app.module.ts
   main.ts
@@ -320,6 +321,24 @@ Seguridad de datos: `metadata` nunca almacena passwords, tokens ni secretos. La 
 La consulta se realiza mediante `GET /audit-logs` y `GET /audit-logs/:id`. Requiere JWT y admite solo `admin`. El listado usa paginacion (`page` minimo 1, `limit` entre 1 y 100, default 20), filtros opcionales por `action`, `resourceType`, `resourceId`, `actorUserId` y rango `from`/`to` sobre `occurredAt`, con orden `occurredAt DESC, id DESC`.
 
 Retencion: la constante de dominio `AUDIT_LOG_RETENTION_DAYS` define 730 dias. La purga fisica se ejecuta con `npm run audit:purge`, que invoca `AuditLogsService.purgeExpired`.
+
+### `health`
+
+Expone health checks para orquestadores y balanceadores. Usa `@nestjs/terminus` (version CommonJS) para el decorador `@HealthCheck()` y la documentacion Swagger.
+
+- `GET /health` (liveness): responde `200` mientras el proceso este vivo. No consulta dependencias externas.
+- `GET /health/ready` (readiness): comprueba la aplicacion y la conexion a PostgreSQL mediante `SELECT 1`. Responde `200` con estado `ok`, `200` con estado `degraded` cuando la base responde pero supera `HEALTH_DEGRADED_LATENCY_MS`, o `503` con estado `error` cuando la base no responde.
+
+Los estados por componente son `up`, `degraded` y `down`; el estado global es `ok`, `degraded` o `error`. El chequeo de base de datos vive en `infrastructure` porque usa `DataSource`; el agregado vive en `application`. Los endpoints son publicos y no exponen secretos ni URLs de conexion.
+
+### Observabilidad
+
+- `CorrelationIdMiddleware` (`src/common/middleware`) lee o genera `x-request-id`, lo guarda en `AsyncLocalStorage` (`src/common/storage/request-context.ts`) y lo devuelve en el header de respuesta.
+- `JsonLoggerService` (`src/common/logger`) emite logs en JSON con `level`, `pid`, `timestamp`, `context`, `message` y `requestId`. Se registra en `main.ts` como logger global de Nest.
+- `sanitizeLogValue` redacta recursivamente claves y valores sensibles (`password`, `token`, `secret`, `authorization`, `apiKey`, credenciales de base y Cloudinary) como `[REDACTED]`.
+- `HttpLoggingInterceptor` registra cada request con metodo, ruta, `statusCode` y `durationMs`.
+- `HttpExceptionFilter` agrega `requestId` a la respuesta de error y loguea `4xx` como `warn` y `5xx` como `error`, sin exponer detalles internos al cliente.
+- El nivel de log se controla con `LOG_LEVEL`.
 
 ## 6. Modelo de datos
 
@@ -981,9 +1000,11 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Consulta de auditoria protegida para `admin` (`GET /audit-logs`, `GET /audit-logs/:id`) con paginacion y filtros.
 - Retencion configurable (`AUDIT_LOG_RETENTION_DAYS`) y purga fisica mediante `npm run audit:purge`.
 - Build, lint y tests unitarios configurados.
+- Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL, estado `degraded` y `503` cuando la base no responde.
+- Logs estructurados en JSON con redaccion de datos sensibles y correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
 - Suite E2E de flujos criticos desde HTTP hasta PostgreSQL real y descartable mediante Testcontainers; Cloudinary se sustituye solo en el limite externo.
 - Suite de contrato de schema (`database-schema.persistence.e2e-spec.ts`) que valida contra PostgreSQL real enums, foreign keys con `ON DELETE`, indices/uniques, constraints `CHECK`, columnas comunes y soft delete, compartiendo el helper `test/utils/persistence-test-setup.ts` (base aislada, migraciones automaticas y limpieza de tablas, incluida `audit_logs`, entre tests).
-- CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios y E2E sin intervencion manual.
+- CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios, validacion de migraciones y E2E en matriz Node 20+/22. El job `verify` actua como gate de merge.
 
 ### Pendiente
 
@@ -1030,5 +1051,7 @@ Endpoints base:
 
 ```text
 GET  http://localhost:3000/api/v1
+GET  http://localhost:3000/api/v1/health
+GET  http://localhost:3000/api/v1/health/ready
 Docs http://localhost:3000/api/v1/docs
 ```
