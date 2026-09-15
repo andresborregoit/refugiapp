@@ -48,11 +48,17 @@ export class TypeOrmUserRepository implements UserRepository {
   }
 
   async softDelete(id: string): Promise<void> {
-    await this.repository.softDelete(id);
+    await this.repository.manager.transaction(async (manager) => {
+      await manager.update(UserOrmEntity, { id }, { isActive: false });
+      await manager.softDelete(UserOrmEntity, { id });
+    });
   }
 
   async activate(id: string): Promise<User | null> {
-    const entity = await this.repository.findOne({ where: { id } });
+    const entity = await this.repository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
 
     if (!entity) {
       return null;

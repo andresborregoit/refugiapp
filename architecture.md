@@ -880,6 +880,8 @@ src/database/migrations/1787781241921-InitSchema.ts
 Clase: InitSchema1787781241921
 ```
 
+La migracion `1787000000000-EnableUuidOsspExtension.ts` se ordena antes de la inicial y habilita de forma idempotente `uuid-ossp`, requerido por los defaults `uuid_generate_v4()` al crear un schema vacio. Su `down` conserva la extension porque otras tablas o schemas de la misma base pueden depender de ella.
+
 La migracion `1789300000000-AllowOrphanMediaAssets.ts` permite assets huerfanos haciendo nullable `ownerType` y `ownerId` en `media_assets`.
 
 La migracion `1789399460070-AddAuditLogs.ts` crea los enums `audit_action` y `audit_resource_type`, la tabla `audit_logs` (append-only) y sus indices y foreign key a `users`.
@@ -979,12 +981,13 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Consulta de auditoria protegida para `admin` (`GET /audit-logs`, `GET /audit-logs/:id`) con paginacion y filtros.
 - Retencion configurable (`AUDIT_LOG_RETENTION_DAYS`) y purga fisica mediante `npm run audit:purge`.
 - Build, lint y tests unitarios configurados.
+- Suite E2E de flujos criticos desde HTTP hasta PostgreSQL real y descartable mediante Testcontainers; Cloudinary se sustituye solo en el limite externo.
+- CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios y E2E sin intervencion manual.
 
 ### Pendiente
 
 - Implementar subida real de archivos.
 - Implementar casos de uso completos por dominio.
-- Crear tests de integracion con PostgreSQL.
 - Revisar normalizacion de emails a minusculas.
 
 Los pendientes no deben considerarse implementados hasta que exista codigo, migracion y test cuando corresponda.
@@ -1010,8 +1013,11 @@ Antes de modificar el proyecto, un agente debe:
 npm run build
 npm run lint
 npm test -- --runInBand
+npm run test:e2e
 npm run migration:show
 ```
+
+`npm run test:e2e` requiere un runtime Docker disponible. La propia suite crea y elimina un PostgreSQL efimero llamado `refugiapp_test`; no usa Neon ni la variable `DATABASE_URL` del entorno del desarrollador.
 
 Para iniciar la API:
 

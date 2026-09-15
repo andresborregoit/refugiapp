@@ -39,10 +39,8 @@ Implementado:
 - Subida de media (`POST /media/upload`) con validacion de propietario (o assets huerfanos), mimetype, tamano, autorizacion por roles y compensacion remota si falla la persistencia.
 - Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional.
 - Listado de assets por propietario (`GET /media`) con paginacion y baja logica con limpieza remota en Cloudinary.
-- Auditoria transversal de operaciones sensibles (`audit_logs`, append-only) con actor, accion, recurso y timestamp.
-- Registro de eventos de usuarios, roles, registros clinicos, gastos, logins y denegaciones de acceso, sin almacenar passwords ni secretos.
-- Consulta de auditoria protegida para `admin` (`GET /audit-logs`, `GET /audit-logs/:id`) con paginacion y filtros.
-- Retencion de auditoria (`AUDIT_LOG_RETENTION_DAYS`) y purga fisica con `npm run audit:purge`.
+- Suite E2E de flujos criticos contra PostgreSQL efimero mediante Testcontainers, sin usar Neon ni datos de produccion.
+- Pipeline de CI para build, lint, tests unitarios y pruebas HTTP con persistencia real.
 
 Pendiente:
 
@@ -121,6 +119,7 @@ Requisitos:
 - Node.js 20 o superior.
 - npm.
 - Una base PostgreSQL en Neon.
+- Docker para ejecutar localmente la suite E2E con PostgreSQL efimero.
 
 Instalar dependencias:
 
@@ -307,13 +306,9 @@ E2E:
 npm run test:e2e
 ```
 
-Purga de auditoria vencida:
+Las pruebas de contrato HTTP usan dobles de servicios para cubrir respuestas, DTOs y guards de forma rapida. La suite `critical-flows.persistence.e2e-spec.ts` levanta automaticamente un PostgreSQL descartable, ejecuta todas las migraciones y verifica los flujos criticos completos desde HTTP hasta TypeORM. Cloudinary se reemplaza por un adaptador de prueba para evitar trafico y credenciales externas; la metadata de media se persiste realmente en PostgreSQL.
 
-```bash
-npm run audit:purge
-```
-
-El e2e inicial prueba el health check sin levantar la conexion real a Neon. Los e2e de funcionalidades deberian usar una base de test dedicada o contenedores.
+La base se crea y elimina en cada ejecucion, por lo que la suite nunca lee `DATABASE_URL` de desarrollo o produccion. Docker debe estar iniciado localmente; en GitHub Actions el workflow `.github/workflows/ci.yml` ejecuta toda la verificacion sin intervencion manual.
 
 ## Agregar un nuevo modulo
 
