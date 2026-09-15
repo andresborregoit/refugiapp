@@ -97,7 +97,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      DATABASE_URL: postgresql://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}
       DB_SSL: 'false'
       TYPEORM_SYNCHRONIZE: 'false'
     services:
@@ -124,6 +123,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Configure database connection
+        run: |
+          database_scheme='postgresql:'
+          echo "DATABASE_URL=${database_scheme}//${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}" >> "$GITHUB_ENV"
       - name: Run migrations on a clean database
         run: npm run migration:run
       - name: Show applied migrations

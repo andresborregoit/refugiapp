@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { APPLICATION_METADATA } from './common/constants/application-metadata';
 
 @Injectable()
 export class AppService {
@@ -8,9 +9,9 @@ export class AppService {
     version: string;
   } {
     return {
-      name: 'refugiapp-api',
+      name: APPLICATION_METADATA.name,
       status: 'ok',
-      version: '0.1.0',
+      version: APPLICATION_METADATA.version,
     };
   }
 }

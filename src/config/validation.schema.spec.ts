@@ -21,6 +21,8 @@ describe('environment validation schema', () => {
 
     expect(result.error).toBeUndefined();
     expect(result.value.TYPEORM_SYNCHRONIZE).toBe(false);
+    expect(result.value.RATE_LIMIT_GENERAL_LIMIT).toBe(100);
+    expect(result.value.RATE_LIMIT_LOGIN_LIMIT).toBe(5);
   });
 
   it('accepts valid test configuration with synchronization enabled', () => {
@@ -113,6 +115,42 @@ describe('environment validation schema', () => {
 
     expect(result.error?.details.some(({ path }) => path[0] === 'CLOUDINARY_API_SECRET')).toBe(
       true,
+    );
+  });
+
+  it('accepts custom rate limits and proxy hops', () => {
+    const result = envValidationSchema.validate({
+      ...baseEnvironment,
+      TRUST_PROXY_HOPS: 1,
+      RATE_LIMIT_GENERAL_LIMIT: 250,
+      RATE_LIMIT_GENERAL_TTL_MS: 120000,
+      RATE_LIMIT_LOGIN_LIMIT: 8,
+      RATE_LIMIT_LOGIN_TTL_MS: 30000,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.value.RATE_LIMIT_GENERAL_LIMIT).toBe(250);
+    expect(result.value.RATE_LIMIT_LOGIN_LIMIT).toBe(8);
+  });
+
+  it('rejects unsafe rate limit and proxy values', () => {
+    const result = envValidationSchema.validate(
+      {
+        ...baseEnvironment,
+        TRUST_PROXY_HOPS: -1,
+        RATE_LIMIT_GENERAL_LIMIT: 0,
+        RATE_LIMIT_LOGIN_TTL_MS: 50,
+      },
+      { abortEarly: false },
+    );
+
+    const invalidPaths = result.error?.details.map(({ path }) => path[0]);
+    expect(invalidPaths).toEqual(
+      expect.arrayContaining([
+        'TRUST_PROXY_HOPS',
+        'RATE_LIMIT_GENERAL_LIMIT',
+        'RATE_LIMIT_LOGIN_TTL_MS',
+      ]),
     );
   });
 });

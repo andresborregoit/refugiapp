@@ -4,6 +4,7 @@ import {
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ErrorResponseDto } from '../interfaces/error-response.dto';
@@ -13,7 +14,8 @@ type DocumentedErrorStatus =
   | HttpStatus.UNAUTHORIZED
   | HttpStatus.FORBIDDEN
   | HttpStatus.NOT_FOUND
-  | HttpStatus.CONFLICT;
+  | HttpStatus.CONFLICT
+  | HttpStatus.TOO_MANY_REQUESTS;
 
 const descriptions: Record<DocumentedErrorStatus, string> = {
   [HttpStatus.BAD_REQUEST]: 'Invalid request.',
@@ -21,6 +23,7 @@ const descriptions: Record<DocumentedErrorStatus, string> = {
   [HttpStatus.FORBIDDEN]: 'The authenticated user does not have permission.',
   [HttpStatus.NOT_FOUND]: 'The requested resource was not found.',
   [HttpStatus.CONFLICT]: 'The request conflicts with the current resource state.',
+  [HttpStatus.TOO_MANY_REQUESTS]: 'The request rate limit was exceeded.',
 };
 
 export function ApiErrorResponses(
@@ -34,6 +37,7 @@ export function ApiErrorResponses(
         HttpStatus.FORBIDDEN,
         HttpStatus.NOT_FOUND,
         HttpStatus.CONFLICT,
+        HttpStatus.TOO_MANY_REQUESTS,
       ];
 
   return applyDecorators(
@@ -51,6 +55,8 @@ export function ApiErrorResponses(
           return ApiNotFoundResponse(options);
         case HttpStatus.CONFLICT:
           return ApiConflictResponse(options);
+        case HttpStatus.TOO_MANY_REQUESTS:
+          return ApiTooManyRequestsResponse(options);
         default:
           throw new Error(`Unsupported documented HTTP status: ${status}`);
       }
