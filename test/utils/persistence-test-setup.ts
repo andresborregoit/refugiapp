@@ -118,6 +118,8 @@ function applyDatabaseEnvironment(url: string): void {
   process.env.DB_POOL_SIZE = '5';
   process.env.TYPEORM_SYNCHRONIZE = 'false';
   process.env.TYPEORM_LOGGING = 'false';
+  process.env.RATE_LIMIT_GENERAL_LIMIT = '10000';
+  process.env.RATE_LIMIT_LOGIN_LIMIT = '10000';
 }
 
 function assertSafeDatabaseName(url: string): void {
