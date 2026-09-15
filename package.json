@@ -25,6 +25,7 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:show": "npm run typeorm -- migration:show",
     "migration:revert": "npm run typeorm -- migration:revert",
+    "audit:purge": "ts-node src/modules/audit-logs/infrastructure/maintenance/purge-audit-logs.ts",
     "seed:admin": "ts-node src/database/seeds/initial-admin.seed.ts"
   },
   "dependencies": {

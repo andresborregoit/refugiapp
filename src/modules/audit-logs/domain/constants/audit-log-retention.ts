@@ -1,0 +1,1 @@
+export const AUDIT_LOG_RETENTION_DAYS = 730;

@@ -48,8 +48,11 @@ export class MedicalRecordsController {
   @ApiOperation({ summary: 'Create a medical record' })
   @ApiCreatedResponse({ type: MedicalRecordResponseDto, description: 'Medical record created successfully.' })
   @ApiErrorResponses(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT)
-  create(@Body() dto: CreateMedicalRecordDto): Promise<MedicalRecordResponseDto> {
-    return this.medicalRecordsService.create(dto);
+  create(
+    @Body() dto: CreateMedicalRecordDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MedicalRecordResponseDto> {
+    return this.medicalRecordsService.create(dto, user.id);
   }
 
   @Get()

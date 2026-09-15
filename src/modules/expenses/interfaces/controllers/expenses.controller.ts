@@ -82,7 +82,10 @@ export class ExpensesController {
   @ApiOperation({ summary: 'Soft-delete an expense' })
   @ApiNoContentResponse({ description: 'Expense soft-deleted successfully.' })
   @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
-  softDelete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.expensesService.softDelete(id);
+  softDelete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.expensesService.softDelete(id, user.id);
   }
 }

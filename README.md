@@ -92,6 +92,7 @@ src/
     veterinarians/
     expenses/
     media/
+    audit-logs/
   app.controller.ts
   app.module.ts
   app.service.ts
@@ -109,6 +110,7 @@ Modulos iniciales:
 - `veterinarians`: veterinarios responsables.
 - `expenses`: gastos asociados a animales y referencia a tickets.
 - `media`: metadata de archivos e imagenes en Cloudinary.
+- `audit-logs`: auditoria de operaciones sensibles con consulta protegida para `admin`.
 
 ## Instalacion
 
@@ -174,6 +176,8 @@ src/database/migrations/1787781241921-InitSchema.ts
 ```
 
 La migracion `1788897600000-AddBreedToAnimals.ts` agrega el campo opcional `breed` a `animals`.
+
+La migracion `1789399460070-AddAuditLogs.ts` crea la tabla append-only `audit_logs` con sus enums, indices y foreign key a `users`.
 
 Para cambios nuevos de schema, modificar primero las entidades ORM, generar una migracion nueva con nombre descriptivo, revisar el SQL generado y versionar codigo y migracion juntos.
 

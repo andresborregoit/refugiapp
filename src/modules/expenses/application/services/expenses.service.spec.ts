@@ -48,6 +48,9 @@ describe('ExpensesService', () => {
   const mediaAssetRepository = {
     findById: jest.fn(),
   };
+  const auditLogsService = {
+    record: jest.fn(),
+  };
   let service: ExpensesService;
 
   beforeEach(() => {
@@ -56,6 +59,7 @@ describe('ExpensesService', () => {
       expenseRepository,
       animalRepository as unknown as AnimalRepository,
       mediaAssetRepository as unknown as MediaAssetRepository,
+      auditLogsService as any,
     );
   });
 
@@ -95,6 +99,21 @@ describe('ExpensesService', () => {
 
       expect(input.incurredAt).toBeInstanceOf(Date);
       expect(result).toBe(expense);
+    });
+
+    it('records an expense.create audit event after persisting', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      expenseRepository.save.mockResolvedValue(expense);
+
+      await service.create(createDto(), 'actor-id');
+
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: 'actor-id',
+          resourceId: 'expense-id',
+          metadata: expect.objectContaining({ animalId: 'animal-id', amountCents: 1250 }),
+        }),
+      );
     });
 
     it('validates the ticket media asset when provided', async () => {
@@ -278,20 +297,26 @@ describe('ExpensesService', () => {
   });
 
   describe('softDelete', () => {
-    it('soft-deletes an existing expense', async () => {
+    it('soft-deletes an existing expense and records the actor', async () => {
       expenseRepository.findById.mockResolvedValue(expense);
       expenseRepository.softDelete.mockResolvedValue(undefined);
 
-      await service.softDelete('expense-id');
+      await service.softDelete('expense-id', 'actor-id');
 
       expect(expenseRepository.findById).toHaveBeenCalledWith('expense-id');
       expect(expenseRepository.softDelete).toHaveBeenCalledWith('expense-id');
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: 'actor-id',
+          resourceId: 'expense-id',
+        }),
+      );
     });
 
     it('throws ResourceNotFoundException when the expense does not exist', async () => {
       expenseRepository.findById.mockResolvedValue(null);
 
-      await expect(service.softDelete('missing-id')).rejects.toThrow(ResourceNotFoundException);
+      await expect(service.softDelete('missing-id', 'actor-id')).rejects.toThrow(ResourceNotFoundException);
       expect(expenseRepository.softDelete).not.toHaveBeenCalled();
     });
   });

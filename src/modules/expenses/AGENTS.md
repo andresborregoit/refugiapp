@@ -22,6 +22,7 @@
 ## Baja logica
 - `DELETE /expenses/:id` requiere JWT y admite solo `admin` y `shelter_manager`.
 - Aplica soft-delete mediante `deletedAt`; no se permite borrado fisico desde HTTP.
+- El caso de uso recibe el `actorId` autenticado y registra `expense.create` y `expense.soft_delete` en `audit_logs`.
 
 ## Consultas
 - `GET /expenses` requiere JWT y admite los tres roles autenticados.

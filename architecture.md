@@ -111,6 +111,7 @@ src/
     veterinarians/
     expenses/
     media/
+    audit-logs/
   app.controller.ts
   app.module.ts
   main.ts
@@ -201,6 +202,8 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `GET /media` | Permitido | Permitido | Permitido |
 | `GET /media/:id` | Permitido | Permitido | Permitido |
 | `DELETE /media/:id` | Permitido | Permitido | Permitido |
+| `GET /audit-logs` | Permitido | Rechazado | Rechazado |
+| `GET /audit-logs/:id` | Permitido | Rechazado | Rechazado |
 
 En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset.
 
@@ -291,6 +294,32 @@ La consulta de assets por propietario se realiza mediante `GET /media?ownerType=
 La baja logica se realiza mediante `DELETE /media/:id` aplicando `deletedAt` y luego intenta eliminar el archivo remoto en Cloudinary. Si la limpieza remota falla, se loguea el error y el registro permanece oculto por `deletedAt`.
 
 Los roles `admin` y `shelter_manager` pueden subir, listar y borrar cualquier asset. El rol `veterinarian` puede subir adjuntos clinicos (o huerfanos) y borrar solo assets de `medical_record`.
+
+### `audit-logs`
+
+Gestiona la auditoria transversal de operaciones sensibles.
+
+Registra quien realizo un cambio relevante, sobre que recurso y cuando, cubriendo usuarios, roles, registros clinicos, gastos, inicios de sesion y denegaciones de acceso. La tabla `audit_logs` es append-only: no existen endpoints de escritura, edicion ni borrado.
+
+La escritura se realiza internamente mediante `AuditLogsService.record` desde los casos de uso de cada dominio, despues de completar la operacion. Cada evento almacena `actorUserId` (nullable), `action`, `resourceType`, `resourceId` (nullable), `occurredAt` y `metadata`.
+
+Acciones registradas:
+
+```text
+user.create, user.deactivate, user.activate, user.role_assign
+medical_record.create, medical_record.update, medical_record.soft_delete, medical_record.restore
+expense.create, expense.soft_delete
+auth.login_success, auth.login_failure
+access.denied
+```
+
+Los `403` emitidos por `RolesGuard` se auditan globalmente mediante `AuditForbiddenFilter`, registrados desde `main.ts`. El filtro nunca interrumpe la respuesta HTTP si la auditoria falla.
+
+Seguridad de datos: `metadata` nunca almacena passwords, tokens ni secretos. La funcion `sanitizeAuditMetadata` redacta de forma recursiva claves sensibles (`password`, `passwordHash`, `token`, `secret`, `apiKey`, `authorization`, `credential`, etc.) reemplazando el valor por `[REDACTED]`.
+
+La consulta se realiza mediante `GET /audit-logs` y `GET /audit-logs/:id`. Requiere JWT y admite solo `admin`. El listado usa paginacion (`page` minimo 1, `limit` entre 1 y 100, default 20), filtros opcionales por `action`, `resourceType`, `resourceId`, `actorUserId` y rango `from`/`to` sobre `occurredAt`, con orden `occurredAt DESC, id DESC`.
+
+Retencion: la constante de dominio `AUDIT_LOG_RETENTION_DAYS` define 730 dias. La purga fisica se ejecuta con `npm run audit:purge`, que invoca `AuditLogsService.purgeExpired`.
 
 ## 6. Modelo de datos
 
@@ -534,6 +563,49 @@ video
 raw
 ```
 
+### 6.10 `audit_logs`
+
+Registra eventos de auditoria de operaciones sensibles. Es append-only.
+
+| Columna | Tipo | Null | Restricciones |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | PK |
+| `actorUserId` | `uuid` | Si | FK a `users.id` |
+| `action` | `audit_action` | No | |
+| `resourceType` | `audit_resource_type` | No | |
+| `resourceId` | `uuid` | Si | ID del recurso afectado; sin FK por ser polimorfico |
+| `occurredAt` | `timestamptz` | No | Timestamp del hecho |
+| `metadata` | `jsonb` | No | Default `{}`; sin secretos |
+| columnas comunes | | | `createdAt`, `updatedAt`, `deletedAt` (siempre `NULL`) |
+
+Enum `audit_action`:
+
+```text
+user.create
+user.deactivate
+user.activate
+user.role_assign
+medical_record.create
+medical_record.update
+medical_record.soft_delete
+medical_record.restore
+expense.create
+expense.soft_delete
+auth.login_success
+auth.login_failure
+access.denied
+```
+
+Enum `audit_resource_type`:
+
+```text
+user
+medical_record
+expense
+auth_session
+authorization
+```
+
 ## 7. Diagrama entidad-relacion
 
 El siguiente DER representa las foreign keys reales de PostgreSQL. La relacion polimorfica de `media_assets` se muestra separadamente porque `ownerId` no puede tener una foreign key a varias tablas al mismo tiempo.
@@ -655,6 +727,19 @@ erDiagram
         timestamptz deletedAt
     }
 
+    AUDIT_LOGS {
+        uuid id PK
+        uuid actorUserId FK
+        audit_action action
+        audit_resource_type resourceType
+        uuid resourceId
+        timestamptz occurredAt
+        jsonb metadata
+        timestamptz createdAt
+        timestamptz updatedAt
+        timestamptz deletedAt
+    }
+
     USERS ||--o| VETERINARIANS : "may have professional profile"
     USERS ||--o{ ANIMAL_HISTORY_EVENTS : "creates"
     USERS ||--o{ EXPENSES : "registers"
@@ -667,6 +752,7 @@ erDiagram
     VETERINARIANS ||--o{ MEDICAL_RECORDS : "is responsible"
     MEDICAL_RECORDS ||--o{ MEDICAL_RECORD_CHANGES : "has changes"
     USERS ||--o{ MEDICAL_RECORD_CHANGES : "changes"
+    USERS ||--o{ AUDIT_LOGS : "performs"
 ```
 
 ### Relacion polimorfica de media
@@ -702,6 +788,7 @@ Las relaciones implementadas en la migracion inicial son:
 | `expenses` | `createdByUserId` | `users.id` | `SET NULL` |
 | `animals` | `profilePhotoMediaId` | `media_assets.id` | `SET NULL` |
 | `media_assets` | `uploadedByUserId` | `users.id` | `SET NULL` |
+| `audit_logs` | `actorUserId` | `users.id` | `SET NULL` |
 
 La politica evita perder historial clinico, eventos o gastos por borrar accidentalmente un animal. La baja normal debe realizarse mediante `deletedAt`.
 
@@ -723,6 +810,10 @@ La migracion inicial crea:
 - Indice en `expenses.incurredAt`.
 - Indice compuesto en `media_assets.ownerType, ownerId`.
 - Indice unico en `media_assets.cloudinaryPublicId`.
+- Indice en `audit_logs.action`.
+- Indice en `audit_logs.occurredAt`.
+- Indice en `audit_logs.actorUserId`.
+- Indice compuesto en `audit_logs.resourceType, resourceId`.
 
 Los indices nuevos deben justificarse por consultas reales o por una restriccion de integridad. No agregar indices indiscriminadamente.
 
@@ -792,6 +883,8 @@ Clase: InitSchema1787781241921
 La migracion `1787000000000-EnableUuidOsspExtension.ts` se ordena antes de la inicial y habilita de forma idempotente `uuid-ossp`, requerido por los defaults `uuid_generate_v4()` al crear un schema vacio. Su `down` conserva la extension porque otras tablas o schemas de la misma base pueden depender de ella.
 
 La migracion `1789300000000-AllowOrphanMediaAssets.ts` permite assets huerfanos haciendo nullable `ownerType` y `ownerId` en `media_assets`.
+
+La migracion `1789399460070-AddAuditLogs.ts` crea los enums `audit_action` y `audit_resource_type`, la tabla `audit_logs` (append-only) y sus indices y foreign key a `users`.
 
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
 
@@ -882,6 +975,11 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional y `409 INCOMPATIBLE_OWNER_TYPE` / `409 MEDIA_ALREADY_OWNED`.
 - Listado de assets por propietario (`GET /media`) con validacion de existencia del propietario, paginacion y exclusion de soft-deleted.
 - Baja logica de media (`DELETE /media/:id`) con limpieza remota en Cloudinary y permisos diferenciados para `veterinarian`.
+- Auditoria transversal de operaciones sensibles (`audit_logs`, append-only) con actor, accion, recurso y timestamp.
+- Registro de eventos de usuarios (`user.create`, `user.deactivate`, `user.activate`, `user.role_assign`), registros clinicos (`create/update/soft_delete/restore`), gastos (`create/soft_delete`), logins (`auth.login_success`, `auth.login_failure`) y denegaciones de acceso (`access.denied`).
+- Sanitizacion recursiva de `metadata` que redacta passwords, tokens y secretos antes de persistir.
+- Consulta de auditoria protegida para `admin` (`GET /audit-logs`, `GET /audit-logs/:id`) con paginacion y filtros.
+- Retencion configurable (`AUDIT_LOG_RETENTION_DAYS`) y purga fisica mediante `npm run audit:purge`.
 - Build, lint y tests unitarios configurados.
 - Suite E2E de flujos criticos desde HTTP hasta PostgreSQL real y descartable mediante Testcontainers; Cloudinary se sustituye solo en el limite externo.
 - CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios y E2E sin intervencion manual.
