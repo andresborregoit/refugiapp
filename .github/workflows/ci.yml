@@ -174,11 +174,73 @@ jobs:
           E2E_DATABASE_PASSWORD: refugiapp_test
         run: npm run test:e2e
 
+  deployment-validate:
+    name: Validate deployment artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      APP_ENV: development
+      PORT: 3100
+      API_PREFIX: api/v1
+      DB_SSL: 'false'
+      TYPEORM_SYNCHRONIZE: 'false'
+      JWT_SECRET: ci-only-jwt-secret-with-at-least-32-characters
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: refugiapp_test
+          POSTGRES_USER: refugiapp_test
+          POSTGRES_PASSWORD: refugiapp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U refugiapp_test -d refugiapp_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies from lockfile
+        run: npm ci
+      - name: Build production artifact
+        run: npm run build
+      - name: Configure test database connection
+        run: |
+          database_scheme='postgresql:'
+          echo "DATABASE_URL=${database_scheme}//${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}" >> "$GITHUB_ENV"
+      - name: Run compiled migrations explicitly
+        run: npm run migration:run:prod
+      - name: Verify compiled migration state
+        run: npm run migration:show:prod
+      - name: Verify readiness before availability
+        run: |
+          node dist/main.js > app.log 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid"' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent "http://127.0.0.1:${PORT}/${API_PREFIX}/health/ready" > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat app.log
+          exit 1
+      - name: Build pinned container image
+        run: docker build --tag refugiapp-api:ci .
+
   verify:
     name: Verify all checks passed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [secrets, lint, build, unit, migration-validate, e2e]
+    needs: [secrets, lint, build, unit, migration-validate, e2e, deployment-validate]
     steps:
       - name: Confirm required checks passed
         run: echo "All required CI checks passed."

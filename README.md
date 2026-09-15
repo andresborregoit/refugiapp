@@ -119,7 +119,7 @@ Modulos iniciales:
 
 Requisitos:
 
-- Node.js 20 o superior.
+- Node.js 20.18.1 o superior; `.nvmrc` fija 20.20.2 para builds reproducibles.
 - npm.
 - Una base PostgreSQL en Neon.
 - Docker para ejecutar localmente la suite E2E con PostgreSQL efimero.
@@ -345,6 +345,15 @@ El workflow `.github/workflows/ci.yml` ejecuta en cada `push` y `pull_request`:
 - `verify`: gate final que solo pasa si todos los jobs anteriores pasaron.
 
 Para bloquear merges, configurar en GitHub `Settings -> Branches -> Branch protection rules` la rama principal y marcar `verify` como required status check, con `Require branches to be up to date before merging` activado. De este modo ningun cambio se integra si lint, build, unit, e2e o la validacion de migraciones fallan.
+
+## Despliegue reproducible
+
+El `Dockerfile` multi-stage usa Node.js 20.20.2 fijado por digest, instala dependencias con `npm ci`, compila una vez y ejecuta la API como usuario sin privilegios. La imagen incluye un `HEALTHCHECK` contra `/api/v1/health/ready`.
+
+Las migraciones no se ejecutan al iniciar la API. El pipeline y el procedimiento operativo las ejecutan explicitamente con `npm run migration:run:prod` antes de habilitar nuevas replicas. `TYPEORM_SYNCHRONIZE` permanece desactivado en todos los ambientes.
+
+- Variables por ambiente: `docs/environment-configuration.md`.
+- Despliegue, verificacion y rollback: `docs/deployment-runbook.md`.
 
 ## Agregar un nuevo modulo
 
