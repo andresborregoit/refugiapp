@@ -282,6 +282,12 @@ GET http://localhost:3000/api/v1/health/ready  # readiness (aplicacion + Postgre
 
 El endpoint de liveness responde `200` mientras el proceso este vivo. El de readiness comprueba la conexion a PostgreSQL: responde `200` con estado `ok`, `200` con estado `degraded` cuando la base responde mas lento que `HEALTH_DEGRADED_LATENCY_MS`, o `503` con estado `error` cuando la base no responde. Los umbrales se configuran con `HEALTH_DB_TIMEOUT_MS` y `HEALTH_DEGRADED_LATENCY_MS`.
 
+## Seguridad HTTP y limites
+
+La API aplica headers de seguridad con Helmet y limita solicitudes por IP. Los endpoints generales usan `RATE_LIMIT_GENERAL_LIMIT` dentro de `RATE_LIMIT_GENERAL_TTL_MS`; el login usa su propia cuota mas estricta mediante `RATE_LIMIT_LOGIN_LIMIT` y `RATE_LIMIT_LOGIN_TTL_MS`.
+
+Cuando se supera un limite, la respuesta es `429` con `code=RATE_LIMIT_EXCEEDED` y headers `X-RateLimit-*`/`Retry-After`. CORS sigue habilitado para el frontend. Si la API se despliega detras de un proxy, `TRUST_PROXY_HOPS` debe configurarse con la cantidad exacta de proxies confiables; para ejecucion directa se mantiene en `0`.
+
 ## Observabilidad
 
 - Cada request recibe un `x-request-id`: se reutiliza el header entrante o se genera un UUID. El mismo id se devuelve en el header de respuesta y se incluye en `requestId` dentro de las respuestas de error.

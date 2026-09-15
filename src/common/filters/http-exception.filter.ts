@@ -20,9 +20,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = context.getRequest<Request>();
 
     const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const payload = this.buildPayload(exception, status, request.url);
     this.logException(exception, status, payload);
@@ -49,11 +47,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
   }
 
-  private buildPayload(
-    exception: unknown,
-    status: number,
-    path: string,
-  ): ErrorResponseDto {
+  private buildPayload(exception: unknown, status: number, path: string): ErrorResponseDto {
     const isServerError = status >= HttpStatus.INTERNAL_SERVER_ERROR;
     const exceptionResponse = exception instanceof HttpException ? exception.getResponse() : null;
     const responseObject =
@@ -66,13 +60,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     return {
       statusCode: status,
-      code: isServerError
-        ? 'INTERNAL_SERVER_ERROR'
-        : this.readCode(responseObject, status),
+      code: isServerError ? 'INTERNAL_SERVER_ERROR' : this.readCode(responseObject, status),
       message,
-      error: isServerError
-        ? 'Internal Server Error'
-        : this.readError(responseObject, status),
+      error: isServerError ? 'Internal Server Error' : this.readError(responseObject, status),
       timestamp: new Date().toISOString(),
       path,
       requestId: getRequestId(),
@@ -106,12 +96,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
       [HttpStatus.FORBIDDEN]: 'FORBIDDEN',
       [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
       [HttpStatus.CONFLICT]: 'CONFLICT',
+      [HttpStatus.TOO_MANY_REQUESTS]: 'RATE_LIMIT_EXCEEDED',
     };
 
     return codes[status] ?? 'HTTP_ERROR';
   }
 
   private readError(response: Record<string, unknown>, status: number): string {
-    return typeof response.error === 'string' ? response.error : HttpStatus[status] ?? 'Error';
+    if (typeof response.error === 'string') {
+      return response.error;
+    }
+
+    if (status === HttpStatus.TOO_MANY_REQUESTS) {
+      return 'Too Many Requests';
+    }
+
+    return HttpStatus[status] ?? 'Error';
   }
 }

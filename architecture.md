@@ -340,6 +340,16 @@ Los estados por componente son `up`, `degraded` y `down`; el estado global es `o
 - `HttpExceptionFilter` agrega `requestId` a la respuesta de error y loguea `4xx` como `warn` y `5xx` como `error`, sin exponer detalles internos al cliente.
 - El nivel de log se controla con `LOG_LEVEL`.
 
+### Seguridad HTTP y rate limiting
+
+- Helmet agrega headers HTTP de proteccion globales. La politica CSP permanece desactivada para no romper Swagger UI; el resto de las protecciones por defecto permanece activo.
+- `ThrottlerGuard` se registra como guard global y limita por IP. El perfil `general` aplica a todos los endpoints salvo aquellos que declaran otro perfil.
+- `POST /auth/login` usa el perfil `login`, independiente y mas estricto, para reducir intentos automatizados de acceso.
+- Los limites y ventanas se configuran con `RATE_LIMIT_GENERAL_LIMIT`, `RATE_LIMIT_GENERAL_TTL_MS`, `RATE_LIMIT_LOGIN_LIMIT` y `RATE_LIMIT_LOGIN_TTL_MS`.
+- Al superar una cuota, la API responde `429` con el codigo estable `RATE_LIMIT_EXCEEDED` y headers de limite y reintento.
+- `TRUST_PROXY_HOPS` debe coincidir con la cantidad exacta de proxies confiables delante de la API. Su valor por defecto es `0`, adecuado para acceso directo local.
+- CORS permanece habilitado para el frontend. Los valores por defecto de rate limiting permiten trafico interactivo normal y pueden ajustarse por entorno.
+
 ## 6. Modelo de datos
 
 ### 6.1 Convenciones comunes
@@ -1005,6 +1015,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Suite E2E de flujos criticos desde HTTP hasta PostgreSQL real y descartable mediante Testcontainers; Cloudinary se sustituye solo en el limite externo.
 - Suite de contrato de schema (`database-schema.persistence.e2e-spec.ts`) que valida contra PostgreSQL real enums, foreign keys con `ON DELETE`, indices/uniques, constraints `CHECK`, columnas comunes y soft delete, compartiendo el helper `test/utils/persistence-test-setup.ts` (base aislada, migraciones automaticas y limpieza de tablas, incluida `audit_logs`, entre tests).
 - CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios, validacion de migraciones y E2E en matriz Node 20+/22. El job `verify` actua como gate de merge.
+- Rate limiting global configurable, limite diferenciado para login, respuestas `429` consistentes y headers HTTP de seguridad mediante Helmet.
 
 ### Pendiente
 

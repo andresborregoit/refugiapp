@@ -18,9 +18,7 @@ export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   PORT: Joi.number().port().default(3000),
   API_PREFIX: Joi.string().default('api/v1'),
-  LOG_LEVEL: Joi.string()
-    .valid('log', 'error', 'warn', 'debug', 'verbose', 'fatal')
-    .default('log'),
+  LOG_LEVEL: Joi.string().valid('log', 'error', 'warn', 'debug', 'verbose', 'fatal').default('log'),
 
   DATABASE_URL: Joi.string()
     .uri({
@@ -41,6 +39,12 @@ export const envValidationSchema = Joi.object({
 
   HEALTH_DB_TIMEOUT_MS: Joi.number().integer().min(100).max(10000).default(2000),
   HEALTH_DEGRADED_LATENCY_MS: Joi.number().integer().min(0).max(10000).default(500),
+
+  TRUST_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
+  RATE_LIMIT_GENERAL_LIMIT: Joi.number().integer().min(1).max(100000).default(100),
+  RATE_LIMIT_GENERAL_TTL_MS: Joi.number().integer().min(100).max(86400000).default(60000),
+  RATE_LIMIT_LOGIN_LIMIT: Joi.number().integer().min(1).max(10000).default(5),
+  RATE_LIMIT_LOGIN_TTL_MS: Joi.number().integer().min(100).max(86400000).default(60000),
 
   INITIAL_ADMIN_EMAIL: Joi.string().email().allow('').default(''),
   INITIAL_ADMIN_PASSWORD: Joi.string().min(12).allow('').default(''),

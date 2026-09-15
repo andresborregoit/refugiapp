@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
@@ -17,8 +18,16 @@ async function bootstrap(): Promise<void> {
   const apiPrefix = configService.get<string>('app.apiPrefix', 'api/v1');
   app.setGlobalPrefix(apiPrefix);
 
+  const trustProxyHops = configService.get<number>('security.trustProxyHops', 0);
+  app.getHttpAdapter().getInstance().set('trust proxy', trustProxyHops);
+
   logger.setLogLevels([configService.get('app.logLevel', 'log')]);
 
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    }),
+  );
   app.use(correlationIdMiddleware);
   app.enableCors();
   app.useGlobalInterceptors(new HttpLoggingInterceptor());
@@ -32,10 +41,7 @@ async function bootstrap(): Promise<void> {
       },
     }),
   );
-  app.useGlobalFilters(
-    new HttpExceptionFilter(),
-    app.get(AuditForbiddenFilter),
-  );
+  app.useGlobalFilters(new HttpExceptionFilter(), app.get(AuditForbiddenFilter));
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Refugiapp API')
