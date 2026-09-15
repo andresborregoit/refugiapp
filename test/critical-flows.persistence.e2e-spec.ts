@@ -102,6 +102,8 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
   });
 
   afterAll(async () => {
+    await resetDatabase(database);
+
     if (app) {
       await app.close();
     }

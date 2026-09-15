@@ -8,6 +8,7 @@ import {
   buildTestDataSource,
   initializeWithMigrations,
   IsolatedPostgres,
+  resetDatabase,
   startIsolatedPostgres,
 } from './utils/persistence-test-setup';
 
@@ -57,6 +58,10 @@ describe('PostgreSQL schema contract (integration)', () => {
   afterAll(async () => {
     await dataSource.destroy();
     await postgres.stop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(dataSource);
   });
 
   it('creates the expected PostgreSQL enums with the documented values', async () => {
