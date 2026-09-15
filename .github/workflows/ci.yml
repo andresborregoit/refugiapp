@@ -12,15 +12,29 @@ jobs:
     name: Build, lint and tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: refugiapp_test
+          POSTGRES_USER: refugiapp_test
+          POSTGRES_PASSWORD: refugiapp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U refugiapp_test -d refugiapp_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -39,4 +53,6 @@ jobs:
         run: npm test -- --runInBand
 
       - name: Run HTTP and persistence tests
+        env:
+          E2E_DATABASE_URL: postgresql://refugiapp_test:refugiapp_test@localhost:5432/refugiapp_test
         run: npm run test:e2e

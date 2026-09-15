@@ -32,7 +32,7 @@ const API_PREFIX = '/api/v1';
 describe('Critical flows with PostgreSQL persistence (e2e)', () => {
   let app: INestApplication;
   let database: DataSource;
-  let postgres: StartedPostgreSqlContainer;
+  let postgres: StartedPostgreSqlContainer | undefined;
   let passwordHash: string;
 
   const cloudinaryStorage: jest.Mocked<
@@ -57,14 +57,19 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
   };
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:16-alpine')
-      .withDatabase('refugiapp_test')
-      .withUsername('refugiapp_test')
-      .withPassword('refugiapp_test')
-      .start();
+    const externalDatabaseUrl = process.env.E2E_DATABASE_URL;
+    if (externalDatabaseUrl) {
+      process.env.DATABASE_URL = externalDatabaseUrl;
+    } else {
+      postgres = await new PostgreSqlContainer('postgres:16-alpine')
+        .withDatabase('refugiapp_test')
+        .withUsername('refugiapp_test')
+        .withPassword('refugiapp_test')
+        .start();
+      process.env.DATABASE_URL = postgres.getConnectionUri();
+    }
 
     process.env.NODE_ENV = 'test';
-    process.env.DATABASE_URL = postgres.getConnectionUri();
     process.env.DB_SSL = 'false';
     process.env.DB_SSL_REJECT_UNAUTHORIZED = 'false';
     process.env.DB_POOL_SIZE = '5';
