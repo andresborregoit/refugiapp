@@ -57,7 +57,7 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
   };
 
   beforeAll(async () => {
-    const externalDatabaseUrl = process.env.E2E_DATABASE_URL;
+    const externalDatabaseUrl = resolveExternalDatabaseUrl();
     if (externalDatabaseUrl) {
       process.env.DATABASE_URL = externalDatabaseUrl;
     } else {
@@ -513,3 +513,27 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
     return response.body as { id: string; email: string; roles: UserRole[] };
   }
 });
+
+function resolveExternalDatabaseUrl(): string | undefined {
+  if (process.env.E2E_DATABASE_URL) {
+    return process.env.E2E_DATABASE_URL;
+  }
+
+  const host = process.env.E2E_DATABASE_HOST;
+  if (!host) {
+    return undefined;
+  }
+
+  const port = process.env.E2E_DATABASE_PORT ?? '5432';
+  const database = process.env.E2E_DATABASE_NAME;
+  const username = process.env.E2E_DATABASE_USER;
+  const password = process.env.E2E_DATABASE_PASSWORD;
+
+  if (!database || !username || !password) {
+    throw new Error('E2E database host requires name, user and password.');
+  }
+
+  return `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(
+    password,
+  )}@${host}:${port}/${database}`;
+}

@@ -54,5 +54,9 @@ jobs:
 
       - name: Run HTTP and persistence tests
         env:
-          E2E_DATABASE_URL: postgresql://refugiapp_test:refugiapp_test@localhost:5432/refugiapp_test
+          E2E_DATABASE_HOST: localhost
+          E2E_DATABASE_PORT: 5432
+          E2E_DATABASE_NAME: refugiapp_test
+          E2E_DATABASE_USER: refugiapp_test
+          E2E_DATABASE_PASSWORD: refugiapp_test
         run: npm run test:e2e
