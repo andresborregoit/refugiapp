@@ -6,9 +6,3 @@ export enum AnimalHistoryEventType {
   ADOPTION = 'adoption',
   GENERAL_NOTE = 'general_note',
 }
-
-export const MANUAL_ANIMAL_HISTORY_EVENT_TYPES: readonly AnimalHistoryEventType[] = [
-  AnimalHistoryEventType.GENERAL_NOTE,
-  AnimalHistoryEventType.BEHAVIOR_NOTE,
-  AnimalHistoryEventType.TRANSFER,
-] as const;

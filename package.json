@@ -5,7 +5,7 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=20.18.1"
+    "node": ">=20"
   },
   "scripts": {
     "build": "nest build",
@@ -18,18 +18,11 @@
     "test": "jest --config jest.config.js",
     "test:watch": "jest --config jest.config.js --watch",
     "test:cov": "jest --config jest.config.js --coverage",
-    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
-    "secrets:scan": "node scripts/secret-scan.mjs",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "typeorm-ts-node-commonjs -d src/config/typeorm.datasource.ts",
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run",
-    "migration:show": "npm run typeorm -- migration:show",
-    "migration:revert": "npm run typeorm -- migration:revert",
-    "migration:run:prod": "typeorm -d dist/config/typeorm.datasource.js migration:run",
-    "migration:show:prod": "typeorm -d dist/config/typeorm.datasource.js migration:show",
-    "migration:revert:prod": "typeorm -d dist/config/typeorm.datasource.js migration:revert",
-    "audit:purge": "ts-node src/modules/audit-logs/infrastructure/maintenance/purge-audit-logs.ts",
-    "seed:admin": "ts-node src/database/seeds/initial-admin.seed.ts"
+    "migration:revert": "npm run typeorm -- migration:revert"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.1",
@@ -39,15 +32,11 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.2.1",
     "@nestjs/swagger": "^11.4.7",
-    "@nestjs/terminus": "^11.1.1",
-    "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.3",
-    "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "cloudinary": "^2.11.0",
+    "cloudinary": "^2.10.1",
     "dotenv": "^17.4.2",
-    "helmet": "^8.3.0",
     "joi": "^18.2.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -61,10 +50,8 @@
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.2.1",
-    "@testcontainers/postgresql": "^11.14.0",
     "@types/express": "^5.0.5",
     "@types/jest": "^29.5.14",
-    "@types/multer": "^2.2.0",
     "@types/node": "^24.13.3",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^7.2.1",

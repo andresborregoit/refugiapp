@@ -8,10 +8,9 @@
 - DTOs HTTP en `interfaces/dto`.
 - Estrategias y guards en `infrastructure`.
 - Payload JWT minimo: `sub`, `email`, `roles`.
-- La validacion de credenciales delega en `UsersService` y en el contrato de repositorio de usuarios.
+- Validacion de credenciales debe delegar en servicios/repositorios de usuarios cuando se implemente.
 
 ## Seguridad
 - Nunca retornar hashes de password.
 - Usar secretos desde `ConfigService`.
 - Mantener expiracion, issuer y audience configurables por entorno.
-- El login registra `auth.login_success` y `auth.login_failure` en `audit_logs`; el metadata solo incluye `email` y el motivo, nunca el password ni el token.

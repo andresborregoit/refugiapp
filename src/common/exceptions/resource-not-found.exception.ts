@@ -1,11 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import { DomainException } from './domain.exception';
 
-export class ResourceNotFoundException extends NotFoundException {
+export class ResourceNotFoundException extends DomainException {
   constructor(resourceName: string, resourceId: string) {
-    super({
-      code: 'RESOURCE_NOT_FOUND',
-      message: `${resourceName} with id ${resourceId} was not found.`,
-    });
+    super(`${resourceName} with id ${resourceId} was not found.`, 'RESOURCE_NOT_FOUND');
     this.name = 'ResourceNotFoundException';
   }
 }
