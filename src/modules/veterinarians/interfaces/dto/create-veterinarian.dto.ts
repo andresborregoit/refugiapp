@@ -27,10 +27,5 @@ export class CreateVeterinarianDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
-  userId?: string | null;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  notes?: string | null;
+  userId?: string;
 }

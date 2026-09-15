@@ -1,24 +1,21 @@
-import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 import { BaseOrmEntity } from '../../../../../../common/entities/base-orm.entity';
 import { MediaOwnerType } from '../../../../domain/enums/media-owner-type.enum';
 import { MediaResourceType } from '../../../../domain/enums/media-resource-type.enum';
-import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 
 @Entity({ name: 'media_assets' })
 @Index(['ownerType', 'ownerId'])
 @Index(['cloudinaryPublicId'], { unique: true })
-@Check('CHK_media_assets_bytes_non_negative', '"bytes" IS NULL OR "bytes" >= 0')
 export class MediaAssetOrmEntity extends BaseOrmEntity {
   @Column({
     type: 'enum',
     enum: MediaOwnerType,
     enumName: 'media_owner_type',
-    nullable: true,
   })
-  ownerType?: MediaOwnerType | null;
+  ownerType!: MediaOwnerType;
 
-  @Column({ type: 'uuid', nullable: true })
-  ownerId?: string | null;
+  @Column({ type: 'uuid' })
+  ownerId!: string;
 
   @Column({
     type: 'enum',
@@ -42,10 +39,6 @@ export class MediaAssetOrmEntity extends BaseOrmEntity {
 
   @Column({ type: 'uuid', nullable: true })
   uploadedByUserId?: string | null;
-
-  @ManyToOne(() => UserOrmEntity, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'uploadedByUserId' })
-  uploadedByUser?: UserOrmEntity | null;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   metadata!: Record<string, unknown>;
