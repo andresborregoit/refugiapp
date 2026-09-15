@@ -40,7 +40,10 @@ Implementado:
 - Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional.
 - Listado de assets por propietario (`GET /media`) con paginacion y baja logica con limpieza remota en Cloudinary.
 - Suite E2E de flujos criticos contra PostgreSQL efimero mediante Testcontainers, sin usar Neon ni datos de produccion.
-- Pipeline de CI para build, lint, tests unitarios y pruebas HTTP con persistencia real.
+- Pipeline de CI con matriz Node 20+/22, lint, build, tests unitarios, validacion de migraciones y pruebas HTTP con persistencia real.
+- Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL y estado `degraded`.
+- Logs estructurados en JSON con redaccion de datos sensibles.
+- Correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
 
 Pendiente:
 
@@ -273,8 +276,17 @@ npm run start:prod
 Health check:
 
 ```txt
-GET http://localhost:3000/api/v1
+GET http://localhost:3000/api/v1/health        # liveness
+GET http://localhost:3000/api/v1/health/ready  # readiness (aplicacion + PostgreSQL)
 ```
+
+El endpoint de liveness responde `200` mientras el proceso este vivo. El de readiness comprueba la conexion a PostgreSQL: responde `200` con estado `ok`, `200` con estado `degraded` cuando la base responde mas lento que `HEALTH_DEGRADED_LATENCY_MS`, o `503` con estado `error` cuando la base no responde. Los umbrales se configuran con `HEALTH_DB_TIMEOUT_MS` y `HEALTH_DEGRADED_LATENCY_MS`.
+
+## Observabilidad
+
+- Cada request recibe un `x-request-id`: se reutiliza el header entrante o se genera un UUID. El mismo id se devuelve en el header de respuesta y se incluye en `requestId` dentro de las respuestas de error.
+- Los logs se emiten en formato JSON con `level`, `pid`, `timestamp`, `context`, `message` y `requestId`. El nivel se controla con `LOG_LEVEL`.
+- Antes de escribir un log se redactan recursivamente claves y valores sensibles (`password`, `token`, `secret`, `authorization`, `apiKey`, credenciales de base y Cloudinary) como `[REDACTED]`.
 
 ## Swagger/OpenAPI
 
@@ -311,6 +323,22 @@ Las pruebas de contrato HTTP usan dobles de servicios para cubrir respuestas, DT
 La suite `database-schema.persistence.e2e-spec.ts` valida el contrato real del schema contra PostgreSQL: enums, foreign keys con su politica `ON DELETE`, indices y uniques, constraints `CHECK` (importes y bytes no negativos), columnas comunes (UUID y soft delete) y el comportamiento real de soft delete (`deletedAt`).
 
 Ambas suites comparten `test/utils/persistence-test-setup.ts`, que levanta una base aislada, ejecuta las migraciones y limpia todas las tablas (incluida `audit_logs`) entre tests. La base se crea y elimina en cada ejecucion, por lo que nunca se lee `DATABASE_URL` de desarrollo o produccion; la infraestructura de test rechaza explicitamente bases Neon. Docker debe estar iniciado localmente; en GitHub Actions el workflow `.github/workflows/ci.yml` ejecuta toda la verificacion sin intervencion manual.
+
+La suite `health.e2e-spec.ts` valida los endpoints de liveness y readiness, el estado `degraded` con `200`, el estado `error` con `503` y la propagacion del `x-request-id`.
+
+## Integracion continua
+
+El workflow `.github/workflows/ci.yml` ejecuta en cada `push` y `pull_request`:
+
+- `secrets`: escaneo de archivos versionados en busca de secretos.
+- `lint`: ESLint sobre `src` y `test` (matriz Node 20.x y 22.x).
+- `build`: compilacion NestJS (matriz Node 20.x y 22.x).
+- `unit`: tests unitarios de Jest (matriz Node 20.x y 22.x).
+- `migration-validate`: ejecuta todas las migraciones sobre un PostgreSQL limpio y luego `migration:show`.
+- `e2e`: tests HTTP y de persistencia contra PostgreSQL (matriz Node 20.x y 22.x).
+- `verify`: gate final que solo pasa si todos los jobs anteriores pasaron.
+
+Para bloquear merges, configurar en GitHub `Settings -> Branches -> Branch protection rules` la rama principal y marcar `verify` como required status check, con `Require branches to be up to date before merging` activado. De este modo ningun cambio se integra si lint, build, unit, e2e o la validacion de migraciones fallan.
 
 ## Agregar un nuevo modulo
 

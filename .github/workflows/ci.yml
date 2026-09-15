@@ -7,11 +7,99 @@ on:
 permissions:
   contents: read
 
+env:
+  POSTGRES_DB: refugiapp_test
+  POSTGRES_USER: refugiapp_test
+  POSTGRES_PASSWORD: refugiapp_test
+
 jobs:
-  verify:
-    name: Build, lint and tests
+  secrets:
+    name: Scan secrets
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci
+      - name: Scan tracked files for secrets
+        run: npm run secrets:scan
+
+  lint:
+    name: Lint (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+
+  build:
+    name: Build (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+
+  unit:
+    name: Unit tests (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run unit tests
+        run: npm test -- --runInBand
+
+  migration-validate:
+    name: Validate migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}
+      DB_SSL: 'false'
+      TYPEORM_SYNCHRONIZE: 'false'
     services:
       postgres:
         image: postgres:16-alpine
@@ -26,32 +114,54 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 20
           cache: npm
-
       - name: Install dependencies
         run: npm ci
+      - name: Run migrations on a clean database
+        run: npm run migration:run
+      - name: Show applied migrations
+        run: npm run migration:show
 
-      - name: Scan tracked files for secrets
-        run: npm run secrets:scan
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build
-        run: npm run build
-
-      - name: Run unit tests
-        run: npm test -- --runInBand
-
+  e2e:
+    name: E2E (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: refugiapp_test
+          POSTGRES_USER: refugiapp_test
+          POSTGRES_PASSWORD: refugiapp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U refugiapp_test -d refugiapp_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
       - name: Run HTTP and persistence tests
         env:
           E2E_DATABASE_HOST: localhost
@@ -60,3 +170,12 @@ jobs:
           E2E_DATABASE_USER: refugiapp_test
           E2E_DATABASE_PASSWORD: refugiapp_test
         run: npm run test:e2e
+
+  verify:
+    name: Verify all checks passed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [secrets, lint, build, unit, migration-validate, e2e]
+    steps:
+      - name: Confirm required checks passed
+        run: echo "All required CI checks passed."

@@ -25,8 +25,14 @@
 - Roles iniciales: `admin`, `shelter_manager`, `veterinarian`.
 - No exponer `passwordHash`, secretos JWT, credenciales Neon ni credenciales Cloudinary.
 
+## Observabilidad
+- Todo request debe propagar un correlation ID (`x-request-id`) mediante `AsyncLocalStorage`.
+- Los logs son estructurados en JSON y nunca deben incluir secretos ni credenciales; usar el logger y el sanitizador compartidos.
+- Los health checks (`/health`, `/health/ready`) son publicos y no deben exponer detalles internos.
+
 ## Convenciones
 - Mantener controllers delgados: validan entrada HTTP y delegan.
 - No implementar CRUD completo sin una tarea explicita.
 - Agregar tests cuando se agregue comportamiento real.
 - Actualizar el `AGENTS.md` del modulo si cambian responsabilidades o convenciones.
+- Todo cambio debe pasar lint, build, unit tests, e2e y validacion de migraciones antes del merge.

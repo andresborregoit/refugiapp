@@ -18,4 +18,7 @@ export class ErrorResponseDto {
 
   @ApiProperty({ example: '/api/v1/users' })
   path!: string;
+
+  @ApiProperty({ example: '7c0c5b2a-3f8e-4b1a-9d2e-1a2b3c4d5e6f', required: false })
+  requestId?: string;
 }
