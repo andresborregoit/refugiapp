@@ -982,6 +982,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Retencion configurable (`AUDIT_LOG_RETENTION_DAYS`) y purga fisica mediante `npm run audit:purge`.
 - Build, lint y tests unitarios configurados.
 - Suite E2E de flujos criticos desde HTTP hasta PostgreSQL real y descartable mediante Testcontainers; Cloudinary se sustituye solo en el limite externo.
+- Suite de contrato de schema (`database-schema.persistence.e2e-spec.ts`) que valida contra PostgreSQL real enums, foreign keys con `ON DELETE`, indices/uniques, constraints `CHECK`, columnas comunes y soft delete, compartiendo el helper `test/utils/persistence-test-setup.ts` (base aislada, migraciones automaticas y limpieza de tablas, incluida `audit_logs`, entre tests).
 - CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios y E2E sin intervencion manual.
 
 ### Pendiente

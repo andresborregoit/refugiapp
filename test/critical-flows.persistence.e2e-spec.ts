@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
+import { IsolatedPostgres, resetDatabase, startIsolatedPostgres } from './utils/persistence-test-setup';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { UserRole } from '../src/common/enums/user-role.enum';
 import { hashPassword } from '../src/common/security/password-hasher';
@@ -32,7 +32,7 @@ const API_PREFIX = '/api/v1';
 describe('Critical flows with PostgreSQL persistence (e2e)', () => {
   let app: INestApplication;
   let database: DataSource;
-  let postgres: StartedPostgreSqlContainer | undefined;
+  let isolated: IsolatedPostgres;
   let passwordHash: string;
 
   const cloudinaryStorage: jest.Mocked<
@@ -57,24 +57,8 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
   };
 
   beforeAll(async () => {
-    const externalDatabaseUrl = resolveExternalDatabaseUrl();
-    if (externalDatabaseUrl) {
-      process.env.DATABASE_URL = externalDatabaseUrl;
-    } else {
-      postgres = await new PostgreSqlContainer('postgres:16-alpine')
-        .withDatabase('refugiapp_test')
-        .withUsername('refugiapp_test')
-        .withPassword('refugiapp_test')
-        .start();
-      process.env.DATABASE_URL = postgres.getConnectionUri();
-    }
+    isolated = await startIsolatedPostgres();
 
-    process.env.NODE_ENV = 'test';
-    process.env.DB_SSL = 'false';
-    process.env.DB_SSL_REJECT_UNAUTHORIZED = 'false';
-    process.env.DB_POOL_SIZE = '5';
-    process.env.TYPEORM_SYNCHRONIZE = 'false';
-    process.env.TYPEORM_LOGGING = 'false';
     process.env.JWT_SECRET = 'rfg-45-test-only-secret-with-at-least-32-characters';
     process.env.JWT_EXPIRES_IN = '1h';
     process.env.JWT_ISSUER = 'refugiapp-api-test';
@@ -114,17 +98,17 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    await resetDatabase();
+    await resetDatabase(database);
   });
 
   afterAll(async () => {
+    await resetDatabase(database);
+
     if (app) {
       await app.close();
     }
 
-    if (postgres) {
-      await postgres.stop();
-    }
+    await isolated.stop();
   });
 
   it('accepts valid login and returns the same generic 401 for invalid credentials', async () => {
@@ -454,21 +438,6 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
     expect(cloudinaryStorage.upload).toHaveBeenCalledTimes(1);
   });
 
-  async function resetDatabase(): Promise<void> {
-    await database.query(
-      `TRUNCATE TABLE
-        "medical_record_changes",
-        "medical_records",
-        "expenses",
-        "animal_history_events",
-        "animals",
-        "veterinarians",
-        "media_assets",
-        "users"
-      RESTART IDENTITY CASCADE`,
-    );
-  }
-
   async function seedUser(email: string, roles: UserRole[]): Promise<UserOrmEntity> {
     const repository = database.getRepository(UserOrmEntity);
 
@@ -513,27 +482,3 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
     return response.body as { id: string; email: string; roles: UserRole[] };
   }
 });
-
-function resolveExternalDatabaseUrl(): string | undefined {
-  if (process.env.E2E_DATABASE_URL) {
-    return process.env.E2E_DATABASE_URL;
-  }
-
-  const host = process.env.E2E_DATABASE_HOST;
-  if (!host) {
-    return undefined;
-  }
-
-  const port = process.env.E2E_DATABASE_PORT ?? '5432';
-  const database = process.env.E2E_DATABASE_NAME;
-  const username = process.env.E2E_DATABASE_USER;
-  const password = process.env.E2E_DATABASE_PASSWORD;
-
-  if (!database || !username || !password) {
-    throw new Error('E2E database host requires name, user and password.');
-  }
-
-  return `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(
-    password,
-  )}@${host}:${port}/${database}`;
-}

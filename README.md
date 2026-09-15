@@ -308,7 +308,9 @@ npm run test:e2e
 
 Las pruebas de contrato HTTP usan dobles de servicios para cubrir respuestas, DTOs y guards de forma rapida. La suite `critical-flows.persistence.e2e-spec.ts` levanta automaticamente un PostgreSQL descartable, ejecuta todas las migraciones y verifica los flujos criticos completos desde HTTP hasta TypeORM. Cloudinary se reemplaza por un adaptador de prueba para evitar trafico y credenciales externas; la metadata de media se persiste realmente en PostgreSQL.
 
-La base se crea y elimina en cada ejecucion, por lo que la suite nunca lee `DATABASE_URL` de desarrollo o produccion. Docker debe estar iniciado localmente; en GitHub Actions el workflow `.github/workflows/ci.yml` ejecuta toda la verificacion sin intervencion manual.
+La suite `database-schema.persistence.e2e-spec.ts` valida el contrato real del schema contra PostgreSQL: enums, foreign keys con su politica `ON DELETE`, indices y uniques, constraints `CHECK` (importes y bytes no negativos), columnas comunes (UUID y soft delete) y el comportamiento real de soft delete (`deletedAt`).
+
+Ambas suites comparten `test/utils/persistence-test-setup.ts`, que levanta una base aislada, ejecuta las migraciones y limpia todas las tablas (incluida `audit_logs`) entre tests. La base se crea y elimina en cada ejecucion, por lo que nunca se lee `DATABASE_URL` de desarrollo o produccion; la infraestructura de test rechaza explicitamente bases Neon. Docker debe estar iniciado localmente; en GitHub Actions el workflow `.github/workflows/ci.yml` ejecuta toda la verificacion sin intervencion manual.
 
 ## Agregar un nuevo modulo
 
