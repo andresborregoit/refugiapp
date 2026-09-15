@@ -7,11 +7,13 @@
 
 ## Convenciones
 - Los endpoints de health son publicos: no requieren JWT.
+- Los endpoints de health estan exentos de rate limiting (`@SkipThrottle()`) para no interrumpir probes ni orquestadores.
 - El estado global puede ser `ok`, `degraded` o `error`.
   - `ok` -> HTTP `200`.
   - `degraded` -> HTTP `200` (sigue sirviendo trafico, pero con latencia elevada).
   - `error` -> HTTP `503` (al menos un componente `down`).
 - Los indicadores no deben lanzar excepciones: siempre devuelven un resultado `up`, `degraded` o `down`.
+- `ApplicationHealthIndicator` no depende de `AppService`: usa las constantes compartidas `APP_NAME`/`APP_VERSION` de `src/common/constants/app-metadata.ts` para evitar acoplamiento con el `AppModule` raiz.
 - `HealthAggregatorService` combina los resultados de los indicadores; no agregar logica de conexion ahi.
 - El chequeo de base de datos vive en `infrastructure` porque usa `DataSource` (TypeORM). No importar TypeORM en `domain`.
 - Usar `@HealthCheck()` de `@nestjs/terminus` para no cachear la respuesta y documentar en Swagger.

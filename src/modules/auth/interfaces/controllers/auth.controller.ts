@@ -1,6 +1,7 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiErrorResponses } from '../../../../common/decorators/api-error-responses.decorator';
+import { LoginEndpoint } from '../../../../common/decorators/login-endpoint.decorator';
 import { AuthService } from '../../application/services/auth.service';
 import { AuthResponseDto } from '../dto/auth-response.dto';
 import { LoginDto } from '../dto/login.dto';
@@ -12,6 +13,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @LoginEndpoint()
   @ApiOperation({ summary: 'Authenticate a user with email and password' })
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiErrorResponses()

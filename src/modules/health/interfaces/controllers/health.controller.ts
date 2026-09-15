@@ -1,6 +1,7 @@
 import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HealthCheck } from '@nestjs/terminus';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { HealthAggregatorService } from '../../application/services/health-aggregator.service';
 import { HealthCheckResponse } from '../../domain/interfaces/health-component-result.interface';
@@ -8,6 +9,7 @@ import { ApplicationHealthIndicator } from '../../infrastructure/indicators/appl
 import { DatabaseHealthIndicator } from '../../infrastructure/indicators/database-health.indicator';
 
 @ApiTags('health')
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -17,18 +19,25 @@ import { cloudinaryConfig } from './config/cloudinary.config';
 import { databaseConfig } from './config/database.config';
 import { healthConfig } from './config/health.config';
 import { jwtConfig } from './config/jwt.config';
+import { throttleConfig } from './config/throttle.config';
+import { createThrottlerOptions } from './config/throttler.factory';
 import { createTypeOrmOptions } from './config/typeorm.config';
 import { envValidationSchema } from './config/validation.schema';
+import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig, cloudinaryConfig, healthConfig],
+      load: [appConfig, databaseConfig, jwtConfig, cloudinaryConfig, healthConfig, throttleConfig],
       validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,
       },
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: createThrottlerOptions,
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -45,6 +54,12 @@ import { envValidationSchema } from './config/validation.schema';
     HealthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerBehindProxyGuard,
+    },
+  ],
 })
 export class AppModule {}

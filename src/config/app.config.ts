@@ -5,4 +5,9 @@ export const appConfig = registerAs('app', () => ({
   port: Number(process.env.PORT ?? 3000),
   apiPrefix: process.env.API_PREFIX ?? 'api/v1',
   logLevel: process.env.LOG_LEVEL ?? 'log',
+  corsOrigins: (process.env.FRONTEND_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+  trustProxy: Number(process.env.TRUST_PROXY ?? 0),
 }));

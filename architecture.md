@@ -329,7 +329,7 @@ Expone health checks para orquestadores y balanceadores. Usa `@nestjs/terminus` 
 - `GET /health` (liveness): responde `200` mientras el proceso este vivo. No consulta dependencias externas.
 - `GET /health/ready` (readiness): comprueba la aplicacion y la conexion a PostgreSQL mediante `SELECT 1`. Responde `200` con estado `ok`, `200` con estado `degraded` cuando la base responde pero supera `HEALTH_DEGRADED_LATENCY_MS`, o `503` con estado `error` cuando la base no responde.
 
-Los estados por componente son `up`, `degraded` y `down`; el estado global es `ok`, `degraded` o `error`. El chequeo de base de datos vive en `infrastructure` porque usa `DataSource`; el agregado vive en `application`. Los endpoints son publicos y no exponen secretos ni URLs de conexion.
+Los estados por componente son `up`, `degraded` y `down`; el estado global es `ok`, `degraded` o `error`. El chequeo de base de datos vive en `infrastructure` porque usa `DataSource`; el agregado vive en `application`. `ApplicationHealthIndicator` no depende de `AppService`: consume las constantes compartidas `APP_NAME`/`APP_VERSION` (`src/common/constants/app-metadata.ts`), las mismas que usa `AppService`, evitando acoplar el dominio de health al `AppModule` raiz. Los endpoints son publicos y no exponen secretos ni URLs de conexion.
 
 ### Observabilidad
 
@@ -339,6 +339,16 @@ Los estados por componente son `up`, `degraded` y `down`; el estado global es `o
 - `HttpLoggingInterceptor` registra cada request con metodo, ruta, `statusCode` y `durationMs`.
 - `HttpExceptionFilter` agrega `requestId` a la respuesta de error y loguea `4xx` como `warn` y `5xx` como `error`, sin exponer detalles internos al cliente.
 - El nivel de log se controla con `LOG_LEVEL`.
+
+### Rate limiting y headers de seguridad
+
+- `@nestjs/throttler` aplica rate limiting en memoria (single-instance) mediante `ThrottlerBehindProxyGuard` registrado como `APP_GUARD`. No usa Redis; para despliegues multi-instancia se debe migrar a un almacenamiento compartido.
+- Limites configurables por entorno: `THROTTLE_GENERAL_TTL_MS`/`THROTTLE_GENERAL_LIMIT` (throttler `default`, aplica a todos los endpoints) y `THROTTLE_LOGIN_TTL_MS`/`THROTTLE_LOGIN_LIMIT` (throttler `login`, aplica solo a endpoints marcados con `@LoginEndpoint()`).
+- Los endpoints de health y la documentacion no se throttlean para no interrumpir probes, orquestadores ni el acceso a Swagger.
+- Al exceder un limite la API responde `429` con codigo `RATE_LIMIT_EXCEEDED`, el mismo `ErrorResponseDto` y el header `Retry-After`. No se loguean IPs, tokens ni credenciales.
+- `TRUST_PROXY` configura los hops de proxy confiables para que `req.ip` refleje la IP real del cliente detras de CDN o proxy.
+- `helmet` configura headers de seguridad (CSP compatible con Swagger, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.) y se aplica desde `main.ts` mediante `src/common/security/http-security.ts`.
+- CORS se restringe a `FRONTEND_ORIGINS` (lista separada por comas); si esta vacia se mantiene `*` para entornos de desarrollo.
 
 ## 6. Modelo de datos
 
@@ -1002,6 +1012,8 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Build, lint y tests unitarios configurados.
 - Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL, estado `degraded` y `503` cuando la base no responde.
 - Logs estructurados en JSON con redaccion de datos sensibles y correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
+- Rate limiting configurable por entorno con limites diferenciados para login (`THROTTLE_LOGIN_LIMIT`) y endpoints generales (`THROTTLE_GENERAL_LIMIT`), en memoria (single-instance), con exencion de health y docs, respuesta `429 RATE_LIMIT_EXCEEDED` consistente y header `Retry-After`.
+- Headers de seguridad via helmet (CSP compatible con Swagger) y CORS restringido por `FRONTEND_ORIGINS`, aplicados desde `main.ts`.
 - Suite E2E de flujos criticos desde HTTP hasta PostgreSQL real y descartable mediante Testcontainers; Cloudinary se sustituye solo en el limite externo.
 - Suite de contrato de schema (`database-schema.persistence.e2e-spec.ts`) que valida contra PostgreSQL real enums, foreign keys con `ON DELETE`, indices/uniques, constraints `CHECK`, columnas comunes y soft delete, compartiendo el helper `test/utils/persistence-test-setup.ts` (base aislada, migraciones automaticas y limpieza de tablas, incluida `audit_logs`, entre tests).
 - CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios, validacion de migraciones y E2E en matriz Node 20+/22. El job `verify` actua como gate de merge.

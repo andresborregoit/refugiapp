@@ -22,3 +22,11 @@
 - Mantener `UserRole` como fuente unica para roles globales.
 - Los guards deben asumir que `request.user` viene de una estrategia de autenticacion previa.
 - Usar `JwtAuthGuard` para autenticacion y `RolesGuard` con `@Roles` para autorizacion declarativa; no duplicar comprobaciones de roles en controllers.
+
+## Rate limiting
+- `ThrottlerBehindProxyGuard` es el guard global (`APP_GUARD`) y se define en `src/common/guards/throttler-behind-proxy.guard.ts`.
+- Los limites se configuran por entorno (`THROTTLE_GENERAL_*` para el throttler `default` y `THROTTLE_LOGIN_*` para el throttler `login`) en `src/config/throttler.factory.ts`.
+- Marcar endpoints con limite estricto usando `@LoginEndpoint()` (`src/common/decorators/login-endpoint.decorator.ts`).
+- Excluir endpoints publicos de infraestructura (health, docs) con `@SkipThrottle()`.
+- La respuesta de limite excedido es `429 RATE_LIMIT_EXCEEDED` con header `Retry-After`, formateada por `HttpExceptionFilter`.
+- Nunca loguear IPs, tokens, passwords ni credenciales al registrar rechazos por throttle.

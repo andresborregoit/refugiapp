@@ -44,6 +44,8 @@ Implementado:
 - Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL y estado `degraded`.
 - Logs estructurados en JSON con redaccion de datos sensibles.
 - Correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
+- Rate limiting configurable por entorno con limites diferenciados para login y endpoints generales, exencion de health/docs, respuesta `429 RATE_LIMIT_EXCEEDED` consistente y header `Retry-After`.
+- Headers de seguridad via helmet (CSP compatible con Swagger) y CORS restringido por `FRONTEND_ORIGINS`.
 
 Pendiente:
 
@@ -249,6 +251,26 @@ CLOUDINARY_SECURE=true
 ```
 
 El modulo `media` contiene el provider base de Cloudinary, el servicio de subida con validacion de propietario/mimetype/tamano, listado por propietario y baja logica con limpieza remota.
+
+## Configurar rate limiting y seguridad HTTP
+
+El rate limiting se aplica globalmente con limites configurables por entorno:
+
+```env
+# General endpoints (per IP and window).
+THROTTLE_GENERAL_TTL_MS=60000
+THROTTLE_GENERAL_LIMIT=100
+# Login endpoint (stricter to slow down brute force).
+THROTTLE_LOGIN_TTL_MS=60000
+THROTTLE_LOGIN_LIMIT=5
+THROTTLE_ERROR_MESSAGE=Too many requests. Please try again later.
+# Comma-separated list of allowed frontend origins for CORS. Empty allows any origin.
+FRONTEND_ORIGINS=
+# Number of trusted proxy hops for the real client IP used by rate limiting (0 = direct).
+TRUST_PROXY=0
+```
+
+Al superar un limite la API responde `429` con codigo `RATE_LIMIT_EXCEEDED` y header `Retry-After`. Los endpoints de health y la documentacion Swagger estan exentos para no interrumpir probes ni acceso a docs. Los headers de seguridad (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, CSP, etc.) se aplican mediante helmet.
 
 ## Configuracion local segura
 

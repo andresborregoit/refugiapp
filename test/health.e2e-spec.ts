@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { AppService } from '../src/app.service';
 import { HttpLoggingInterceptor } from '../src/common/interceptors/http-logging.interceptor';
 import { correlationIdMiddleware } from '../src/common/middleware/correlation-id.middleware';
 import { HealthAggregatorService } from '../src/modules/health/application/services/health-aggregator.service';
@@ -32,7 +31,6 @@ describe('Health (e2e)', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [HealthController],
       providers: [
-        AppService,
         HealthAggregatorService,
         ApplicationHealthIndicator,
         DatabaseHealthIndicator,

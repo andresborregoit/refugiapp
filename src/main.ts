@@ -7,6 +7,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
 import { JsonLoggerService } from './common/logger/json-logger.service';
 import { correlationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { applySecurityHeaders, configureCors } from './common/security/http-security';
 import { AuditForbiddenFilter } from './modules/audit-logs/interfaces/filters/audit-forbidden.filter';
 
 async function bootstrap(): Promise<void> {
@@ -19,8 +20,12 @@ async function bootstrap(): Promise<void> {
 
   logger.setLogLevels([configService.get('app.logLevel', 'log')]);
 
+  app.getHttpAdapter().getInstance().set('trust proxy', configService.get<number>('app.trustProxy', 0));
+
+  applySecurityHeaders(app);
+
   app.use(correlationIdMiddleware);
-  app.enableCors();
+  configureCors(app, configService);
   app.useGlobalInterceptors(new HttpLoggingInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({

@@ -1,4 +1,5 @@
 import { ArgumentsHost, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { ThrottlerException } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { HttpExceptionFilter } from './http-exception.filter';
 
@@ -55,5 +56,25 @@ describe('HttpExceptionFilter', () => {
       }),
     );
     expect(json.mock.calls[0][0].message).not.toContain('database credentials');
+  });
+
+  it('normalizes throttler exceptions with the rate limit code', () => {
+    const { host, status, json } = createHost('/api/v1/auth/login');
+
+    filter.catch(
+      new ThrottlerException('Too many requests. Please try again later.'),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(429);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 429,
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many requests. Please try again later.',
+        error: 'TOO_MANY_REQUESTS',
+        path: '/api/v1/auth/login',
+      }),
+    );
   });
 });

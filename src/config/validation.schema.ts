@@ -22,6 +22,17 @@ export const envValidationSchema = Joi.object({
     .valid('log', 'error', 'warn', 'debug', 'verbose', 'fatal')
     .default('log'),
 
+  FRONTEND_ORIGINS: Joi.string().default(''),
+  TRUST_PROXY: Joi.number().integer().min(0).max(10).default(0),
+
+  THROTTLE_GENERAL_TTL_MS: Joi.number().integer().min(1000).max(3600000).default(60000),
+  THROTTLE_GENERAL_LIMIT: Joi.number().integer().min(1).max(10000).default(100),
+  THROTTLE_LOGIN_TTL_MS: Joi.number().integer().min(1000).max(3600000).default(60000),
+  THROTTLE_LOGIN_LIMIT: Joi.number().integer().min(1).max(10000).default(5),
+  THROTTLE_ERROR_MESSAGE: Joi.string()
+    .max(200)
+    .default('Too many requests. Please try again later.'),
+
   DATABASE_URL: Joi.string()
     .uri({
       scheme: ['postgres', 'postgresql'],
