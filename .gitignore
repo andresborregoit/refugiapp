@@ -9,6 +9,12 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.development.example
+!.env.staging.example
+!.env.production.example
+
+# opencode config (contains secrets)
+opencode.json
 
 # logs
 npm-debug.log*
@@ -26,3 +32,7 @@ Thumbs.db
 tmp/
 temp/
 
+# Agents
+.codex
+.data
+.opencode

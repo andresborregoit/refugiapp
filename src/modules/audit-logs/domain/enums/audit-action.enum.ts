@@ -1,0 +1,15 @@
+export enum AuditAction {
+  USER_CREATE = 'user.create',
+  USER_DEACTIVATE = 'user.deactivate',
+  USER_ACTIVATE = 'user.activate',
+  USER_ROLE_ASSIGN = 'user.role_assign',
+  MEDICAL_RECORD_CREATE = 'medical_record.create',
+  MEDICAL_RECORD_UPDATE = 'medical_record.update',
+  MEDICAL_RECORD_SOFT_DELETE = 'medical_record.soft_delete',
+  MEDICAL_RECORD_RESTORE = 'medical_record.restore',
+  EXPENSE_CREATE = 'expense.create',
+  EXPENSE_SOFT_DELETE = 'expense.soft_delete',
+  AUTH_LOGIN_SUCCESS = 'auth.login_success',
+  AUTH_LOGIN_FAILURE = 'auth.login_failure',
+  ACCESS_DENIED = 'access.denied',
+}

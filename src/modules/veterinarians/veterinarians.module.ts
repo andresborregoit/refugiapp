@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { UsersModule } from '../users/users.module';
 import { VeterinariansService } from './application/services/veterinarians.service';
 import { VETERINARIAN_REPOSITORY } from './domain/repositories/veterinarian.repository';
 import { VeterinarianOrmEntity } from './infrastructure/persistence/typeorm/entities/veterinarian.orm-entity';
@@ -7,7 +8,7 @@ import { TypeOrmVeterinarianRepository } from './infrastructure/persistence/type
 import { VeterinariansController } from './interfaces/controllers/veterinarians.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([VeterinarianOrmEntity])],
+  imports: [TypeOrmModule.forFeature([VeterinarianOrmEntity]), UsersModule],
   controllers: [VeterinariansController],
   providers: [
     VeterinariansService,

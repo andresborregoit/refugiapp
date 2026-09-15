@@ -22,7 +22,7 @@ export class UserOrmEntity extends BaseOrmEntity {
     enum: UserRole,
     enumName: 'user_role',
     array: true,
-    default: () => "ARRAY['shelter_manager']::user_role[]",
+    default: [UserRole.SHELTER_MANAGER],
   })
   roles!: UserRole[];
 

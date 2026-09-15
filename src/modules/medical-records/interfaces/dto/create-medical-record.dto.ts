@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { MedicalRecordType } from '../../domain/enums/medical-record-type.enum';
 
 export class CreateMedicalRecordDto {
@@ -17,7 +17,10 @@ export class CreateMedicalRecordDto {
   recordType!: MedicalRecordType;
 
   @ApiProperty()
+  @IsNotEmpty()
   @IsString()
+  @MinLength(3)
+  @MaxLength(160)
   title!: string;
 
   @ApiProperty()
@@ -38,4 +41,11 @@ export class CreateMedicalRecordDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsUUID('4', { each: true })
+  attachmentMediaIds?: string[];
 }

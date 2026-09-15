@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { UsersService } from './application/services/users.service';
 import { USER_REPOSITORY } from './domain/repositories/user.repository';
 import { UserOrmEntity } from './infrastructure/persistence/typeorm/entities/user.orm-entity';
@@ -7,7 +8,7 @@ import { TypeOrmUserRepository } from './infrastructure/persistence/typeorm/repo
 import { UsersController } from './interfaces/controllers/users.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([UserOrmEntity])],
+  imports: [TypeOrmModule.forFeature([UserOrmEntity]), AuditLogsModule],
   controllers: [UsersController],
   providers: [
     UsersService,

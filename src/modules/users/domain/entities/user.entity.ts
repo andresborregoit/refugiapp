@@ -8,5 +8,7 @@ export class User {
     public readonly lastName: string,
     public readonly roles: UserRole[],
     public readonly isActive: boolean,
+    public readonly createdAt?: Date,
+    public readonly updatedAt?: Date,
   ) {}
 }
