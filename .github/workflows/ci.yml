@@ -236,11 +236,72 @@ jobs:
       - name: Build pinned container image
         run: docker build --tag refugiapp-api:ci .
 
+  backup-restore-validate:
+    name: Validate PostgreSQL backup and restore
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DB_SSL: 'false'
+      TYPEORM_SYNCHRONIZE: 'false'
+      POSTGRES_PASSWORD: rfg50-backup-password-canary
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: refugiapp_test
+          POSTGRES_USER: refugiapp_test
+          POSTGRES_PASSWORD: rfg50-backup-password-canary
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U refugiapp_test -d refugiapp_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies from lockfile
+        run: npm ci
+      - name: Verify PostgreSQL client tools
+        run: |
+          pg_dump --version
+          pg_restore --version
+          psql --version
+      - name: Configure isolated databases
+        run: |
+          database_scheme='postgresql:'
+          echo "DATABASE_URL=${database_scheme}//${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}" >> "$GITHUB_ENV"
+          echo "RESTORE_DATABASE_URL=${database_scheme}//${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/refugiapp_restore_test" >> "$GITHUB_ENV"
+          psql "${database_scheme}//${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE refugiapp_restore_test'
+      - name: Run migrations on source database
+        run: npm run migration:run
+      - name: Backup, restore and compare isolated databases
+        env:
+          DATABASE_PASSWORD_CANARY: rfg50-backup-password-canary
+          JWT_SECRET_CANARY: ci-only-jwt-canary-not-for-runtime
+        run: npm run backup:verify
+
   verify:
     name: Verify all checks passed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [secrets, lint, build, unit, migration-validate, e2e, deployment-validate]
+    needs:
+      [
+        secrets,
+        lint,
+        build,
+        unit,
+        migration-validate,
+        e2e,
+        deployment-validate,
+        backup-restore-validate,
+      ]
     steps:
       - name: Confirm required checks passed
         run: echo "All required CI checks passed."

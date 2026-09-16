@@ -44,6 +44,7 @@ Implementado:
 - Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL y estado `degraded`.
 - Logs estructurados en JSON con redaccion de datos sensibles.
 - Correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
+- Backup y recuperacion de PostgreSQL con retencion, checksum, restauracion aislada y prueba automatizada.
 
 Pendiente:
 
@@ -177,6 +178,18 @@ La migracion inicial ya existe y no debe regenerarse:
 ```txt
 src/database/migrations/1787781241921-InitSchema.ts
 ```
+
+## Backup y recuperacion
+
+La politica de frecuencia, retencion, RPO/RTO, restauracion y respuesta ante incidentes esta documentada en [`docs/postgresql-backup-recovery.md`](docs/postgresql-backup-recovery.md).
+
+```bash
+npm run backup:postgres
+npm run restore:postgres
+npm run backup:verify
+```
+
+Los backups deben permanecer cifrados y privados. Nunca se publican como artifacts de CI ni se versionan en Git.
 
 La migracion `1788897600000-AddBreedToAnimals.ts` agrega el campo opcional `breed` a `animals`.
 

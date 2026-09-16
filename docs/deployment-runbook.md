@@ -9,7 +9,7 @@ Este procedimiento despliega el mismo artefacto en development, staging y produc
 1. El commit objetivo debe tener el job `Verify all checks passed` en verde.
 2. La imagen debe construirse desde el `Dockerfile` y etiquetarse con el SHA completo del commit.
 3. La configuracion debe partir del archivo `.env.<ambiente>.example` correspondiente y recibir secretos desde el gestor de la plataforma.
-4. Debe existir un backup o punto de restauracion reciente de PostgreSQL antes de una migracion destructiva.
+4. Debe existir un backup o punto de restauracion reciente de PostgreSQL, verificado segun [`postgresql-backup-recovery.md`](postgresql-backup-recovery.md), antes de una migracion destructiva.
 5. La migracion debe haber sido revisada para confirmar compatibilidad hacia atras durante el rollout gradual.
 
 ## Construccion y promocion

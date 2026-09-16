@@ -358,6 +358,7 @@ Los estados por componente son `up`, `degraded` y `down`; el estado global es `o
 - `TYPEORM_SYNCHRONIZE=false` es obligatorio en todos los ejemplos y la validacion de produccion rechaza cualquier intento de activarlo.
 - Una replica solo recibe trafico despues de responder `200` en `GET /api/v1/health/ready`. El Dockerfile y el pipeline usan ese endpoint como condicion de disponibilidad.
 - El runbook versionado define promocion de imagen por digest, verificaciones y rollback de aplicacion y base de datos.
+- PostgreSQL cuenta con backups privados versionados por checksum, restauracion aislada y objetivos iniciales de RPO/RTO documentados.
 
 ## 6. Modelo de datos
 
@@ -1026,6 +1027,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - CI en GitHub Actions con instalacion reproducible, escaneo de secretos, build, lint, tests unitarios, validacion de migraciones y E2E en matriz Node 20+/22. El job `verify` actua como gate de merge.
 - Rate limiting global configurable, limite diferenciado para login, respuestas `429` consistentes y headers HTTP de seguridad mediante Helmet.
 - Despliegue reproducible por ambientes con imagen Node fijada, migraciones explicitas, readiness y runbook de rollback.
+- Backup y recuperacion de PostgreSQL con retencion definida, prueba de restauracion aislada y procedimiento de incidente.
 
 ### Pendiente
 
