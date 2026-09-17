@@ -331,6 +331,82 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
     });
   });
 
+  it('applies partial medical-record updates without erasing omitted clinical fields', async () => {
+    await seedUser(ADMIN_EMAIL, [UserRole.ADMIN]);
+    const adminToken = await login(ADMIN_EMAIL);
+
+    const animalResponse = await request(app.getHttpServer())
+      .post(`${API_PREFIX}/animals`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Rocky', species: 'dog', intakeDate: '2025-03-01' })
+      .expect(201);
+    const animalId = animalResponse.body.id as string;
+
+    const createdResponse = await request(app.getHttpServer())
+      .post(`${API_PREFIX}/medical-records`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        animalId,
+        recordType: MedicalRecordType.CONSULTATION,
+        title: 'Initial consultation',
+        diagnosis: 'Healthy',
+        treatment: 'Observation',
+        notes: 'Follow up in two weeks',
+        occurredAt: '2025-03-02T10:00:00.000Z',
+      })
+      .expect(201);
+    const recordId = createdResponse.body.id as string;
+
+    const titleOnly = await request(app.getHttpServer())
+      .patch(`${API_PREFIX}/medical-records/${recordId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ title: 'Consultation review' })
+      .expect(200);
+    expect(titleOnly.body).toMatchObject({
+      id: recordId,
+      title: 'Consultation review',
+      diagnosis: 'Healthy',
+      treatment: 'Observation',
+      notes: 'Follow up in two weeks',
+    });
+
+    const notesOnly = await request(app.getHttpServer())
+      .patch(`${API_PREFIX}/medical-records/${recordId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ notes: 'Resolved' })
+      .expect(200);
+    expect(notesOnly.body).toMatchObject({
+      id: recordId,
+      title: 'Consultation review',
+      diagnosis: 'Healthy',
+      treatment: 'Observation',
+      notes: 'Resolved',
+    });
+
+    const explicitNull = await request(app.getHttpServer())
+      .patch(`${API_PREFIX}/medical-records/${recordId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ treatment: null })
+      .expect(200);
+    expect(explicitNull.body).toMatchObject({
+      id: recordId,
+      title: 'Consultation review',
+      diagnosis: 'Healthy',
+      treatment: null,
+      notes: 'Resolved',
+    });
+
+    const persisted = await database
+      .getRepository(MedicalRecordOrmEntity)
+      .findOneByOrFail({ id: recordId });
+    expect(persisted).toMatchObject({
+      title: 'Consultation review',
+      diagnosis: 'Healthy',
+      treatment: null,
+      notes: 'Resolved',
+    });
+  });
+
   it('persists media metadata and links it transactionally to an expense', async () => {
     await seedUser(ADMIN_EMAIL, [UserRole.ADMIN]);
     const adminToken = await login(ADMIN_EMAIL);

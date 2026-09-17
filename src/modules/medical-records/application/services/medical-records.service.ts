@@ -167,9 +167,9 @@ export class MedicalRecordsService {
       dto.title?.trim(),
       dto.occurredAt ? new Date(dto.occurredAt) : undefined,
       dto.veterinarianId,
-      dto.diagnosis?.trim() || null,
-      dto.treatment?.trim() || null,
-      dto.notes?.trim() || null,
+      normalizeOptionalText(dto.diagnosis),
+      normalizeOptionalText(dto.treatment),
+      normalizeOptionalText(dto.notes),
     );
 
     const updated = await this.medicalRecordRepository.update(id, input);
@@ -297,4 +297,16 @@ export class MedicalRecordsService {
 
     return this.medicalRecordRepository.findMany(repositoryQuery);
   }
+}
+
+function normalizeOptionalText(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  return value.trim() || null;
 }

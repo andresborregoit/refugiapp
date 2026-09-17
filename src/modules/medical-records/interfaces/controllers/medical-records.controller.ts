@@ -87,7 +87,7 @@ export class MedicalRecordsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.VETERINARIAN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update a medical record' })
+  @ApiOperation({ summary: 'Partially update a medical record (only sent fields are changed)' })
   @ApiOkResponse({ type: MedicalRecordResponseDto, description: 'Medical record updated successfully.' })
   @ApiErrorResponses(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT)
   update(

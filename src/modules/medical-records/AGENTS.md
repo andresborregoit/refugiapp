@@ -25,8 +25,10 @@
 
 ## Actualizacion
 - `PATCH /medical-records/:id` requiere JWT y admite solo `admin` y `veterinarian`.
-- Todos los campos del DTO son opcionales (PATCH parcial); solo se actualizan los campos enviados.
-- Si `veterinarianId` se informa, el veterinario debe existir y estar activo (409 `VETERINARIAN_INACTIVE`); si es `null`, se desvincula el veterinario.
+- Semantica parcial estricta: los campos omitidos (`undefined`) se conservan; solo se actualizan los campos enviados.
+- `diagnosis`, `treatment` y `notes` aceptan `null` explicito para limpiar el campo; los strings vacios o solo espacios se normalizan a `null`.
+- `veterinarianId` acepta `null` para desvincular el veterinario; si se informa un id, el veterinario debe existir y estar activo (409 `VETERINARIAN_INACTIVE`).
+- `title`, `recordType` y `occurredAt` no aceptan `null`.
 - Si `occurredAt` se informa, se valida contra `intakeDate` y fecha actual.
 - El caso de uso calcula `previousValues` (solo campos que cambian) y persiste un `MedicalRecordChange` con `changeType=update` en la misma transaccion.
 - No se permite editar registros eliminados (404).
