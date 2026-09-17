@@ -184,6 +184,33 @@ describe('UsersService', () => {
     });
   });
 
+  describe('getProfile', () => {
+    it('returns the full profile of the authenticated user', async () => {
+      const user = new User(
+        'user-id',
+        'user@test.com',
+        'Test',
+        'User',
+        [UserRole.ADMIN],
+        true,
+      );
+      mockRepository.findById.mockResolvedValue(user);
+
+      const result = await service.getProfile('user-id');
+
+      expect(mockRepository.findById).toHaveBeenCalledWith('user-id');
+      expect(result).toEqual(user);
+    });
+
+    it('throws ResourceNotFoundException when the user does not exist', async () => {
+      mockRepository.findById.mockResolvedValue(null);
+
+      await expect(service.getProfile('non-existent-id')).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+    });
+  });
+
   describe('deactivateUser', () => {
     it('throws ResourceNotFoundException when user does not exist', async () => {
       mockRepository.findById.mockResolvedValue(null);
