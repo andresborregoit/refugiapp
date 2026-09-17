@@ -6,6 +6,7 @@ import { AnimalSex } from '../../../animals/domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../../animals/domain/enums/animal-status.enum';
 import { MedicalRecordType } from '../../domain/enums/medical-record-type.enum';
 import { MedicalRecord } from '../../domain/entities/medical-record.entity';
+import { UpdateMedicalRecord } from '../../domain/entities/update-medical-record.entity';
 import { VeterinarianRepository } from '../../../veterinarians/domain/repositories/veterinarian.repository';
 import { MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
 import { MediaOwnerType } from '../../../media/domain/enums/media-owner-type.enum';
@@ -334,6 +335,61 @@ describe('MedicalRecordsService', () => {
         expect.objectContaining({ title: 'Updated title', changedByUserId: 'actor-id' }),
       );
       expect(result).toBe(updatedRecord);
+    });
+
+    it('preserves diagnosis, treatment and notes when a PATCH only sends the title', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      medicalRecordRepository.update.mockResolvedValue(record);
+
+      await service.update('record-id', updateDto(), 'actor-id');
+
+      const input = medicalRecordRepository.update.mock.calls[0]![1] as UpdateMedicalRecord;
+
+      expect(input.title).toBe('Updated title');
+      expect(input.diagnosis).toBeUndefined();
+      expect(input.treatment).toBeUndefined();
+      expect(input.notes).toBeUndefined();
+    });
+
+    it('applies a partial update only for the field that was sent', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      medicalRecordRepository.update.mockResolvedValue(record);
+
+      await service.update('record-id', updateDto({ title: undefined, diagnosis: '  Updated diagnosis  ' }), 'actor-id');
+
+      const input = medicalRecordRepository.update.mock.calls[0]![1] as UpdateMedicalRecord;
+
+      expect(input.diagnosis).toBe('Updated diagnosis');
+      expect(input.title).toBeUndefined();
+      expect(input.treatment).toBeUndefined();
+      expect(input.notes).toBeUndefined();
+    });
+
+    it('clears a clinical field when null is sent explicitly', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      medicalRecordRepository.update.mockResolvedValue(record);
+
+      await service.update('record-id', updateDto({ title: undefined, diagnosis: null }), 'actor-id');
+
+      const input = medicalRecordRepository.update.mock.calls[0]![1] as UpdateMedicalRecord;
+
+      expect(input.diagnosis).toBeNull();
+      expect(input.title).toBeUndefined();
+      expect(input.treatment).toBeUndefined();
+      expect(input.notes).toBeUndefined();
+    });
+
+    it('normalizes empty or whitespace-only clinical text to null', async () => {
+      medicalRecordRepository.findById.mockResolvedValue(record);
+      medicalRecordRepository.update.mockResolvedValue(record);
+
+      await service.update('record-id', updateDto({ title: undefined, treatment: '   ' }), 'actor-id');
+
+      const input = medicalRecordRepository.update.mock.calls[0]![1] as UpdateMedicalRecord;
+
+      expect(input.treatment).toBeNull();
+      expect(input.diagnosis).toBeUndefined();
+      expect(input.notes).toBeUndefined();
     });
 
     it('records a medical_record.update audit event', async () => {
