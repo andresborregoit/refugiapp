@@ -44,6 +44,7 @@ Implementado:
 - Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL y estado `degraded`.
 - Logs estructurados en JSON con redaccion de datos sensibles.
 - Correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
+- Endpoint de panel de control (`GET /dashboard/overview`) con totales por estado y animales recientes, reutilizando `AnimalOrmEntity` sin nuevas tablas, con `DashboardAnimalDto` alineado a la respuesta real (`profilePhotoMediaId` nullable) y contrato Swagger listo para el cliente movil.
 - Backup y recuperacion de PostgreSQL con retencion, checksum, restauracion aislada y prueba automatizada.
 
 Pendiente:
@@ -92,6 +93,7 @@ src/
     auth/
     users/
     animals/
+    dashboard/
     medical-records/
     veterinarians/
     expenses/
@@ -110,6 +112,7 @@ Modulos iniciales:
 - `auth`: JWT, Passport strategy, guard y login real mediante email, password hasheado y JWT.
 - `users`: usuarios internos y roles.
 - `animals`: ficha general del animal e historial general del refugio.
+- `dashboard`: read-model del panel de control con totales por estado y animales recientes.
 - `medical-records`: historial clinico/veterinario.
 - `veterinarians`: veterinarios responsables.
 - `expenses`: gastos asociados a animales y referencia a tickets.
