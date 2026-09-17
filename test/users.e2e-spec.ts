@@ -21,12 +21,11 @@ const veterinarianPayload = {
 const VALID_UUID = '11111111-1111-1111-1111-111111111111';
 
 describe('Users (e2e)', () => {
-  let app: INestApplication;
-
   const mockUsersService = {
     createUser: jest.fn(),
     deactivateUser: jest.fn(),
     activateUser: jest.fn(),
+    getProfile: jest.fn(),
   };
 
   class AlwaysActiveJwtAuthGuard {
@@ -56,7 +55,7 @@ describe('Users (e2e)', () => {
     }
   }
 
-  beforeAll(async () => {
+  async function createApp(guardClass: any): Promise<INestApplication> {
     const moduleRef = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
@@ -70,33 +69,41 @@ describe('Users (e2e)', () => {
       ],
     })
       .overrideGuard(JwtAuthGuard as any)
-      .useClass(AlwaysActiveJwtAuthGuard as any)
+      .useClass(guardClass as any)
       .compile();
 
-    app = moduleRef.createNestApplication();
+    const app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
     );
     app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
-  });
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  afterAll(async () => {
-    await app.close();
-  });
+    return app;
+  }
 
   describe('POST /api/v1/users', () => {
+    let app: INestApplication;
+
     const validDto = {
       email: 'newuser@refugiapp.local',
       password: 'valid-password-12chars',
       firstName: 'New',
       lastName: 'User',
     };
+
+    beforeAll(async () => {
+      app = await createApp(AlwaysActiveJwtAuthGuard);
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
 
     it('creates a user when called by an admin', async () => {
       const created = new User(
@@ -163,108 +170,20 @@ describe('Users (e2e)', () => {
       expect(res.body.roles).toEqual(['shelter_manager']);
     });
 
-    it('returns 403 when called by a non-admin user', async () => {
-      const managerModuleRef = await Test.createTestingModule({
-        controllers: [UsersController],
-        providers: [
-          { provide: UsersService, useValue: mockUsersService },
-          RolesGuard,
-          { provide: JwtService, useValue: { verify: jest.fn().mockReturnValue(managerPayload), sign: jest.fn() } },
-          { provide: ConfigService, useValue: { get: jest.fn() } },
-        ],
-      })
-        .overrideGuard(JwtAuthGuard as any)
-        .useClass(ManagerJwtAuthGuard as any)
-        .compile();
-
-      const managerApp = managerModuleRef.createNestApplication();
-      managerApp.setGlobalPrefix('api/v1');
-      managerApp.useGlobalPipes(
-        new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-      );
-      managerApp.useGlobalFilters(new HttpExceptionFilter());
-      await managerApp.init();
+    it('returns 403 when called by a manager', async () => {
+      const managerApp = await createApp(ManagerJwtAuthGuard);
 
       await request(managerApp.getHttpServer())
         .post('/api/v1/users')
         .set('Authorization', 'Bearer manager-token')
         .send(validDto)
         .expect(403);
-
-      await request(managerApp.getHttpServer())
-        .get('/api/v1/users/me')
-        .set('Authorization', 'Bearer manager-token')
-        .expect(200)
-        .expect(({ body }) => {
-          expect(body.roles).toEqual([UserRole.SHELTER_MANAGER]);
-        });
 
       await managerApp.close();
     });
 
-    it('allows a veterinarian to access their profile and rejects admin actions', async () => {
-      const veterinarianModuleRef = await Test.createTestingModule({
-        controllers: [UsersController],
-        providers: [
-          { provide: UsersService, useValue: mockUsersService },
-          RolesGuard,
-          {
-            provide: JwtService,
-            useValue: { verify: jest.fn().mockReturnValue(veterinarianPayload), sign: jest.fn() },
-          },
-          { provide: ConfigService, useValue: { get: jest.fn() } },
-        ],
-      })
-        .overrideGuard(JwtAuthGuard as any)
-        .useClass(VeterinarianJwtAuthGuard as any)
-        .compile();
-
-      const veterinarianApp = veterinarianModuleRef.createNestApplication();
-      veterinarianApp.setGlobalPrefix('api/v1');
-      veterinarianApp.useGlobalPipes(
-        new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-      );
-      veterinarianApp.useGlobalFilters(new HttpExceptionFilter());
-      await veterinarianApp.init();
-
-      await request(veterinarianApp.getHttpServer())
-        .post('/api/v1/users')
-        .set('Authorization', 'Bearer veterinarian-token')
-        .send(validDto)
-        .expect(403);
-
-      await request(veterinarianApp.getHttpServer())
-        .get('/api/v1/users/me')
-        .set('Authorization', 'Bearer veterinarian-token')
-        .expect(200)
-        .expect(({ body }) => {
-          expect(body.roles).toEqual([UserRole.VETERINARIAN]);
-        });
-
-      await veterinarianApp.close();
-    });
-
     it('returns 401 when no token is provided', async () => {
-      const noTokenModuleRef = await Test.createTestingModule({
-        controllers: [UsersController],
-        providers: [
-          { provide: UsersService, useValue: mockUsersService },
-          RolesGuard,
-          { provide: JwtService, useValue: { verify: jest.fn().mockReturnValue(null), sign: jest.fn() } },
-          { provide: ConfigService, useValue: { get: jest.fn() } },
-        ],
-      })
-        .overrideGuard(JwtAuthGuard as any)
-        .useClass(NoTokenJwtAuthGuard as any)
-        .compile();
-
-      const noTokenApp = noTokenModuleRef.createNestApplication();
-      noTokenApp.setGlobalPrefix('api/v1');
-      noTokenApp.useGlobalPipes(
-        new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-      );
-      noTokenApp.useGlobalFilters(new HttpExceptionFilter());
-      await noTokenApp.init();
+      const noTokenApp = await createApp(NoTokenJwtAuthGuard);
 
       await request(noTokenApp.getHttpServer())
         .post('/api/v1/users')
@@ -276,6 +195,20 @@ describe('Users (e2e)', () => {
   });
 
   describe('POST /api/v1/users/:id/deactivate', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      app = await createApp(AlwaysActiveJwtAuthGuard);
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
     it('deactivates a user when called by an admin', async () => {
       mockUsersService.deactivateUser.mockResolvedValue(undefined);
 
@@ -298,6 +231,20 @@ describe('Users (e2e)', () => {
   });
 
   describe('POST /api/v1/users/:id/activate', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      app = await createApp(AlwaysActiveJwtAuthGuard);
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
     it('reactivates a user when called by an admin', async () => {
       const reactivated = new User(
         VALID_UUID,
@@ -326,6 +273,133 @@ describe('Users (e2e)', () => {
         .post('/api/v1/users/22222222-2222-2222-2222-222222222222/activate')
         .set('Authorization', 'Bearer admin-token')
         .expect(404);
+    });
+  });
+
+  describe('GET /api/v1/users/me', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      app = await createApp(AlwaysActiveJwtAuthGuard);
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    it('returns the full profile for an admin', async () => {
+      mockUsersService.getProfile.mockResolvedValue(new User(
+        'admin-id',
+        'admin@refugiapp.local',
+        'Admin',
+        'One',
+        [UserRole.ADMIN],
+        true,
+      ));
+
+      await request(app.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({
+            id: 'admin-id',
+            email: 'admin@refugiapp.local',
+            firstName: 'Admin',
+            lastName: 'One',
+            roles: [UserRole.ADMIN],
+            isActive: true,
+          });
+          expect(body).not.toHaveProperty('passwordHash');
+        });
+    });
+
+    it('returns the full profile for a shelter_manager', async () => {
+      const managerApp = await createApp(ManagerJwtAuthGuard);
+      mockUsersService.getProfile.mockResolvedValue(new User(
+        'manager-id',
+        'manager@refugiapp.local',
+        'Shelter',
+        'Manager',
+        [UserRole.SHELTER_MANAGER],
+        true,
+      ));
+
+      await request(managerApp.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', 'Bearer manager-token')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({
+            id: 'manager-id',
+            email: 'manager@refugiapp.local',
+            firstName: 'Shelter',
+            lastName: 'Manager',
+            roles: [UserRole.SHELTER_MANAGER],
+            isActive: true,
+          });
+          expect(body).not.toHaveProperty('passwordHash');
+        });
+
+      await managerApp.close();
+    });
+
+    it('returns the full profile for a veterinarian', async () => {
+      const veterinarianApp = await createApp(VeterinarianJwtAuthGuard);
+      mockUsersService.getProfile.mockResolvedValue(new User(
+        'veterinarian-id',
+        'veterinarian@refugiapp.local',
+        'Vet',
+        'One',
+        [UserRole.VETERINARIAN],
+        true,
+      ));
+
+      await request(veterinarianApp.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', 'Bearer veterinarian-token')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({
+            id: 'veterinarian-id',
+            email: 'veterinarian@refugiapp.local',
+            firstName: 'Vet',
+            lastName: 'One',
+            roles: [UserRole.VETERINARIAN],
+            isActive: true,
+          });
+          expect(body).not.toHaveProperty('passwordHash');
+        });
+
+      await veterinarianApp.close();
+    });
+
+    it('returns 404 when the authenticated user does not exist', async () => {
+      mockUsersService.getProfile.mockRejectedValue(
+        new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'User with id admin-id was not found.' }),
+      );
+
+      await request(app.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404)
+        .expect(({ body }) => {
+          expect(body.code).toBe('RESOURCE_NOT_FOUND');
+        });
+    });
+
+    it('returns 401 when no token is provided', async () => {
+      const noTokenApp = await createApp(NoTokenJwtAuthGuard);
+
+      await request(noTokenApp.getHttpServer())
+        .get('/api/v1/users/me')
+        .expect(401);
+
+      await noTokenApp.close();
     });
   });
 });

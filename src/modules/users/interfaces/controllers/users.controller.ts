@@ -20,11 +20,11 @@ import {
 } from '@nestjs/swagger';
 import { ApiErrorResponses } from '../../../../common/decorators/api-error-responses.decorator';
 import { CurrentUser } from '../../../../common/decorators/current-user.decorator';
-import { UserRole } from '../../../../common/enums/user-role.enum';
 import { Roles } from '../../../../common/decorators/roles.decorator';
+import { UserRole } from '../../../../common/enums/user-role.enum';
+import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
-import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
 import { UsersService } from '../../application/services/users.service';
@@ -81,12 +81,17 @@ export class UsersController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Return the authenticated user from the JWT payload' })
-  @ApiOkResponse({ description: 'Authenticated user payload.' })
-  @ApiErrorResponses(HttpStatus.UNAUTHORIZED)
-  getMe(@CurrentUser() user: AuthenticatedUser): AuthenticatedUser {
-    return user;
+  @Roles(UserRole.ADMIN, UserRole.SHELTER_MANAGER, UserRole.VETERINARIAN)
+  @ApiOperation({ summary: 'Get the authenticated user full profile' })
+  @ApiOkResponse({ type: UserResponseDto, description: 'Authenticated user full profile.' })
+  @ApiErrorResponses(
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+  )
+  getMe(@CurrentUser() user: AuthenticatedUser): Promise<UserResponseDto> {
+    return this.usersService.getProfile(user.id);
   }
 }

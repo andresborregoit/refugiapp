@@ -23,6 +23,16 @@ export class UsersService {
     return this.userRepository.findById(id);
   }
 
+  async getProfile(userId: string): Promise<User> {
+    const user = await this.userRepository.findById(userId);
+
+    if (!user) {
+      throw new ResourceNotFoundException('User', userId);
+    }
+
+    return user;
+  }
+
   findByEmail(email: string) {
     return this.userRepository.findByEmail(email);
   }
