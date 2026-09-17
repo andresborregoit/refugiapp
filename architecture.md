@@ -107,6 +107,7 @@ src/
     auth/
     users/
     animals/
+    dashboard/
     medical-records/
     veterinarians/
     expenses/
@@ -184,6 +185,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `PATCH /animals/:id/status` | Permitido | Permitido | Rechazado |
 | `POST /animals/:animalId/events` | Permitido | Permitido | Rechazado |
 | `GET /animals/:animalId/events` | Permitido | Permitido | Permitido |
+| `GET /dashboard/overview` | Permitido | Permitido | Permitido |
 | `POST /veterinarians` | Permitido | Permitido | Rechazado |
 | `GET /veterinarians` | Permitido | Permitido | Permitido |
 | `GET /veterinarians/:id` | Permitido | Permitido | Permitido |
@@ -237,6 +239,18 @@ deceased           → (terminal)
 Los eventos generales se gestionan mediante `POST /animals/:animalId/events` y `GET /animals/:animalId/events`. Los tipos creables manualmente son `general_note`, `behavior_note` y `transfer`. Los tipos `intake`, `status_change` y `adoption` estan reservados al sistema. La fecha del evento (`occurredAt`) es opcional y defaultea al momento del request; se rechazan fechas futuras y anteriores a `intakeDate`. El listado usa paginacion (1..100, default 20), filtro por `eventType` y orden `occurredAt DESC, id DESC`.
 
 Los datos clinicos (diagnosticos, tratamientos, vacunas) pertenecen exclusivamente a `medical-records` y no deben registrarse en eventos generales.
+
+### `dashboard`
+
+Expone un read-model consolidado para el panel de control del refugio. Es un modulo de solo lectura: no persiste entidades propias ni modifica datos de otros dominios.
+
+La consulta se realiza mediante `GET /dashboard/overview`. Requiere JWT y admite `admin`, `shelter_manager` y `veterinarian`. El caso de uso delega en un repositorio que reutiliza `AnimalOrmEntity` (sin nuevas tablas) y devuelve:
+
+- `totals.animals`: total de animales activos (excluye soft-deleted).
+- `totals.byStatus`: conteo por `AnimalStatus` con zero-fill para todos los estados del enum.
+- `recentAnimals`: lista de `DashboardAnimal` con `id`, `name`, `species`, `status` y `profilePhotoMediaId` (nullable), ordenados `createdAt DESC, id DESC` con limite fijo `DASHBOARD_RECENT_ANIMALS_LIMIT` (5).
+
+`DashboardAnimalDto` declara `profilePhotoMediaId` como campo nullable y documenta en Swagger un ejemplo UUID coherente para que el contrato quede listo para generar el cliente movil. El modulo incluye tests de contrato DTO vs respuesta real del repositorio, contrato Swagger y E2E que verifican la presencia del campo, la autorizacion y la propagacion del correlation ID.
 
 ### `medical-records`
 
@@ -1020,6 +1034,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Consulta de auditoria protegida para `admin` (`GET /audit-logs`, `GET /audit-logs/:id`) con paginacion y filtros.
 - Retencion configurable (`AUDIT_LOG_RETENTION_DAYS`) y purga fisica mediante `npm run audit:purge`.
 - Build, lint y tests unitarios configurados.
+- Panel de control de solo lectura (`GET /dashboard/overview`) con totales por estado, animales recientes y `DashboardAnimalDto` alineado a la respuesta real (`profilePhotoMediaId` nullable), contrato Swagger con ejemplo UUID y E2E de presencia del campo, autorizacion y correlation ID.
 - Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL, estado `degraded` y `503` cuando la base no responde.
 - Logs estructurados en JSON con redaccion de datos sensibles y correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
 - Suite E2E de flujos criticos desde HTTP hasta PostgreSQL real y descartable mediante Testcontainers; Cloudinary se sustituye solo en el limite externo.
