@@ -16,6 +16,7 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
 import { ApiErrorResponses } from '../../../../common/decorators/api-error-responses.decorator';
@@ -24,6 +25,7 @@ import { Roles } from '../../../../common/decorators/roles.decorator';
 import { UserRole } from '../../../../common/enums/user-role.enum';
 import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
+import { ErrorResponseDto } from '../../../../common/interfaces/error-response.dto';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
@@ -41,8 +43,13 @@ export class UsersController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create a new internal user (admin only)' })
   @ApiCreatedResponse({ type: UserResponseDto, description: 'User created successfully.' })
-  @ApiConflictResponse({ description: 'Email already registered.' })
-  @ApiErrorResponses(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.CONFLICT)
+  @ApiConflictResponse({ type: ErrorResponseDto, description: 'Email already registered.' })
+  @ApiErrorResponses(
+    HttpStatus.BAD_REQUEST,
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
   createUser(
     @Body() dto: CreateUserDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -56,8 +63,20 @@ export class UsersController {
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Deactivate a user (soft-delete, admin only)' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+    description: 'User id (UUID).',
+  })
   @ApiNoContentResponse({ description: 'User deactivated successfully.' })
-  @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
+  @ApiErrorResponses(
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
   deactivateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -71,8 +90,20 @@ export class UsersController {
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Reactivate a deactivated user (admin only)' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+    description: 'User id (UUID).',
+  })
   @ApiOkResponse({ type: UserResponseDto, description: 'User reactivated successfully.' })
-  @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
+  @ApiErrorResponses(
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
   activateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -90,6 +121,7 @@ export class UsersController {
     HttpStatus.UNAUTHORIZED,
     HttpStatus.FORBIDDEN,
     HttpStatus.NOT_FOUND,
+    HttpStatus.TOO_MANY_REQUESTS,
   )
   getMe(@CurrentUser() user: AuthenticatedUser): Promise<UserResponseDto> {
     return this.usersService.getProfile(user.id);
