@@ -22,4 +22,8 @@ export class MediaAsset {
       );
     }
   }
+
+  isOrphan(): boolean {
+    return this.ownerType === null && this.ownerId === null;
+  }
 }

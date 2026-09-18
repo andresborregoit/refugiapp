@@ -32,6 +32,22 @@ const ALLOWED_MIME_TYPES = [
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
+export const DEFAULT_ORPHAN_PURGE_LIMIT = 500;
+
+export interface PurgeOrphanMediaOptions {
+  olderThanHours: number;
+  dryRun?: boolean;
+  limit?: number;
+}
+
+export interface PurgeOrphanMediaResult {
+  dryRun: boolean;
+  threshold: Date;
+  candidates: string[];
+  deleted: number;
+  failed: number;
+}
+
 @Injectable()
 export class MediaService {
   private readonly logger = new Logger(MediaService.name);
@@ -108,8 +124,16 @@ export class MediaService {
     try {
       return await this.mediaAssetRepository.create(asset);
     } catch (error) {
-      this.logger.error(`PostgreSQL persistence failed after Cloudinary upload. Compensating by deleting Cloudinary asset ${cloudinaryResult.publicId}.`);
-      await this.cloudinaryStorageService.delete(cloudinaryResult.publicId);
+      this.logger.error(
+        `PostgreSQL persistence failed after Cloudinary upload. Compensating by deleting Cloudinary asset ${cloudinaryResult.publicId}.`,
+      );
+      try {
+        await this.cloudinaryStorageService.delete(cloudinaryResult.publicId);
+      } catch (compensationError) {
+        this.logger.error(
+          `Cloudinary compensation failed for asset ${cloudinaryResult.publicId}: ${compensationError}`,
+        );
+      }
       throw error;
     }
   }
@@ -148,6 +172,54 @@ export class MediaService {
     return this.cloudinaryStorageService.buildUploadFolder(ownerType, ownerId);
   }
 
+  async purgeExpiredOrphans(
+    options: PurgeOrphanMediaOptions,
+  ): Promise<PurgeOrphanMediaResult> {
+    const threshold = new Date(Date.now() - options.olderThanHours * 60 * 60 * 1000);
+    const limit = options.limit ?? DEFAULT_ORPHAN_PURGE_LIMIT;
+    const candidates = await this.mediaAssetRepository.findOrphanedOlderThan(threshold, limit);
+    const candidateIds = candidates.map((asset) => asset.id);
+
+    if (options.dryRun) {
+      return {
+        dryRun: true,
+        threshold,
+        candidates: candidateIds,
+        deleted: 0,
+        failed: 0,
+      };
+    }
+
+    let deleted = 0;
+    let failed = 0;
+
+    for (const asset of candidates) {
+      try {
+        await this.mediaAssetRepository.softDeleteById(asset.id);
+        try {
+          await this.cloudinaryStorageService.delete(asset.publicId);
+        } catch (error) {
+          this.logger.error(
+            `Cloudinary cleanup failed for orphan asset ${asset.id} (${asset.publicId}): ${error}`,
+          );
+          failed += 1;
+        }
+        deleted += 1;
+      } catch (error) {
+        this.logger.error(`Orphan asset cleanup failed for ${asset.id}: ${error}`);
+        failed += 1;
+      }
+    }
+
+    return {
+      dryRun: false,
+      threshold,
+      candidates: candidateIds,
+      deleted,
+      failed,
+    };
+  }
+
   private assertCanUpload(
     user: AuthenticatedUser,
     ownerType: MediaOwnerType | null,
@@ -168,9 +240,13 @@ export class MediaService {
       return;
     }
 
+    if (asset.isOrphan() && asset.uploadedByUserId === user.id) {
+      return;
+    }
+
     if (asset.ownerType !== MediaOwnerType.MEDICAL_RECORD) {
       throw new ForbiddenException(
-        'Veterinarians can only delete clinical attachments.',
+        'Veterinarians can only delete their own orphan assets or clinical attachments.',
       );
     }
   }

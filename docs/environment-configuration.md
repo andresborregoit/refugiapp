@@ -36,6 +36,8 @@ Los archivos son plantillas y no contienen credenciales utilizables. `DATABASE_U
 | `JWT_ISSUER`                 | Emisor esperado                           | Por ambiente           | Por ambiente       | `refugiapp-api`             |
 | `JWT_AUDIENCE`               | Audiencia esperada                        | Por ambiente           | Por ambiente       | `refugiapp-mobile`          |
 | `CLOUDINARY_*`               | Almacenamiento externo de media           | Opcional               | Requerido          | Requerido                   |
+| `MEDIA_ORPHAN_RETENTION_HOURS` | Antiguedad minima para purgar huerfanos  | `48`                   | `48`               | `48`                        |
+| `MEDIA_ORPHAN_PURGE_LIMIT`   | Maximo de huerfanos por ejecucion        | `500`                  | `500`              | `500`                       |
 | `INITIAL_ADMIN_*`            | Seed controlado del primer administrador  | Solo cuando se ejecuta | Vacio normalmente  | Vacio normalmente           |
 
 ## Reglas operativas

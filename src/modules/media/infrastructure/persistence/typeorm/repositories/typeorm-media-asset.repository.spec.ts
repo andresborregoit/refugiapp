@@ -1,4 +1,5 @@
 import { Repository } from 'typeorm';
+import { IsNull, LessThan } from 'typeorm';
 import { MediaOwnerType } from '../../../../domain/enums/media-owner-type.enum';
 import { MediaResourceType } from '../../../../domain/enums/media-resource-type.enum';
 import { MediaAsset } from '../../../../domain/entities/media-asset.entity';
@@ -7,7 +8,7 @@ import { TypeOrmMediaAssetRepository } from './typeorm-media-asset.repository';
 
 describe('TypeOrmMediaAssetRepository', () => {
   let repository: jest.Mocked<
-    Pick<Repository<MediaAssetOrmEntity>, 'findOne' | 'create' | 'save' | 'softDelete' | 'count' | 'findAndCount'>
+    Pick<Repository<MediaAssetOrmEntity>, 'findOne' | 'create' | 'save' | 'softDelete' | 'count' | 'findAndCount' | 'find'>
   >;
   let mediaAssetRepository: TypeOrmMediaAssetRepository;
 
@@ -29,6 +30,7 @@ describe('TypeOrmMediaAssetRepository', () => {
       softDelete: jest.fn(),
       count: jest.fn(),
       findAndCount: jest.fn(),
+      find: jest.fn(),
     };
     mediaAssetRepository = new TypeOrmMediaAssetRepository(
       repository as unknown as Repository<MediaAssetOrmEntity>,
@@ -188,6 +190,55 @@ describe('TypeOrmMediaAssetRepository', () => {
       expect(options.withDeleted).toBeUndefined();
       expect(result).toMatchObject({ page: 2, limit: 2, total: 5 });
       expect(result.items[0]).toMatchObject({ id: 'media-id' });
+    });
+  });
+
+  describe('findOrphanedOlderThan', () => {
+    it('filters orphan assets older than the threshold, ordered and limited', async () => {
+      repository.find.mockResolvedValue([ormAsset]);
+
+      const threshold = new Date('2025-01-01T00:00:00.000Z');
+      const result = await mediaAssetRepository.findOrphanedOlderThan(threshold, 25);
+
+      const options = repository.find.mock.calls[0]![0]!;
+      expect(options.where).toEqual({
+        ownerType: IsNull(),
+        ownerId: IsNull(),
+        createdAt: LessThan(threshold),
+      });
+      expect(options.order).toEqual({ createdAt: 'ASC', id: 'ASC' });
+      expect(options.take).toBe(25);
+      expect(options.withDeleted).toBeUndefined();
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ id: 'media-id' });
+    });
+
+    it('maps orphan rows back to domain assets', async () => {
+      repository.find.mockResolvedValue([
+        Object.assign(new MediaAssetOrmEntity(), {
+          id: 'orphan-id',
+          ownerType: null,
+          ownerId: null,
+          resourceType: MediaResourceType.IMAGE,
+          cloudinaryPublicId: 'refugiapp/orphan/pic',
+          secureUrl: 'https://res.cloudinary.com/demo/image/upload/refugiapp/orphan/pic.jpg',
+          bytes: 512,
+          createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        }),
+      ]);
+
+      const result = await mediaAssetRepository.findOrphanedOlderThan(
+        new Date('2025-01-01T00:00:00.000Z'),
+        10,
+      );
+
+      expect(result[0]).toMatchObject({
+        id: 'orphan-id',
+        ownerType: null,
+        ownerId: null,
+        publicId: 'refugiapp/orphan/pic',
+      });
+      expect(result[0]?.isOrphan()).toBe(true);
     });
   });
 
