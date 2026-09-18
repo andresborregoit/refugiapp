@@ -208,7 +208,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `GET /audit-logs` | Permitido | Rechazado | Rechazado |
 | `GET /audit-logs/:id` | Permitido | Rechazado | Rechazado |
 
-En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset.
+En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset. Ademas, el usuario que subio un asset huerfano puede borrarlo con `DELETE /media/:id` aunque sea `veterinarian`, para cubrir el flujo subir -> cancelar antes de vincular.
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
@@ -308,7 +308,9 @@ La consulta de assets por propietario se realiza mediante `GET /media?ownerType=
 
 La baja logica se realiza mediante `DELETE /media/:id` aplicando `deletedAt` y luego intenta eliminar el archivo remoto en Cloudinary. Si la limpieza remota falla, se loguea el error y el registro permanece oculto por `deletedAt`.
 
-Los roles `admin` y `shelter_manager` pueden subir, listar y borrar cualquier asset. El rol `veterinarian` puede subir adjuntos clinicos (o huerfanos) y borrar solo assets de `medical_record`.
+Los roles `admin` y `shelter_manager` pueden subir, listar y borrar cualquier asset. El rol `veterinarian` puede subir adjuntos clinicos (o huerfanos) y borrar assets de `medical_record`; ademas, cualquier usuario puede borrar un asset huerfano que el mismo haya subido (`uploadedByUserId`). Un `veterinarian` no puede borrar huerfanos ajenos ni assets vinculados a otras entidades (`403`).
+
+Los assets huerfanos que nunca se vinculan se eliminan mediante un job de limpieza por antiguedad. `MediaService.purgeExpiredOrphans` selecciona huerfanos con `createdAt` anterior a `MEDIA_ORPHAN_RETENTION_HOURS` (default 48h) y aplica soft-delete seguido de limpieza remota best-effort. El runner CLI `npm run media:purge-orphans` acepta `--dry-run`, `--older-than-hours=` y `--limit=`, y debe ser invocado por un cron externo (no existe scheduler in-process). Swagger documenta la politica de propiedad y retencion en `POST /media/upload` y `DELETE /media/:id`. Ver `docs/orphan-media-cleanup.md` para la guia operativa.
 
 ### `audit-logs`
 
@@ -863,6 +865,7 @@ La migracion inicial crea:
 - Indice en `expenses.incurredAt`.
 - Indice compuesto en `media_assets.ownerType, ownerId`.
 - Indice unico en `media_assets.cloudinaryPublicId`.
+- Indice parcial en `media_assets (createdAt, id) WHERE ownerType IS NULL AND ownerId IS NULL AND deletedAt IS NULL` (`IDX_media_assets_orphan_cleanup`), que respalda la consulta del job de limpieza de huerfanos.
 - Indice en `audit_logs.action`.
 - Indice en `audit_logs.occurredAt`.
 - Indice en `audit_logs.actorUserId`.
@@ -938,6 +941,8 @@ La migracion `1787000000000-EnableUuidOsspExtension.ts` se ordena antes de la in
 La migracion `1789300000000-AllowOrphanMediaAssets.ts` permite assets huerfanos haciendo nullable `ownerType` y `ownerId` en `media_assets`.
 
 La migracion `1789399460070-AddAuditLogs.ts` crea los enums `audit_action` y `audit_resource_type`, la tabla `audit_logs` (append-only) y sus indices y foreign key a `users`.
+
+La migracion `1790000000000-AddOrphanMediaCleanupIndex.ts` agrega el indice parcial `IDX_media_assets_orphan_cleanup` sobre `media_assets (createdAt, id)` para assets huerfanos activos, usado por el job de limpieza.
 
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
 
@@ -1028,6 +1033,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional y `409 INCOMPATIBLE_OWNER_TYPE` / `409 MEDIA_ALREADY_OWNED`.
 - Listado de assets por propietario (`GET /media`) con validacion de existencia del propietario, paginacion y exclusion de soft-deleted.
 - Baja logica de media (`DELETE /media/:id`) con limpieza remota en Cloudinary y permisos diferenciados para `veterinarian`.
+- Politica de media huerfana: el uploader puede borrar su propio asset huerfano, un `veterinarian` no puede borrar huerfanos ajenos ni assets vinculados ajenos (`403`), compensacion remota endurecida si falla la persistencia, job de limpieza por antiguedad (`npm run media:purge-orphans`) con TTL configurable por entorno, dry-run y ejecucion real, y Swagger documentando la politica.
 - Auditoria transversal de operaciones sensibles (`audit_logs`, append-only) con actor, accion, recurso y timestamp.
 - Registro de eventos de usuarios (`user.create`, `user.deactivate`, `user.activate`, `user.role_assign`), registros clinicos (`create/update/soft_delete/restore`), gastos (`create/soft_delete`), logins (`auth.login_success`, `auth.login_failure`) y denegaciones de acceso (`access.denied`).
 - Sanitizacion recursiva de `metadata` que redacta passwords, tokens y secretos antes de persistir.

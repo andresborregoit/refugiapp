@@ -33,6 +33,11 @@ describe('MediaAsset', () => {
 
     expect(orphan.ownerType).toBeNull();
     expect(orphan.ownerId).toBeNull();
+    expect(orphan.isOrphan()).toBe(true);
+  });
+
+  it('is not orphan when it has an owner', () => {
+    expect(createMediaAsset().isOrphan()).toBe(false);
   });
 
   it('accepts zero bytes', () => {

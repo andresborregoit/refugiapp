@@ -79,4 +79,7 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.string().allow('').default(''),
   }),
   CLOUDINARY_SECURE: Joi.boolean().default(true),
+
+  MEDIA_ORPHAN_RETENTION_HOURS: Joi.number().integer().min(1).max(720).default(48),
+  MEDIA_ORPHAN_PURGE_LIMIT: Joi.number().integer().min(1).max(10000).default(500),
 });

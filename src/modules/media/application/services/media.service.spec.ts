@@ -32,6 +32,7 @@ describe('MediaService', () => {
     mediaAssetRepository = {
       findById: jest.fn(),
       findByOwner: jest.fn(),
+      findOrphanedOlderThan: jest.fn(),
       create: jest.fn(),
       softDeleteById: jest.fn(),
       existsByPublicId: jest.fn(),
@@ -207,6 +208,25 @@ describe('MediaService', () => {
 
       expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-id');
     });
+
+    it('should propagate the database error even when Cloudinary compensation fails', async () => {
+      ownerExistsChecker.exists.mockResolvedValue(true);
+      mediaAssetRepository.create.mockRejectedValue(new Error('DB error'));
+      cloudinaryStorageService.delete.mockRejectedValue(new Error('compensation error'));
+
+      await expect(
+        service.upload(
+          Buffer.from('test'),
+          'test.jpg',
+          'image/jpeg',
+          MediaOwnerType.ANIMAL,
+          'animal-id',
+          adminUser,
+        ),
+      ).rejects.toThrow('DB error');
+
+      expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-id');
+    });
   });
 
   describe('listByOwner', () => {
@@ -310,6 +330,140 @@ describe('MediaService', () => {
 
       await expect(service.delete('id', adminUser)).resolves.toBeUndefined();
       expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('id');
+    });
+
+    it('should allow a veterinarian deleting their own orphan asset', async () => {
+      const ownOrphan = new MediaAsset(
+        'id',
+        null,
+        null,
+        MediaResourceType.IMAGE,
+        'public-id',
+        'https://cloudinary.com/test.jpg',
+        1024,
+        'jpg',
+        veterinarianUser.id,
+      );
+      mediaAssetRepository.findById.mockResolvedValue(ownOrphan);
+      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+
+      await service.delete('id', veterinarianUser);
+
+      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('id');
+      expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-id');
+    });
+
+    it('should reject a veterinarian deleting a foreign orphan asset', async () => {
+      const foreignOrphan = new MediaAsset(
+        'id',
+        null,
+        null,
+        MediaResourceType.IMAGE,
+        'public-id',
+        'https://cloudinary.com/test.jpg',
+        1024,
+        'jpg',
+        'another-user-id',
+      );
+      mediaAssetRepository.findById.mockResolvedValue(foreignOrphan);
+
+      await expect(service.delete('id', veterinarianUser)).rejects.toThrow(ForbiddenException);
+      expect(mediaAssetRepository.softDeleteById).not.toHaveBeenCalled();
+      expect(cloudinaryStorageService.delete).not.toHaveBeenCalled();
+    });
+
+    it('should reject a veterinarian deleting a linked asset owned by someone else', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(asset);
+
+      await expect(service.delete('id', veterinarianUser)).rejects.toThrow(ForbiddenException);
+      expect(mediaAssetRepository.softDeleteById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('purgeExpiredOrphans', () => {
+    const orphan = (id: string) =>
+      new MediaAsset(
+        id,
+        null,
+        null,
+        MediaResourceType.IMAGE,
+        `public-${id}`,
+        'https://cloudinary.com/test.jpg',
+        1024,
+        'jpg',
+        'user-id',
+      );
+
+    it('should return matching orphans without mutating when dryRun is true', async () => {
+      mediaAssetRepository.findOrphanedOlderThan.mockResolvedValue([
+        orphan('orphan-1'),
+        orphan('orphan-2'),
+      ]);
+
+      const result = await service.purgeExpiredOrphans({
+        olderThanHours: 48,
+        limit: 10,
+        dryRun: true,
+      });
+
+      expect(mediaAssetRepository.findOrphanedOlderThan).toHaveBeenCalled();
+      expect(mediaAssetRepository.softDeleteById).not.toHaveBeenCalled();
+      expect(cloudinaryStorageService.delete).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        dryRun: true,
+        candidates: ['orphan-1', 'orphan-2'],
+        deleted: 0,
+        failed: 0,
+      });
+    });
+
+    it('should soft-delete expired orphans and remove their remote files', async () => {
+      mediaAssetRepository.findOrphanedOlderThan.mockResolvedValue([
+        orphan('orphan-1'),
+        orphan('orphan-2'),
+      ]);
+      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+      cloudinaryStorageService.delete.mockResolvedValue(undefined);
+
+      const result = await service.purgeExpiredOrphans({
+        olderThanHours: 48,
+        limit: 10,
+        dryRun: false,
+      });
+
+      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledTimes(2);
+      expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-orphan-1');
+      expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-orphan-2');
+      expect(result).toMatchObject({ dryRun: false, deleted: 2, failed: 0 });
+    });
+
+    it('should count remote cleanup failures as failed without throwing', async () => {
+      mediaAssetRepository.findOrphanedOlderThan.mockResolvedValue([orphan('orphan-1')]);
+      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+      cloudinaryStorageService.delete.mockRejectedValue(new Error('remote error'));
+
+      const result = await service.purgeExpiredOrphans({
+        olderThanHours: 48,
+        limit: 10,
+        dryRun: false,
+      });
+
+      expect(result).toMatchObject({ deleted: 1, failed: 1 });
+      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('orphan-1');
+    });
+
+    it('should count soft-delete failures as failed', async () => {
+      mediaAssetRepository.findOrphanedOlderThan.mockResolvedValue([orphan('orphan-1')]);
+      mediaAssetRepository.softDeleteById.mockRejectedValue(new Error('db error'));
+
+      const result = await service.purgeExpiredOrphans({
+        olderThanHours: 48,
+        limit: 10,
+        dryRun: false,
+      });
+
+      expect(result).toMatchObject({ deleted: 0, failed: 1 });
+      expect(cloudinaryStorageService.delete).not.toHaveBeenCalled();
     });
   });
 

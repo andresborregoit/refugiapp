@@ -41,7 +41,15 @@ export class MediaController {
   @Roles(UserRole.ADMIN, UserRole.SHELTER_MANAGER, UserRole.VETERINARIAN)
   @ApiBearerAuth()
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload a file to Cloudinary and persist metadata' })
+  @ApiOperation({
+    summary: 'Upload a file to Cloudinary and persist metadata',
+    description:
+      'Uploads a file and persists its metadata. Omitting ownerType and ownerId creates an ' +
+      'orphan asset that can be linked later to an animal, expense or medical record. Orphan ' +
+      'assets are removed by the cleanup job after MEDIA_ORPHAN_RETENTION_HOURS (default 48h) ' +
+      'unless they are linked; the uploader can delete their own orphan asset with ' +
+      'DELETE /media/:id before it is linked.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiOkResponse({ type: MediaAssetResponseDto, description: 'File uploaded successfully.' })
   @ApiErrorResponses(
@@ -121,7 +129,14 @@ export class MediaController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SHELTER_MANAGER, UserRole.VETERINARIAN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Soft-delete a media asset and remove its remote file' })
+  @ApiOperation({
+    summary: 'Soft-delete a media asset and remove its remote file',
+    description:
+      'Deletes a media asset (soft-delete on media_assets) and removes its Cloudinary file. ' +
+      'admin and shelter_manager can delete any asset. veterinarian can delete clinical ' +
+      'attachments (ownerType=medical_record) and orphan assets uploaded by the same user; ' +
+      'deleting a foreign orphan or a linked asset owned by another entity returns 403.',
+  })
   @ApiErrorResponses(
     HttpStatus.UNAUTHORIZED,
     HttpStatus.FORBIDDEN,

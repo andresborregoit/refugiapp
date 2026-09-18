@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, LessThan, Repository } from 'typeorm';
 import { MediaAsset } from '../../../../domain/entities/media-asset.entity';
 import {
   MediaAssetListQuery,
@@ -36,6 +36,20 @@ export class TypeOrmMediaAssetRepository implements MediaAssetRepository {
       limit: query.limit,
       total,
     };
+  }
+
+  async findOrphanedOlderThan(threshold: Date, limit: number): Promise<MediaAsset[]> {
+    const entities = await this.repository.find({
+      where: {
+        ownerType: IsNull(),
+        ownerId: IsNull(),
+        createdAt: LessThan(threshold),
+      },
+      order: { createdAt: 'ASC', id: 'ASC' },
+      take: limit,
+    });
+
+    return entities.map((entity) => this.toDomain(entity));
   }
 
   async create(asset: MediaAsset): Promise<MediaAsset> {

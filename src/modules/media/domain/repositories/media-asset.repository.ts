@@ -20,6 +20,7 @@ export interface PaginatedMediaAssets {
 export interface MediaAssetRepository {
   findById(id: string): Promise<MediaAsset | null>;
   findByOwner(query: MediaAssetListQuery): Promise<PaginatedMediaAssets>;
+  findOrphanedOlderThan(threshold: Date, limit: number): Promise<MediaAsset[]>;
   create(asset: MediaAsset): Promise<MediaAsset>;
   softDeleteById(id: string): Promise<void>;
   existsByPublicId(publicId: string): Promise<boolean>;
