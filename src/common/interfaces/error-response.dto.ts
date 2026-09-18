@@ -7,7 +7,14 @@ export class ErrorResponseDto {
   @ApiProperty({ example: 'RESOURCE_CONFLICT' })
   code!: string;
 
-  @ApiProperty({ example: 'User already exists.' })
+  @ApiProperty({
+    oneOf: [
+      { type: 'string' },
+      { type: 'array', items: { type: 'string' } },
+    ],
+    example: 'User already exists.',
+    description: 'Human readable error message or a list of validation messages.',
+  })
   message!: string | string[];
 
   @ApiProperty({ example: 'Conflict' })
