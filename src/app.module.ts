@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import { AnimalsModule } from './modules/animals/animals.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CareTasksModule } from './modules/care-tasks/care-tasks.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { HealthModule } from './modules/health/health.module';
@@ -47,6 +48,7 @@ import { envValidationSchema } from './config/validation.schema';
     AuthModule,
     UsersModule,
     AnimalsModule,
+    CareTasksModule,
     DashboardModule,
     MedicalRecordsModule,
     VeterinariansModule,
