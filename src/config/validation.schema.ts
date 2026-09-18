@@ -62,6 +62,16 @@ export const envValidationSchema = Joi.object({
   JWT_EXPIRES_IN: Joi.string().default('1d'),
   JWT_ISSUER: Joi.string().default('refugiapp-api'),
   JWT_AUDIENCE: Joi.string().default('refugiapp-mobile'),
+  JWT_REFRESH_TOKEN_TTL_MS: Joi.number()
+    .integer()
+    .min(60_000)
+    .max(31_536_000_000)
+    .default(7 * 24 * 60 * 60 * 1000),
+  JWT_REFRESH_REUSE_GRACE_MS: Joi.number()
+    .integer()
+    .min(0)
+    .max(3_600_000)
+    .default(30 * 1000),
 
   CLOUDINARY_CLOUD_NAME: Joi.when('NODE_ENV', {
     is: 'production',

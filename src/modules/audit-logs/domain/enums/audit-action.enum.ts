@@ -9,7 +9,13 @@ export enum AuditAction {
   MEDICAL_RECORD_RESTORE = 'medical_record.restore',
   EXPENSE_CREATE = 'expense.create',
   EXPENSE_SOFT_DELETE = 'expense.soft_delete',
+  CARE_TASK_CREATE = 'care_task.create',
+  CARE_TASK_UPDATE = 'care_task.update',
+  CARE_TASK_COMPLETE = 'care_task.complete',
+  CARE_TASK_CANCEL = 'care_task.cancel',
   AUTH_LOGIN_SUCCESS = 'auth.login_success',
   AUTH_LOGIN_FAILURE = 'auth.login_failure',
+  AUTH_REFRESH_SUCCESS = 'auth.refresh_success',
+  AUTH_REFRESH_FAILURE = 'auth.refresh_failure',
   ACCESS_DENIED = 'access.denied',
 }

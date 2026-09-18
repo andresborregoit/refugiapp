@@ -3,7 +3,7 @@
 ## Responsabilidad
 - Registra quien realizo cambios sensibles, sobre que recurso y cuando.
 - Provee consulta protegida de la bitacora de auditoria para `admin`.
-- Audita usuarios, roles, registros clinicos, gastos, logins y denegaciones de acceso.
+- Audita usuarios, roles, registros clinicos, gastos, tareas de cuidado, logins, renovaciones de sesion y denegaciones de acceso.
 - La tabla `audit_logs` es append-only; no existen endpoints de escritura, borrado ni edicion.
 
 ## Convenciones

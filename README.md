@@ -45,6 +45,8 @@ Implementado:
 - Logs estructurados en JSON con redaccion de datos sensibles.
 - Correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
 - Endpoint de panel de control (`GET /dashboard/overview`) con totales por estado y animales recientes, reutilizando `AnimalOrmEntity` sin nuevas tablas, con `DashboardAnimalDto` alineado a la respuesta real (`profilePhotoMediaId` nullable) y contrato Swagger listo para el cliente movil.
+- CRUD de tareas de cuidado (`care-tasks`) con estados `pending`/`completed`/`cancelled`, transiciones acotadas, edicion parcial y auditoria por rol.
+- Refresh tokens opacos con rotacion atomica (`POST /auth/refresh`), deteccion de reuso y revocacion de familia.
 - Backup y recuperacion de PostgreSQL con retencion, checksum, restauracion aislada y prueba automatizada.
 
 Pendiente:

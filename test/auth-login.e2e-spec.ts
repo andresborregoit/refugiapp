@@ -12,6 +12,7 @@ import { AuthService } from '../src/modules/auth/application/services/auth.servi
 import { JwtAuthGuard } from '../src/modules/auth/infrastructure/guards/jwt-auth.guard';
 import { JwtStrategy } from '../src/modules/auth/infrastructure/strategies/jwt.strategy';
 import { AuthController } from '../src/modules/auth/interfaces/controllers/auth.controller';
+import { REFRESH_TOKEN_REPOSITORY } from '../src/modules/auth/domain/repositories/refresh-token.repository';
 import { AuditLogsService } from '../src/modules/audit-logs/application/services/audit-logs.service';
 import { UsersService } from '../src/modules/users/application/services/users.service';
 import { UserCredentials } from '../src/modules/users/domain/entities/user-credentials.entity';
@@ -37,9 +38,14 @@ describe('Auth login (e2e)', () => {
   let inactiveUser: UserCredentials;
   const usersService = {
     findCredentialsByEmail: jest.fn(),
+    findById: jest.fn(),
   };
   const auditLogsService = {
     record: jest.fn(),
+  };
+  const refreshTokenRepository = {
+    create: jest.fn(),
+    rotate: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -82,6 +88,10 @@ describe('Auth login (e2e)', () => {
         {
           provide: AuditLogsService,
           useValue: auditLogsService,
+        },
+        {
+          provide: REFRESH_TOKEN_REPOSITORY,
+          useValue: refreshTokenRepository,
         },
         {
           provide: ConfigService,
@@ -148,9 +158,15 @@ describe('Auth login (e2e)', () => {
       .send({ email: 'ADMIN@refugiapp.local', password: 'correct-password' })
       .expect(200)
       .expect(({ body }) => {
-        expect(Object.keys(body).sort()).toEqual(['accessToken', 'expiresIn', 'tokenType']);
+        expect(Object.keys(body).sort()).toEqual([
+          'accessToken',
+          'expiresIn',
+          'refreshToken',
+          'tokenType',
+        ]);
         expect(body.tokenType).toBe('Bearer');
         expect(body.expiresIn).toBe(jwtExpiresIn);
+        expect(body.refreshToken).toEqual(expect.any(String));
 
         const payload = jwtService.verify(body.accessToken, {
           secret: jwtSecret,

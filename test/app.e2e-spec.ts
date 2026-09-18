@@ -21,6 +21,7 @@ import { AppService } from '../src/app.service';
 import { AuthService } from '../src/modules/auth/application/services/auth.service';
 import { AuthController } from '../src/modules/auth/interfaces/controllers/auth.controller';
 import { LoginDto } from '../src/modules/auth/interfaces/dto/login.dto';
+import { REFRESH_TOKEN_REPOSITORY } from '../src/modules/auth/domain/repositories/refresh-token.repository';
 import { AuditLogsService } from '../src/modules/audit-logs/application/services/audit-logs.service';
 import { UsersService } from '../src/modules/users/application/services/users.service';
 
@@ -64,6 +65,13 @@ describe('AppController (e2e)', () => {
           provide: AuditLogsService,
           useValue: {
             record: jest.fn(),
+          },
+        },
+        {
+          provide: REFRESH_TOKEN_REPOSITORY,
+          useValue: {
+            create: jest.fn(),
+            rotate: jest.fn(),
           },
         },
         {

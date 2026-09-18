@@ -107,6 +107,7 @@ src/
     auth/
     users/
     animals/
+    care-tasks/
     dashboard/
     medical-records/
     veterinarians/
@@ -153,6 +154,18 @@ El payload JWT minimo definido es:
 sub, email, roles
 ```
 
+`POST /auth/login` valida credenciales y emite un `accessToken` JWT mas un `refreshToken` opaco de 48 bytes aleatorios. Solo se persiste el hash SHA-256 del refresh token (`tokenHash`, unico) junto con `userId`, `familyId`, `expiresAt`, `revokedAt` y `replacedById`.
+
+`POST /auth/refresh` rota el refresh token: dentro de una transaccion con `SELECT ... FOR UPDATE`, revoca el token presentado y emite un sucesor en la misma familia (`familyId`). La rotacion es atomica para serializar requests concurrentes sobre el mismo hash:
+
+- Token valido: se revoca y se emite el sucesor (`200` con nuevo par de tokens).
+- Token revocado fuera de la ventana de gracia (`JWT_REFRESH_REUSE_GRACE_MS`): reuso real, se revoca toda la familia (`401 REFRESH_REUSE_DETECTED`).
+- Token revocado dentro de la ventana de gracia: renovacion concurrente legitima; se rechaza sin revocar la familia (`401 REFRESH_TOKEN_CONCURRENT_USE`), garantizando que dos refresh simultaneos dejen un unico token valido.
+- Token vencido: se revoca y se rechaza (`401 REFRESH_TOKEN_EXPIRED`).
+- Token inexistente: `401 INVALID_REFRESH_TOKEN`.
+
+El refresh valida que el usuario siga existiendo y activo antes de emitir tokens nuevos. El TTL del refresh token se configura con `JWT_REFRESH_TOKEN_TTL_MS` (default 7 dias). El login registra `auth.login_success`/`auth.login_failure` y el refresh `auth.refresh_success`/`auth.refresh_failure` en `audit_logs`; el metadata solo incluye `email` y el motivo, nunca tokens ni hashes.
+
 ### `users`
 
 Gestiona la identidad y el acceso de usuarios internos del refugio.
@@ -185,6 +198,12 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `PATCH /animals/:id/status` | Permitido | Permitido | Rechazado |
 | `POST /animals/:animalId/events` | Permitido | Permitido | Rechazado |
 | `GET /animals/:animalId/events` | Permitido | Permitido | Permitido |
+| `POST /care-tasks` | Permitido | Permitido | Rechazado |
+| `GET /care-tasks` | Permitido | Permitido | Permitido |
+| `GET /care-tasks/:id` | Permitido | Permitido | Permitido |
+| `PATCH /care-tasks/:id` | Permitido | Permitido | Rechazado |
+| `POST /care-tasks/:id/complete` | Permitido | Permitido | Rechazado |
+| `POST /care-tasks/:id/cancel` | Permitido | Permitido | Rechazado |
 | `GET /dashboard/overview` | Permitido | Permitido | Permitido |
 | `POST /veterinarians` | Permitido | Permitido | Rechazado |
 | `GET /veterinarians` | Permitido | Permitido | Permitido |
@@ -239,6 +258,18 @@ deceased           → (terminal)
 Los eventos generales se gestionan mediante `POST /animals/:animalId/events` y `GET /animals/:animalId/events`. Los tipos creables manualmente son `general_note`, `behavior_note` y `transfer`. Los tipos `intake`, `status_change` y `adoption` estan reservados al sistema. La fecha del evento (`occurredAt`) es opcional y defaultea al momento del request; se rechazan fechas futuras y anteriores a `intakeDate`. El listado usa paginacion (1..100, default 20), filtro por `eventType` y orden `occurredAt DESC, id DESC`.
 
 Los datos clinicos (diagnosticos, tratamientos, vacunas) pertenecen exclusivamente a `medical-records` y no deben registrarse en eventos generales.
+
+### `care-tasks`
+
+Gestiona tareas de cuidado operativas para animales del refugio: alimentacion, limpieza, medicacion, paseos y otros pendientes.
+
+Cada tarea pertenece a un animal. La creacion se realiza mediante `POST /care-tasks`. El caso de uso valida que el animal exista (404), normaliza `title` y `description` con trim y persiste `createdByUserId` con el id del usuario autenticado. El estado inicial siempre es `pending`.
+
+Las transiciones de estado son acotadas: solo una tarea `pending` puede completarse (`POST /care-tasks/:id/complete`, persiste `completedAt`) o cancelarse (`POST /care-tasks/:id/cancel`). Cualquier transicion desde un estado terminal responde `409 CARE_TASK_NOT_PENDING`. `PATCH /care-tasks/:id` edita `title`, `description` y `dueAt` sin modificar `status`; `description` y `dueAt` aceptan `null` explicito para limpiar el campo.
+
+La consulta se realiza mediante `GET /care-tasks` (listado global) y `GET /care-tasks/:id`. El listado usa paginacion (`page` minimo 1, `limit` entre 1 y 100, default 20), filtros opcionales por `animalId` y `status`, y orden `createdAt DESC, id DESC`. Si se filtra por `animalId`, el caso de uso valida que el animal exista (404).
+
+Cada operacion de escritura registra un evento en `audit_logs` (`care_task.create`, `care_task.update`, `care_task.complete`, `care_task.cancel`) con `resourceType=care_task` y metadata sin secretos. Las escrituras admiten solo `admin` y `shelter_manager`; las lecturas admiten los tres roles autenticados.
 
 ### `dashboard`
 
@@ -326,7 +357,9 @@ Acciones registradas:
 user.create, user.deactivate, user.activate, user.role_assign
 medical_record.create, medical_record.update, medical_record.soft_delete, medical_record.restore
 expense.create, expense.soft_delete
+care_task.create, care_task.update, care_task.complete, care_task.cancel
 auth.login_success, auth.login_failure
+auth.refresh_success, auth.refresh_failure
 access.denied
 ```
 
@@ -582,7 +615,31 @@ transport
 other
 ```
 
-### 6.9 `media_assets`
+### 6.9 `care_tasks`
+
+Representa una tarea de cuidado operativa asociada a un animal.
+
+| Columna | Tipo | Null | Restricciones |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | PK |
+| `animalId` | `uuid` | No | FK a `animals.id` |
+| `title` | `varchar(160)` | No | |
+| `description` | `text` | Si | |
+| `status` | `care_task_status` | No | Default `pending` |
+| `dueAt` | `timestamptz` | Si | |
+| `completedAt` | `timestamptz` | Si | Se persiste al completar |
+| `createdByUserId` | `uuid` | Si | FK a `users.id` |
+| columnas comunes | | | |
+
+Enum `care_task_status`:
+
+```text
+pending
+completed
+cancelled
+```
+
+### 6.10 `media_assets`
 
 Representa un recurso almacenado externamente en Cloudinary.
 
@@ -618,7 +675,7 @@ video
 raw
 ```
 
-### 6.10 `audit_logs`
+### 6.11 `audit_logs`
 
 Registra eventos de auditoria de operaciones sensibles. Es append-only.
 
@@ -646,8 +703,14 @@ medical_record.soft_delete
 medical_record.restore
 expense.create
 expense.soft_delete
+care_task.create
+care_task.update
+care_task.complete
+care_task.cancel
 auth.login_success
 auth.login_failure
+auth.refresh_success
+auth.refresh_failure
 access.denied
 ```
 
@@ -657,9 +720,27 @@ Enum `audit_resource_type`:
 user
 medical_record
 expense
+care_task
 auth_session
 authorization
 ```
+
+### 6.12 `refresh_tokens`
+
+Registra refresh tokens opacos emitidos en `POST /auth/login` y por cada rotacion de `POST /auth/refresh`.
+
+| Columna | Tipo | Null | Restricciones |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | PK |
+| `userId` | `uuid` | No | FK a `users.id` |
+| `familyId` | `uuid` | No | Familia de tokens; un reuso revoca toda la familia |
+| `tokenHash` | `varchar(64)` | No | Hash SHA-256 del token opaco; unico |
+| `expiresAt` | `timestamptz` | No | |
+| `revokedAt` | `timestamptz` | Si | Se setea al rotar, revocar o detectar reuso |
+| `replacedById` | `uuid` | Si | FK a `refresh_tokens.id` (auto-referencia) |
+| columnas comunes | | | `createdAt`, `updatedAt`, `deletedAt` |
+
+El token opaco nunca se persiste; solo su hash SHA-256. La rotacion ocurre dentro de una transaccion con `SELECT ... FOR UPDATE` sobre `tokenHash` para serializar requests concurrentes. El reuso de un token revocado fuera de la ventana de gracia revoca la familia completa.
 
 ## 7. Diagrama entidad-relacion
 
@@ -782,6 +863,33 @@ erDiagram
         timestamptz deletedAt
     }
 
+    CARE_TASKS {
+        uuid id PK
+        uuid animalId FK
+        varchar title
+        text description
+        care_task_status status
+        timestamptz dueAt
+        timestamptz completedAt
+        uuid createdByUserId FK
+        timestamptz createdAt
+        timestamptz updatedAt
+        timestamptz deletedAt
+    }
+
+    REFRESH_TOKENS {
+        uuid id PK
+        uuid userId FK
+        uuid familyId
+        varchar tokenHash UK
+        timestamptz expiresAt
+        timestamptz revokedAt
+        uuid replacedById FK
+        timestamptz createdAt
+        timestamptz updatedAt
+        timestamptz deletedAt
+    }
+
     AUDIT_LOGS {
         uuid id PK
         uuid actorUserId FK
@@ -802,6 +910,10 @@ erDiagram
     ANIMALS ||--o{ ANIMAL_HISTORY_EVENTS : "has events"
     ANIMALS ||--o{ MEDICAL_RECORDS : "has clinical records"
     ANIMALS ||--o{ EXPENSES : "has expenses"
+    ANIMALS ||--o{ CARE_TASKS : "has care tasks"
+    USERS ||--o{ CARE_TASKS : "creates"
+    USERS ||--o{ REFRESH_TOKENS : "owns sessions"
+    REFRESH_TOKENS ||--o{ REFRESH_TOKENS : "is replaced by"
     MEDIA_ASSETS ||--o{ ANIMALS : "is profile photo"
     MEDIA_ASSETS ||--o{ EXPENSES : "is ticket"
     VETERINARIANS ||--o{ MEDICAL_RECORDS : "is responsible"
@@ -841,6 +953,10 @@ Las relaciones implementadas en la migracion inicial son:
 | `expenses` | `animalId` | `animals.id` | `RESTRICT` |
 | `expenses` | `ticketMediaId` | `media_assets.id` | `SET NULL` |
 | `expenses` | `createdByUserId` | `users.id` | `SET NULL` |
+| `care_tasks` | `animalId` | `animals.id` | `RESTRICT` |
+| `care_tasks` | `createdByUserId` | `users.id` | `SET NULL` |
+| `refresh_tokens` | `userId` | `users.id` | `RESTRICT` |
+| `refresh_tokens` | `replacedById` | `refresh_tokens.id` | `SET NULL` |
 | `animals` | `profilePhotoMediaId` | `media_assets.id` | `SET NULL` |
 | `media_assets` | `uploadedByUserId` | `users.id` | `SET NULL` |
 | `audit_logs` | `actorUserId` | `users.id` | `SET NULL` |
@@ -863,6 +979,12 @@ La migracion inicial crea:
 - Indice en `medical_record_changes.changedAt`.
 - Indice en `expenses.animalId`.
 - Indice en `expenses.incurredAt`.
+- Indice en `care_tasks.animalId`.
+- Indice en `care_tasks.status`.
+- Indice unico en `refresh_tokens.tokenHash`.
+- Indice en `refresh_tokens.familyId`.
+- Indice en `refresh_tokens.userId`.
+- Indice en `refresh_tokens.expiresAt`.
 - Indice compuesto en `media_assets.ownerType, ownerId`.
 - Indice unico en `media_assets.cloudinaryPublicId`.
 - Indice parcial en `media_assets (createdAt, id) WHERE ownerType IS NULL AND ownerId IS NULL AND deletedAt IS NULL` (`IDX_media_assets_orphan_cleanup`), que respalda la consulta del job de limpieza de huerfanos.
@@ -943,6 +1065,10 @@ La migracion `1789300000000-AllowOrphanMediaAssets.ts` permite assets huerfanos 
 La migracion `1789399460070-AddAuditLogs.ts` crea los enums `audit_action` y `audit_resource_type`, la tabla `audit_logs` (append-only) y sus indices y foreign key a `users`.
 
 La migracion `1790000000000-AddOrphanMediaCleanupIndex.ts` agrega el indice parcial `IDX_media_assets_orphan_cleanup` sobre `media_assets (createdAt, id)` para assets huerfanos activos, usado por el job de limpieza.
+
+La migracion `1791000000000-AddCareTasks.ts` agrega las acciones de auditoria de tareas de cuidado al enum `audit_action`, el recurso `care_task` a `audit_resource_type`, el enum `care_task_status` y la tabla `care_tasks` con sus indices y foreign keys.
+
+La migracion `1791000000001-AddRefreshTokens.ts` agrega las acciones de auditoria de renovacion de sesion (`auth.refresh_success`, `auth.refresh_failure`), la tabla `refresh_tokens` con su indice unico de `tokenHash`, indices de `familyId`/`userId`/`expiresAt` y las foreign keys a `users` y a la propia tabla.
 
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
 
@@ -1041,6 +1167,9 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Retencion configurable (`AUDIT_LOG_RETENTION_DAYS`) y purga fisica mediante `npm run audit:purge`.
 - Build, lint y tests unitarios configurados.
 - Panel de control de solo lectura (`GET /dashboard/overview`) con totales por estado, animales recientes y `DashboardAnimalDto` alineado a la respuesta real (`profilePhotoMediaId` nullable), contrato Swagger con ejemplo UUID y E2E de presencia del campo, autorizacion y correlation ID.
+- CRUD de tareas de cuidado (`care-tasks`) con validacion del animal, estados `pending`/`completed`/`cancelled`, transiciones acotadas, edicion parcial con limpieza por `null`, escritura protegida por roles y auditoria (`care_task.create/update/complete/cancel`).
+- Refresh tokens opacos con rotacion atomica (`POST /auth/refresh`), hash SHA-256 persistido, familias (`familyId`), deteccion de reuso con ventana de gracia y revocacion de familia, auditoria de `auth.refresh_success`/`auth.refresh_failure`.
+- E2E de dashboard, care-tasks y rotacion concurrente de refresh tokens contra PostgreSQL real y descartable mediante Testcontainers, incluida la renovacion concurrente que deja un unico token valido.
 - Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL, estado `degraded` y `503` cuando la base no responde.
 - Logs estructurados en JSON con redaccion de datos sensibles y correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.
 - Suite E2E de flujos criticos desde HTTP hasta PostgreSQL real y descartable mediante Testcontainers; Cloudinary se sustituye solo en el limite externo.

@@ -3,10 +3,12 @@ import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers
 import { AuditLogOrmEntity } from '../../src/modules/audit-logs/infrastructure/persistence/typeorm/entities/audit-log.orm-entity';
 import { AnimalHistoryEventOrmEntity } from '../../src/modules/animals/infrastructure/persistence/typeorm/entities/animal-history-event.orm-entity';
 import { AnimalOrmEntity } from '../../src/modules/animals/infrastructure/persistence/typeorm/entities/animal.orm-entity';
+import { CareTaskOrmEntity } from '../../src/modules/care-tasks/infrastructure/persistence/typeorm/entities/care-task.orm-entity';
 import { ExpenseOrmEntity } from '../../src/modules/expenses/infrastructure/persistence/typeorm/entities/expense.orm-entity';
 import { MediaAssetOrmEntity } from '../../src/modules/media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { MedicalRecordChangeOrmEntity } from '../../src/modules/medical-records/infrastructure/persistence/typeorm/entities/medical-record-change.orm-entity';
 import { MedicalRecordOrmEntity } from '../../src/modules/medical-records/infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
+import { RefreshTokenOrmEntity } from '../../src/modules/auth/infrastructure/persistence/typeorm/entities/refresh-token.orm-entity';
 import { UserOrmEntity } from '../../src/modules/users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 import { VeterinarianOrmEntity } from '../../src/modules/veterinarians/infrastructure/persistence/typeorm/entities/veterinarian.orm-entity';
 
@@ -22,10 +24,12 @@ const ALL_ENTITIES = [
   AuditLogOrmEntity,
   AnimalHistoryEventOrmEntity,
   AnimalOrmEntity,
+  CareTaskOrmEntity,
   ExpenseOrmEntity,
   MediaAssetOrmEntity,
   MedicalRecordChangeOrmEntity,
   MedicalRecordOrmEntity,
+  RefreshTokenOrmEntity,
   UserOrmEntity,
   VeterinarianOrmEntity,
 ];
@@ -38,6 +42,8 @@ const ALL_TABLES = [
   'animals',
   'veterinarians',
   'media_assets',
+  'care_tasks',
+  'refresh_tokens',
   'audit_logs',
   'users',
 ];

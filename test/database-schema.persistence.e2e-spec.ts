@@ -42,6 +42,8 @@ const DOMAIN_TABLES = [
   'medical_record_changes',
   'expenses',
   'media_assets',
+  'care_tasks',
+  'refresh_tokens',
   'audit_logs',
 ];
 
@@ -122,6 +124,7 @@ describe('PostgreSQL schema contract (integration)', () => {
       'veterinarian',
     ]);
     expect(enums.media_resource_type).toEqual(['image', 'video', 'raw']);
+    expect(enums.care_task_status).toEqual(['pending', 'completed', 'cancelled']);
     expect(enums.audit_action).toEqual([
       'user.create',
       'user.deactivate',
@@ -136,6 +139,12 @@ describe('PostgreSQL schema contract (integration)', () => {
       'auth.login_success',
       'auth.login_failure',
       'access.denied',
+      'care_task.create',
+      'care_task.update',
+      'care_task.complete',
+      'care_task.cancel',
+      'auth.refresh_success',
+      'auth.refresh_failure',
     ]);
     expect(enums.audit_resource_type).toEqual([
       'user',
@@ -143,6 +152,7 @@ describe('PostgreSQL schema contract (integration)', () => {
       'expense',
       'auth_session',
       'authorization',
+      'care_task',
     ]);
   });
 
@@ -194,6 +204,10 @@ describe('PostgreSQL schema contract (integration)', () => {
     expectFk('animals', 'profilePhotoMediaId', 'media_assets', 'SET NULL');
     expectFk('media_assets', 'uploadedByUserId', 'users', 'SET NULL');
     expectFk('audit_logs', 'actorUserId', 'users', 'SET NULL');
+    expectFk('care_tasks', 'animalId', 'animals', 'RESTRICT');
+    expectFk('care_tasks', 'createdByUserId', 'users', 'SET NULL');
+    expectFk('refresh_tokens', 'userId', 'users', 'RESTRICT');
+    expectFk('refresh_tokens', 'replacedById', 'refresh_tokens', 'SET NULL');
   });
 
   it('declares the documented indexes and unique constraints', async () => {
@@ -242,6 +256,12 @@ describe('PostgreSQL schema contract (integration)', () => {
     expectIndex('audit_logs', ['occurredAt']);
     expectIndex('audit_logs', ['actorUserId']);
     expectIndex('audit_logs', ['resourceType', 'resourceId']);
+    expectIndex('care_tasks', ['animalId']);
+    expectIndex('care_tasks', ['status']);
+    expectIndex('refresh_tokens', ['tokenHash'], true);
+    expectIndex('refresh_tokens', ['familyId']);
+    expectIndex('refresh_tokens', ['userId']);
+    expectIndex('refresh_tokens', ['expiresAt']);
   });
 
   it('declares the CHECK constraints for non-negative money and bytes', async () => {

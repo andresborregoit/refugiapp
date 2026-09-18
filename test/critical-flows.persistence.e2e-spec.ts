@@ -123,6 +123,7 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
       accessToken: expect.any(String),
       tokenType: 'Bearer',
       expiresIn: '1h',
+      refreshToken: expect.any(String),
     });
     expect(validLogin.body).not.toHaveProperty('passwordHash');
 
