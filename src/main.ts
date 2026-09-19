@@ -1,9 +1,10 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { createSwaggerConfig } from './config/swagger.config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
 import { JsonLoggerService } from './common/logger/json-logger.service';
@@ -43,14 +44,7 @@ async function bootstrap(): Promise<void> {
   );
   app.useGlobalFilters(new HttpExceptionFilter(), app.get(AuditForbiddenFilter));
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Refugiapp API')
-    .setDescription('API para la gestion de refugios de animales.')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  const swaggerDocument = SwaggerModule.createDocument(app, createSwaggerConfig());
   SwaggerModule.setup(`${apiPrefix}/docs`, app, swaggerDocument, {
     swaggerOptions: {
       persistAuthorization: true,

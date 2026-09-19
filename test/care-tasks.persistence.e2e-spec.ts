@@ -3,7 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { IsolatedPostgres, resetDatabase, startIsolatedPostgres } from './utils/persistence-test-setup';
+import { IsolatedPostgres, resetDatabase, startIsolatedPostgres, teardownPersistence } from './utils/persistence-test-setup';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { UserRole } from '../src/common/enums/user-role.enum';
 import { hashPassword } from '../src/common/security/password-hasher';
@@ -67,13 +67,7 @@ describe('Care tasks with PostgreSQL persistence (e2e)', () => {
   });
 
   afterAll(async () => {
-    await resetDatabase(database);
-
-    if (app) {
-      await app.close();
-    }
-
-    await isolated.stop();
+    await teardownPersistence({ dataSource: database, app, isolated });
   });
 
   it('returns 401 without a token and rejects veterinarian writes with 403', async () => {

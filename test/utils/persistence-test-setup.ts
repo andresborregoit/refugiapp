@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { INestApplication } from '@nestjs/common';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { AuditLogOrmEntity } from '../../src/modules/audit-logs/infrastructure/persistence/typeorm/entities/audit-log.orm-entity';
 import { AnimalHistoryEventOrmEntity } from '../../src/modules/animals/infrastructure/persistence/typeorm/entities/animal-history-event.orm-entity';
@@ -18,6 +19,12 @@ export interface IsolatedPostgres {
   url: string;
   container: StartedPostgreSqlContainer | null;
   stop: () => Promise<void>;
+}
+
+export interface PersistenceTestContext {
+  dataSource?: DataSource | null;
+  app?: INestApplication | null;
+  isolated?: IsolatedPostgres | null;
 }
 
 const ALL_ENTITIES = [
@@ -65,11 +72,19 @@ export async function startIsolatedPostgres(): Promise<IsolatedPostgres> {
     assertSafeDatabaseName(externalUrl);
     url = externalUrl;
   } else {
-    container = await new PostgreSqlContainer('postgres:16-alpine')
-      .withDatabase(TEST_DATABASE_NAME)
-      .withUsername(TEST_DATABASE_NAME)
-      .withPassword(TEST_DATABASE_NAME)
-      .start();
+    try {
+      container = await new PostgreSqlContainer('postgres:16-alpine')
+        .withDatabase(TEST_DATABASE_NAME)
+        .withUsername(TEST_DATABASE_NAME)
+        .withPassword(TEST_DATABASE_NAME)
+        .start();
+    } catch (cause: unknown) {
+      throw new Error(
+        `Could not start the isolated PostgreSQL container (is Docker available?). ` +
+          `Set E2E_DATABASE_URL or E2E_DATABASE_HOST/NAME/USER/PASSWORD to run against an external test database.`,
+        { cause },
+      );
+    }
     url = container.getConnectionUri();
   }
 
@@ -79,8 +94,15 @@ export async function startIsolatedPostgres(): Promise<IsolatedPostgres> {
     url,
     container,
     async stop() {
-      if (container) {
-        await container.stop();
+      const runningContainer = container;
+      container = null;
+
+      if (runningContainer) {
+        try {
+          await runningContainer.stop();
+        } catch {
+          // The container may already be gone; teardown must never fail on Docker cleanup.
+        }
       }
     },
   };
@@ -112,8 +134,38 @@ export async function initializeWithMigrations(dataSource: DataSource): Promise<
  * respetando foreign keys mediante TRUNCATE ... CASCADE.
  */
 export async function resetDatabase(dataSource: DataSource): Promise<void> {
+  if (!dataSource.isInitialized) {
+    return;
+  }
+
   const tableList = ALL_TABLES.map((table) => `"${table}"`).join(', ');
   await dataSource.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
+}
+
+/**
+ * Cierra una suite de persistencia sin añadir errores secundarios cuando el
+ * arranque fallo (por ejemplo, cuando Docker no esta disponible).
+ */
+export async function teardownPersistence(context: PersistenceTestContext): Promise<void> {
+  const { dataSource, app, isolated } = context;
+
+  if (dataSource?.isInitialized) {
+    try {
+      await resetDatabase(dataSource);
+    } catch {
+      // Best-effort reset during teardown.
+    }
+
+    await dataSource.destroy().catch(() => undefined);
+  }
+
+  if (app) {
+    await app.close().catch(() => undefined);
+  }
+
+  if (isolated) {
+    await isolated.stop();
+  }
 }
 
 function applyDatabaseEnvironment(url: string): void {

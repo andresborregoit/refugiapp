@@ -33,7 +33,8 @@
     "migration:revert:prod": "typeorm -d dist/config/typeorm.datasource.js migration:revert",
     "audit:purge": "ts-node src/modules/audit-logs/infrastructure/maintenance/purge-audit-logs.ts",
     "media:purge-orphans": "ts-node src/modules/media/infrastructure/maintenance/purge-orphan-media-assets.ts",
-    "seed:admin": "ts-node src/database/seeds/initial-admin.seed.ts"
+    "seed:admin": "ts-node src/database/seeds/initial-admin.seed.ts",
+    "openapi:export": "ts-node src/config/export-openapi.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.1",
