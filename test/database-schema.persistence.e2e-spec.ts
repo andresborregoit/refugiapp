@@ -10,6 +10,7 @@ import {
   IsolatedPostgres,
   resetDatabase,
   startIsolatedPostgres,
+  teardownPersistence,
 } from './utils/persistence-test-setup';
 
 interface ForeignKeyRow {
@@ -58,8 +59,7 @@ describe('PostgreSQL schema contract (integration)', () => {
   });
 
   afterAll(async () => {
-    await dataSource.destroy();
-    await postgres.stop();
+    await teardownPersistence({ dataSource, isolated: postgres });
   });
 
   beforeEach(async () => {

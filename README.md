@@ -48,6 +48,9 @@ Implementado:
 - CRUD de tareas de cuidado (`care-tasks`) con estados `pending`/`completed`/`cancelled`, transiciones acotadas, edicion parcial y auditoria por rol.
 - Refresh tokens opacos con rotacion atomica (`POST /auth/refresh`), deteccion de reuso y revocacion de familia.
 - Backup y recuperacion de PostgreSQL con retencion, checksum, restauracion aislada y prueba automatizada.
+- Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista con `npm run openapi:export`.
+- Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts` y especificacion en `docs/role-capabilities.md`.
+- Teardown resiliente de los tests de persistencia: no añade errores secundarios cuando Docker no esta disponible.
 
 Pendiente:
 
@@ -322,6 +325,27 @@ http://localhost:3000/api/v1/docs
 
 Swagger incluye bearer auth para probar endpoints protegidos.
 
+El contrato OpenAPI congelado esta versionado en `docs/openapi.json` y es la base para generar el cliente del frontend. Se regenera de forma determinista (sin conexion a la base) con:
+
+```bash
+npm run openapi:export
+```
+
+La configuracion del documento (`title`, `description`, `version`, bearer auth) vive en `src/config/swagger.config.ts`, compartida por `main.ts` y el script de exportacion. Antes de cada merge, el diff de `docs/openapi.json` debe revisarse cuando cambien endpoints o DTOs.
+
+## Capacidades por rol
+
+La matriz definitiva de capacidades por rol esta documentada en `docs/role-capabilities.md`:
+
+- `canEditAnimal`: `admin`, `shelter_manager`.
+- `canReadClinicalRecords`: `admin`, `veterinarian`.
+- `canManageUsers`: `admin`.
+- `canManageExpenses`: `admin`, `shelter_manager`.
+- `canManageVets`: `admin`, `shelter_manager`.
+- `canReadAudit`: `admin`.
+
+La fuente de verdad en codigo es `ROLE_CAPABILITIES` en `src/common/authorization/role-capabilities.ts`. Los guards (`JwtAuthGuard` + `RolesGuard`) siguen siendo el unico mecanismo de autorizacion.
+
 ## Tests
 
 Unitarios:
@@ -357,6 +381,7 @@ El workflow `.github/workflows/ci.yml` ejecuta en cada `push` y `pull_request`:
 - `secrets`: escaneo de archivos versionados en busca de secretos.
 - `lint`: ESLint sobre `src` y `test` (matriz Node 20.x y 22.x).
 - `build`: compilacion NestJS (matriz Node 20.x y 22.x).
+- `openapi`: reexporta `docs/openapi.json` y falla si el contrato versionado cambio sin actualizarse.
 - `unit`: tests unitarios de Jest (matriz Node 20.x y 22.x).
 - `migration-validate`: ejecuta todas las migraciones sobre un PostgreSQL limpio y luego `migration:show`.
 - `e2e`: tests HTTP y de persistencia contra PostgreSQL (matriz Node 20.x y 22.x).
@@ -388,8 +413,6 @@ Las migraciones no se ejecutan al iniciar la API. El pipeline y el procedimiento
 
 ## Siguiente etapa recomendada
 
-- Definir politicas definitivas de roles por endpoint.
 - Revisar normalizacion de emails a minusculas en todos los flujos de usuarios.
 - Implementar CRUD controlado de usuarios y animales.
-- Agregar guards de roles en endpoints reales.
-- Definir estrategia de tests con base de datos de test.
+- Agregar guards de roles en endpoints reales que todavia no los declaran.

@@ -231,6 +231,23 @@ En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido 
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
+### Matriz de capacidades por rol
+
+La matriz de capacidades agrega los endpoints por habilidad de negocio y es la referencia definitiva para el frontend. La fuente de verdad en codigo es `ROLE_CAPABILITIES` en `src/common/authorization/role-capabilities.ts` y la especificacion humana es `docs/role-capabilities.md`. Esta matriz no reemplaza a `RolesGuard`: los guards siguen siendo el unico mecanismo de enforcement y la matriz debe mantenerse sincronizada con ellos.
+
+| Capacidad | `admin` | `shelter_manager` | `veterinarian` | Operaciones representativas |
+| --- | --- | --- | --- | --- |
+| `canEditAnimal` | Si | Si | No | Ficha de animal, eventos generales y tareas de cuidado |
+| `canReadClinicalRecords` | Si | No | Si | Registros clinicos (consulta, creacion, actualizacion, baja) |
+| `canManageUsers` | Si | No | No | Crear, activar y desactivar usuarios internos |
+| `canManageExpenses` | Si | Si | No | Crear y dar de baja gastos |
+| `canManageVets` | Si | Si | No | Crear, editar y desactivar perfiles de veterinarios |
+| `canReadAudit` | Si | No | No | Consultar el historial de auditoria |
+
+### Contrato OpenAPI versionado
+
+El contrato OpenAPI congelado se versiona en `docs/openapi.json` y es la base para generar el cliente del frontend. Se regenera con `npm run openapi:export`; la configuracion del documento (`title`, `description`, `version`, bearer auth) vive centralizada en `src/config/swagger.config.ts` y es compartida por `main.ts` y el script de exportacion para evitar divergencias.
+
 ### `animals`
 
 Gestiona la ficha general del animal y su historial no clinico.
@@ -1178,6 +1195,9 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Rate limiting global configurable, limite diferenciado para login, respuestas `429` consistentes y headers HTTP de seguridad mediante Helmet.
 - Despliegue reproducible por ambientes con imagen Node fijada, migraciones explicitas, readiness y runbook de rollback.
 - Backup y recuperacion de PostgreSQL con retencion definida, prueba de restauracion aislada y procedimiento de incidente.
+- Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista y sin conexion a la base con `npm run openapi:export`; la configuracion del documento vive en `src/config/swagger.config.ts` y es compartida con `main.ts`. CI reexporta el documento y falla si el contrato cambio sin actualizarse.
+- Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts`, especificacion humana en `docs/role-capabilities.md` y tests unitarios que la congelan.
+- Teardown resiliente de las suites de persistencia: el helper `teardownPersistence` cierra base, app y contenedor sin añadir errores secundarios cuando el arranque falla por falta de Docker, y `startIsolatedPostgres` falla con un mensaje explicativo. Todo en `test/utils/persistence-test-setup.ts`.
 
 ### Pendiente
 
