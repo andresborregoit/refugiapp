@@ -88,7 +88,11 @@ jobs:
       - name: Export OpenAPI document
         run: npm run openapi:export
       - name: Fail if docs/openapi.json changed
-        run: git diff --exit-code -- docs/openapi.json
+        run: |
+          git diff --exit-code -- docs/openapi.json || {
+            git diff -- docs/openapi.json | head -100
+            exit 1
+          }
 
   unit:
     name: Unit tests (Node ${{ matrix.node-version }})

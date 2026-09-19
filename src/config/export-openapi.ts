@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './export-openapi-env';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ConfigService } from '@nestjs/config';
@@ -11,27 +11,12 @@ import { createSwaggerConfig, OPENAPI_VERSION } from './swagger.config';
 
 const OUTPUT_PATH = join(__dirname, '..', '..', 'docs', 'openapi.json');
 
-const REQUIRED_ENV_DEFAULTS: Record<string, string> = {
-  DATABASE_URL: 'postgresql://openapi-export:openapi-export@localhost:5432/refugiapp_export',
-  DB_SSL: 'false',
-  JWT_SECRET: 'openapi-export-only-secret-with-at-least-32-characters',
-  CLOUDINARY_CLOUD_NAME: '',
-  CLOUDINARY_API_KEY: '',
-  CLOUDINARY_API_SECRET: '',
-};
-
 const SENSITIVE_PATTERNS = [
   /postgres(ql)?:\/\/[^\s"']*:[^\s"']*@/i,
   /JWT_SECRET/i,
   /CLOUDINARY_API_SECRET/i,
   /cloudinary:\/\/[^\s"']*/i,
 ];
-
-function ensureEnvironment(): void {
-  for (const [key, value] of Object.entries(REQUIRED_ENV_DEFAULTS)) {
-    process.env[key] = value;
-  }
-}
 
 function assertNoSecrets(json: string): void {
   const leaks = SENSITIVE_PATTERNS.map((pattern) => pattern.test(json)).filter(Boolean).length;
@@ -53,8 +38,6 @@ function createStubDataSource(): DataSource {
 }
 
 async function exportOpenApi(): Promise<void> {
-  ensureEnvironment();
-
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
   })
