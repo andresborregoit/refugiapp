@@ -207,6 +207,9 @@ Para cambios nuevos de schema, modificar primero las entidades ORM, generar una 
 
 ## Administrador inicial
 
+Para probar la autenticacion desde el frontend con el usuario local de demostracion,
+consultar [Login desde el frontend](docs/frontend-login.md).
+
 El proyecto incluye un seed explicito para crear o recuperar el primer administrador sin duplicar usuarios:
 
 ```bash
