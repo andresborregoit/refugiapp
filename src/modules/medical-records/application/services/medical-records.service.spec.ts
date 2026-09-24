@@ -65,6 +65,7 @@ describe('MedicalRecordsService', () => {
   const animalRepository = {
     findById: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
     findMany: jest.fn(),
     changeStatus: jest.fn(),
   };
