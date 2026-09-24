@@ -71,7 +71,12 @@ export class AnimalHistoryEventsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List history events for an animal' })
   @ApiOkResponse({ type: PaginatedAnimalHistoryEventsResponseDto })
-  @ApiErrorResponses(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
+  @ApiErrorResponses(
+    HttpStatus.BAD_REQUEST,
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+  )
   list(
     @Param('animalId', ParseUUIDPipe) animalId: string,
     @Query() query: ListAnimalHistoryEventsQueryDto,

@@ -6,7 +6,11 @@ import { AnimalStatus } from '../../../../domain/enums/animal-status.enum';
 import { AnimalHistoryEventType } from '../../../../domain/enums/animal-history-event-type.enum';
 import { CreateAnimal } from '../../../../domain/entities/create-animal.entity';
 import { ChangeAnimalStatus } from '../../../../domain/entities/change-animal-status.entity';
-import { buildStatusChangeEventDescription, INTAKE_EVENT_DESCRIPTION } from '../../../../domain/entities/animal-history-event.entity';
+import { UpdateAnimal } from '../../../../domain/entities/update-animal.entity';
+import {
+  buildStatusChangeEventDescription,
+  INTAKE_EVENT_DESCRIPTION,
+} from '../../../../domain/entities/animal-history-event.entity';
 import { AnimalHistoryEventOrmEntity } from '../entities/animal-history-event.orm-entity';
 import { AnimalOrmEntity } from '../entities/animal.orm-entity';
 import { TypeOrmAnimalRepository } from './typeorm-animal.repository';
@@ -16,6 +20,7 @@ describe('TypeOrmAnimalRepository', () => {
     create: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
+    findOne: jest.fn(),
     findOneOrFail: jest.fn(),
   };
   let repository: {
@@ -27,8 +32,8 @@ describe('TypeOrmAnimalRepository', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    transactionManager.create.mockImplementation(
-      (target: new () => object, data: object) => Object.assign(new target(), data),
+    transactionManager.create.mockImplementation((target: new () => object, data: object) =>
+      Object.assign(new target(), data),
     );
     transactionManager.save.mockImplementation(async (entity: { id?: string }) => {
       if (!entity.id) {
@@ -57,8 +62,8 @@ describe('TypeOrmAnimalRepository', () => {
       manager: {
         transaction: jest
           .fn()
-          .mockImplementation(
-            async (run: (manager: unknown) => Promise<unknown>) => run(transactionManager),
+          .mockImplementation(async (run: (manager: unknown) => Promise<unknown>) =>
+            run(transactionManager),
           ),
       },
     };
@@ -85,34 +90,26 @@ describe('TypeOrmAnimalRepository', () => {
 
     expect(repository.manager.transaction).toHaveBeenCalled();
 
-    expect(transactionManager.create).toHaveBeenNthCalledWith(
-      1,
-      AnimalOrmEntity,
-      {
-        name: 'Luna',
-        species: 'dog',
-        breed: 'mixed',
-        sex: AnimalSex.FEMALE,
-        status: AnimalStatus.ADMITTED,
-        birthDate: '2025-06-01',
-        intakeDate: '2026-01-10',
-        profilePhotoMediaId: 'media-id',
-        notes: null,
-      },
-    );
+    expect(transactionManager.create).toHaveBeenNthCalledWith(1, AnimalOrmEntity, {
+      name: 'Luna',
+      species: 'dog',
+      breed: 'mixed',
+      sex: AnimalSex.FEMALE,
+      status: AnimalStatus.ADMITTED,
+      birthDate: '2025-06-01',
+      intakeDate: '2026-01-10',
+      profilePhotoMediaId: 'media-id',
+      notes: null,
+    });
 
-    expect(transactionManager.create).toHaveBeenNthCalledWith(
-      2,
-      AnimalHistoryEventOrmEntity,
-      {
-        animalId: 'generated-animal-id',
-        eventType: AnimalHistoryEventType.INTAKE,
-        description: INTAKE_EVENT_DESCRIPTION,
-        occurredAt: new Date('2026-01-10T00:00:00.000Z'),
-        createdByUserId: 'user-id',
-        metadata: {},
-      },
-    );
+    expect(transactionManager.create).toHaveBeenNthCalledWith(2, AnimalHistoryEventOrmEntity, {
+      animalId: 'generated-animal-id',
+      eventType: AnimalHistoryEventType.INTAKE,
+      description: INTAKE_EVENT_DESCRIPTION,
+      occurredAt: new Date('2026-01-10T00:00:00.000Z'),
+      createdByUserId: 'user-id',
+      metadata: {},
+    });
 
     expect(transactionManager.save).toHaveBeenCalledTimes(2);
 
@@ -160,6 +157,69 @@ describe('TypeOrmAnimalRepository', () => {
     const eventData = transactionManager.create.mock.calls[1]![1] as Record<string, unknown>;
 
     expect(eventData).toMatchObject({ createdByUserId: null });
+  });
+
+  it('updates the animal and replaces its profile photo in one transaction', async () => {
+    transactionManager.findOne
+      .mockResolvedValueOnce(
+        Object.assign(new AnimalOrmEntity(), {
+          id: 'animal-id',
+          name: 'Luna',
+          species: 'dog',
+          breed: 'mixed',
+          sex: AnimalSex.FEMALE,
+          status: AnimalStatus.ADMITTED,
+          intakeDate: '2026-01-01',
+          birthDate: null,
+          profilePhotoMediaId: 'old-media-id',
+        }),
+      )
+      .mockResolvedValueOnce(
+        Object.assign(new AnimalOrmEntity(), {
+          id: 'animal-id',
+          name: 'Roger',
+          species: 'cat',
+          breed: 'white',
+          sex: AnimalSex.MALE,
+          status: AnimalStatus.ADMITTED,
+          intakeDate: '2026-01-10',
+          birthDate: '2025-01-01',
+          profilePhotoMediaId: 'new-media-id',
+        }),
+      );
+
+    const result = await animalRepository.update(
+      'animal-id',
+      new UpdateAnimal(
+        'Roger',
+        'cat',
+        'white',
+        AnimalSex.MALE,
+        new Date('2026-01-10'),
+        new Date('2025-01-01'),
+        'new-media-id',
+      ),
+    );
+
+    expect(transactionManager.update).toHaveBeenNthCalledWith(
+      1,
+      AnimalOrmEntity,
+      'animal-id',
+      expect.objectContaining({ profilePhotoMediaId: 'new-media-id' }),
+    );
+    expect(transactionManager.update).toHaveBeenNthCalledWith(
+      2,
+      MediaAssetOrmEntity,
+      { id: 'old-media-id' },
+      { ownerType: null, ownerId: null },
+    );
+    expect(transactionManager.update).toHaveBeenNthCalledWith(
+      3,
+      MediaAssetOrmEntity,
+      { id: 'new-media-id' },
+      { ownerType: MediaOwnerType.ANIMAL, ownerId: 'animal-id' },
+    );
+    expect(result).toMatchObject({ id: 'animal-id', profilePhotoMediaId: 'new-media-id' });
   });
 
   it('applies combined filters, pagination and stable ordering', async () => {
@@ -238,30 +298,24 @@ describe('TypeOrmAnimalRepository', () => {
       const result = await animalRepository.changeStatus(input);
 
       expect(repository.manager.transaction).toHaveBeenCalled();
-      expect(transactionManager.update).toHaveBeenCalledWith(
-        AnimalOrmEntity,
-        'animal-id',
-        { status: AnimalStatus.UNDER_TREATMENT },
-      );
-      expect(transactionManager.create).toHaveBeenCalledWith(
-        AnimalHistoryEventOrmEntity,
-        {
-          animalId: 'animal-id',
-          eventType: AnimalHistoryEventType.STATUS_CHANGE,
-          description: buildStatusChangeEventDescription(
-            AnimalStatus.ADMITTED,
-            AnimalStatus.UNDER_TREATMENT,
-          ),
-          occurredAt: new Date('2026-03-10T10:00:00.000Z'),
-          createdByUserId: 'actor-id',
-          metadata: { from: AnimalStatus.ADMITTED, to: AnimalStatus.UNDER_TREATMENT },
-        },
-      );
+      expect(transactionManager.update).toHaveBeenCalledWith(AnimalOrmEntity, 'animal-id', {
+        status: AnimalStatus.UNDER_TREATMENT,
+      });
+      expect(transactionManager.create).toHaveBeenCalledWith(AnimalHistoryEventOrmEntity, {
+        animalId: 'animal-id',
+        eventType: AnimalHistoryEventType.STATUS_CHANGE,
+        description: buildStatusChangeEventDescription(
+          AnimalStatus.ADMITTED,
+          AnimalStatus.UNDER_TREATMENT,
+        ),
+        occurredAt: new Date('2026-03-10T10:00:00.000Z'),
+        createdByUserId: 'actor-id',
+        metadata: { from: AnimalStatus.ADMITTED, to: AnimalStatus.UNDER_TREATMENT },
+      });
       expect(transactionManager.save).toHaveBeenCalledTimes(1);
-      expect(transactionManager.findOneOrFail).toHaveBeenCalledWith(
-        AnimalOrmEntity,
-        { where: { id: 'animal-id' } },
-      );
+      expect(transactionManager.findOneOrFail).toHaveBeenCalledWith(AnimalOrmEntity, {
+        where: { id: 'animal-id' },
+      });
       expect(result).toMatchObject({
         id: 'animal-id',
         status: AnimalStatus.UNDER_TREATMENT,
@@ -279,10 +333,9 @@ describe('TypeOrmAnimalRepository', () => {
 
       await animalRepository.changeStatus(input);
 
-      expect(transactionManager.findOneOrFail).toHaveBeenCalledWith(
-        AnimalOrmEntity,
-        { where: { id: 'animal-id' } },
-      );
+      expect(transactionManager.findOneOrFail).toHaveBeenCalledWith(AnimalOrmEntity, {
+        where: { id: 'animal-id' },
+      });
     });
   });
 });

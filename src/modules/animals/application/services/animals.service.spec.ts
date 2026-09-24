@@ -21,6 +21,7 @@ describe('AnimalsService', () => {
   );
   const animalRepository = {
     create: jest.fn(),
+    update: jest.fn(),
     findById: jest.fn(),
     findMany: jest.fn(),
     changeStatus: jest.fn(),
@@ -51,9 +52,7 @@ describe('AnimalsService', () => {
       const result = await service.create(createDto(), 'user-id');
 
       expect(mediaService.findById).not.toHaveBeenCalled();
-      expect(animalRepository.create).toHaveBeenCalledWith(
-        expect.any(CreateAnimal),
-      );
+      expect(animalRepository.create).toHaveBeenCalledWith(expect.any(CreateAnimal));
 
       const input = animalRepository.create.mock.calls[0]![0] as CreateAnimal;
 
@@ -135,6 +134,84 @@ describe('AnimalsService', () => {
         service.create(createDto({ profilePhotoMediaId: 'media-id' }), 'user-id'),
       ).rejects.toThrow(ResourceConflictException);
       expect(animalRepository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update', () => {
+    it('updates the profile and links a new orphan photo', async () => {
+      const updated = new Animal(
+        'animal-id',
+        'Roger',
+        'cat',
+        'white',
+        AnimalSex.MALE,
+        AnimalStatus.ADMITTED,
+        new Date('2026-01-10'),
+        new Date('2025-01-01'),
+        null,
+        'new-media-id',
+      );
+      animalRepository.findById.mockResolvedValue(animal);
+      animalRepository.update.mockResolvedValue(updated);
+      mediaService.findById.mockResolvedValue({
+        id: 'new-media-id',
+        ownerType: null,
+        ownerId: null,
+      });
+
+      await expect(
+        service.update('animal-id', {
+          name: '  Roger  ',
+          species: ' cat ',
+          breed: ' white ',
+          sex: AnimalSex.MALE,
+          intakeDate: '2026-01-10',
+          birthDate: '2025-01-01',
+          profilePhotoMediaId: 'new-media-id',
+        }),
+      ).resolves.toBe(updated);
+
+      expect(mediaService.findById).toHaveBeenCalledWith('new-media-id');
+      expect(animalRepository.update).toHaveBeenCalledWith(
+        'animal-id',
+        expect.objectContaining({
+          name: 'Roger',
+          species: 'cat',
+          breed: 'white',
+          profilePhotoMediaId: 'new-media-id',
+        }),
+      );
+    });
+
+    it('throws when the animal does not exist', async () => {
+      animalRepository.findById.mockResolvedValue(null);
+
+      await expect(service.update('missing-id', { name: 'Roger' })).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(animalRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('throws when the selected media asset does not exist', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      mediaService.findById.mockResolvedValue(null);
+
+      await expect(
+        service.update('animal-id', { profilePhotoMediaId: 'missing-media-id' }),
+      ).rejects.toThrow(ResourceNotFoundException);
+      expect(animalRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a birth date after the effective intake date', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+
+      await expect(
+        service.update('animal-id', {
+          intakeDate: '2026-01-10',
+          birthDate: '2026-01-11',
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(animalRepository.update).not.toHaveBeenCalled();
     });
   });
 
@@ -220,9 +297,7 @@ describe('AnimalsService', () => {
         'actor-id',
       );
 
-      expect(animalRepository.changeStatus).toHaveBeenCalledWith(
-        expect.any(ChangeAnimalStatus),
-      );
+      expect(animalRepository.changeStatus).toHaveBeenCalledWith(expect.any(ChangeAnimalStatus));
       const input = animalRepository.changeStatus.mock.calls[0]![0] as ChangeAnimalStatus;
 
       expect(input).toMatchObject({

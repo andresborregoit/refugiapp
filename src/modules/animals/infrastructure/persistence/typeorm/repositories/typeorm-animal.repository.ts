@@ -4,10 +4,15 @@ import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
 import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { Animal } from '../../../../domain/entities/animal.entity';
-import { buildStatusChangeEventDescription, INTAKE_EVENT_DESCRIPTION } from '../../../../domain/entities/animal-history-event.entity';
+import {
+  buildStatusChangeEventDescription,
+  INTAKE_EVENT_DESCRIPTION,
+} from '../../../../domain/entities/animal-history-event.entity';
 import { ChangeAnimalStatus } from '../../../../domain/entities/change-animal-status.entity';
 import { CreateAnimal } from '../../../../domain/entities/create-animal.entity';
+import { UpdateAnimal } from '../../../../domain/entities/update-animal.entity';
 import { AnimalHistoryEventType } from '../../../../domain/enums/animal-history-event-type.enum';
+import { AnimalSex } from '../../../../domain/enums/animal-sex.enum';
 import {
   AnimalListQuery,
   AnimalRepository,
@@ -59,6 +64,65 @@ export class TypeOrmAnimalRepository implements AnimalRepository {
       );
 
       return this.toDomain(animal);
+    });
+  }
+
+  async update(id: string, input: UpdateAnimal): Promise<Animal | null> {
+    return this.repository.manager.transaction(async (manager) => {
+      const current = await manager.findOne(AnimalOrmEntity, { where: { id } });
+
+      if (!current) {
+        return null;
+      }
+
+      const changes: {
+        name?: string;
+        species?: string;
+        breed?: string | null;
+        sex?: AnimalSex;
+        intakeDate?: string;
+        birthDate?: string | null;
+        profilePhotoMediaId?: string | null;
+      } = {};
+      if (input.name !== undefined) changes.name = input.name;
+      if (input.species !== undefined) changes.species = input.species;
+      if (input.breed !== undefined) changes.breed = input.breed;
+      if (input.sex !== undefined) changes.sex = input.sex;
+      if (input.intakeDate !== undefined) changes.intakeDate = toDateColumnValue(input.intakeDate);
+      if (input.birthDate !== undefined) {
+        changes.birthDate = input.birthDate ? toDateColumnValue(input.birthDate) : null;
+      }
+      if (input.profilePhotoMediaId !== undefined) {
+        changes.profilePhotoMediaId = input.profilePhotoMediaId;
+      }
+
+      if (Object.keys(changes).length > 0) {
+        await manager.update(AnimalOrmEntity, id, changes);
+      }
+
+      if (
+        input.profilePhotoMediaId !== undefined &&
+        input.profilePhotoMediaId !== current.profilePhotoMediaId
+      ) {
+        if (current.profilePhotoMediaId) {
+          await manager.update(
+            MediaAssetOrmEntity,
+            { id: current.profilePhotoMediaId },
+            { ownerType: null, ownerId: null },
+          );
+        }
+
+        if (input.profilePhotoMediaId) {
+          await manager.update(
+            MediaAssetOrmEntity,
+            { id: input.profilePhotoMediaId },
+            { ownerType: MediaOwnerType.ANIMAL, ownerId: id },
+          );
+        }
+      }
+
+      const updated = await manager.findOne(AnimalOrmEntity, { where: { id } });
+      return updated ? this.toDomain(updated) : null;
     });
   }
 

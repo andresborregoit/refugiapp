@@ -32,9 +32,7 @@ export class TypeOrmAnimalHistoryEventRepository implements AnimalHistoryEventRe
     return this.toDomain(entity);
   }
 
-  async findMany(
-    query: AnimalHistoryEventListQuery,
-  ): Promise<PaginatedAnimalHistoryEvents> {
+  async findMany(query: AnimalHistoryEventListQuery): Promise<PaginatedAnimalHistoryEvents> {
     const where: FindOptionsWhere<AnimalHistoryEventOrmEntity> = {
       animalId: query.animalId,
     };

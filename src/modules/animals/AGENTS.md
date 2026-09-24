@@ -27,6 +27,8 @@
 - Si se informa `profilePhotoMediaId`, el caso de uso verifica que el asset exista en `media`; si no existe responde `404`.
 - La creacion persiste el animal y un evento automatico `intake` en una misma transaccion; el evento usa `occurredAt = intakeDate` y `createdByUserId` del usuario autenticado.
 - La descripcion del evento de ingreso es la constante de dominio `INTAKE_EVENT_DESCRIPTION`; no duplicarla en otros lugares.
+- `PATCH /animals/:id` edita la ficha general sin cambiar el estado y admite solo `admin` y `shelter_manager`.
+- Al reemplazar `profilePhotoMediaId`, el nuevo asset se vincula al animal y el anterior vuelve a estado huerfano para su purga posterior.
 
 ## Estados
 - Las transiciones de `AnimalStatus` se validan contra una matriz acotada definida en `domain/services/animal-status-transitions.ts`.

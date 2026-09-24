@@ -1,8 +1,6 @@
 import { AnimalStatus } from '../enums/animal-status.enum';
 
-export const ALLOWED_STATUS_TRANSITIONS: Readonly<
-  Record<AnimalStatus, readonly AnimalStatus[]>
-> = {
+export const ALLOWED_STATUS_TRANSITIONS: Readonly<Record<AnimalStatus, readonly AnimalStatus[]>> = {
   [AnimalStatus.ADMITTED]: [
     AnimalStatus.UNDER_TREATMENT,
     AnimalStatus.AVAILABLE_FOR_ADOPTION,

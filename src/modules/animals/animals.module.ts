@@ -13,7 +13,10 @@ import { AnimalHistoryEventsController } from './interfaces/controllers/animal-h
 import { AnimalsController } from './interfaces/controllers/animals.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AnimalOrmEntity, AnimalHistoryEventOrmEntity]), forwardRef(() => MediaModule)],
+  imports: [
+    TypeOrmModule.forFeature([AnimalOrmEntity, AnimalHistoryEventOrmEntity]),
+    forwardRef(() => MediaModule),
+  ],
   controllers: [AnimalsController, AnimalHistoryEventsController],
   providers: [
     AnimalsService,
@@ -27,6 +30,11 @@ import { AnimalsController } from './interfaces/controllers/animals.controller';
       useClass: TypeOrmAnimalHistoryEventRepository,
     },
   ],
-  exports: [AnimalsService, AnimalHistoryEventsService, ANIMAL_REPOSITORY, ANIMAL_HISTORY_EVENT_REPOSITORY],
+  exports: [
+    AnimalsService,
+    AnimalHistoryEventsService,
+    ANIMAL_REPOSITORY,
+    ANIMAL_HISTORY_EVENT_REPOSITORY,
+  ],
 })
 export class AnimalsModule {}

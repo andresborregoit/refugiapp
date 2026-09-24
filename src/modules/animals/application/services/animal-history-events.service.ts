@@ -8,10 +8,7 @@ import {
   AnimalHistoryEventRepository,
   PaginatedAnimalHistoryEvents,
 } from '../../domain/repositories/animal-history-event.repository';
-import {
-  ANIMAL_REPOSITORY,
-  AnimalRepository,
-} from '../../domain/repositories/animal.repository';
+import { ANIMAL_REPOSITORY, AnimalRepository } from '../../domain/repositories/animal.repository';
 import { AnimalHistoryEvent } from '../../domain/entities/animal-history-event.entity';
 import { CreateAnimalHistoryEvent } from '../../domain/entities/create-animal-history-event.entity';
 import { resolveEventOccurredAt } from '../../domain/services/animal-event-date';

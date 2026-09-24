@@ -8,6 +8,7 @@ import { MediaLinkingContext } from '../../../media/domain/services/media-owner-
 import { ChangeAnimalStatus } from '../../domain/entities/change-animal-status.entity';
 import { CreateAnimal } from '../../domain/entities/create-animal.entity';
 import { Animal } from '../../domain/entities/animal.entity';
+import { UpdateAnimal } from '../../domain/entities/update-animal.entity';
 import { AnimalSex } from '../../domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../domain/enums/animal-status.enum';
 import {
@@ -19,6 +20,7 @@ import {
 import { resolveEventOccurredAt } from '../../domain/services/animal-event-date';
 import { canTransitionStatus } from '../../domain/services/animal-status-transitions';
 import { CreateAnimalDto } from '../../interfaces/dto/create-animal.dto';
+import { UpdateAnimalDto } from '../../interfaces/dto/update-animal.dto';
 import { mapDomainExceptionToBadRequest } from '../../../../common/mappers/domain-to-http-exception.mapper';
 
 @Injectable()
@@ -56,6 +58,59 @@ export class AnimalsService {
     );
 
     return this.animalRepository.create(input);
+  }
+
+  async update(id: string, dto: UpdateAnimalDto): Promise<Animal> {
+    const current = await this.animalRepository.findById(id);
+
+    if (!current) {
+      throw new ResourceNotFoundException('Animal', id);
+    }
+
+    if (
+      dto.profilePhotoMediaId !== undefined &&
+      dto.profilePhotoMediaId !== null &&
+      dto.profilePhotoMediaId !== current.profilePhotoMediaId
+    ) {
+      const mediaAsset = await this.mediaService.findById(dto.profilePhotoMediaId);
+
+      if (!mediaAsset) {
+        throw new ResourceNotFoundException('MediaAsset', dto.profilePhotoMediaId);
+      }
+
+      assertMediaLinkable(mediaAsset, MediaLinkingContext.ANIMAL_PROFILE_PHOTO);
+    }
+
+    const intakeDate = dto.intakeDate ? new Date(dto.intakeDate) : current.intakeDate;
+    const birthDate =
+      dto.birthDate === undefined
+        ? current.birthDate
+        : dto.birthDate === null
+          ? null
+          : new Date(dto.birthDate);
+
+    if (birthDate && birthDate > intakeDate) {
+      throw mapDomainExceptionToBadRequest(
+        new DomainException('birthDate must be on or before intakeDate', 'BIRTH_DATE_AFTER_INTAKE'),
+      );
+    }
+
+    const input = new UpdateAnimal(
+      dto.name?.trim(),
+      dto.species?.trim(),
+      dto.breed === undefined ? undefined : dto.breed?.trim() || null,
+      dto.sex,
+      dto.intakeDate ? intakeDate : undefined,
+      dto.birthDate === undefined ? undefined : birthDate,
+      dto.profilePhotoMediaId,
+    );
+    const updated = await this.animalRepository.update(id, input);
+
+    if (!updated) {
+      throw new ResourceNotFoundException('Animal', id);
+    }
+
+    return updated;
   }
 
   async list(query: AnimalListQuery): Promise<PaginatedAnimals> {

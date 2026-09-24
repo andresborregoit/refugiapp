@@ -31,6 +31,7 @@ describe('AnimalHistoryEventsService', () => {
   const animalRepository = {
     findById: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
     findMany: jest.fn(),
     changeStatus: jest.fn(),
   };
@@ -95,9 +96,9 @@ describe('AnimalHistoryEventsService', () => {
     it('throws ResourceNotFoundException when the animal does not exist', async () => {
       animalRepository.findById.mockResolvedValue(null);
 
-      await expect(
-        service.list({ animalId: 'missing-id', page: 1, limit: 20 }),
-      ).rejects.toThrow(ResourceNotFoundException);
+      await expect(service.list({ animalId: 'missing-id', page: 1, limit: 20 })).rejects.toThrow(
+        ResourceNotFoundException,
+      );
     });
 
     it('delegates to the repository after confirming the animal exists', async () => {

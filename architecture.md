@@ -18,19 +18,19 @@ Este documento describe el estado real del proyecto. Las funcionalidades que aun
 
 ## 2. Contexto tecnologico
 
-| Area | Tecnologia | Decision |
-| --- | --- | --- |
-| Runtime | Node.js 20+ | Version minima soportada por el proyecto |
-| Framework HTTP | NestJS 11 | Modulos, controllers, providers e inyeccion de dependencias |
-| Lenguaje | TypeScript | Codigo fuente tipado |
-| Persistencia | PostgreSQL | Motor relacional objetivo |
-| Proveedor cloud | Neon | Base remota de desarrollo y produccion |
-| ORM | TypeORM | Solo en infrastructure y configuracion comun |
-| IDs | UUID | Todos los identificadores principales |
-| Autenticacion | JWT + Passport | Login real mediante email, password hasheado y JWT |
-| Archivos | Cloudinary | PostgreSQL almacena metadata, no binarios |
-| Validacion | class-validator + Joi | DTOs HTTP y variables de entorno |
-| Testing | Jest + Supertest | Tests unitarios y e2e |
+| Area            | Tecnologia            | Decision                                                    |
+| --------------- | --------------------- | ----------------------------------------------------------- |
+| Runtime         | Node.js 20+           | Version minima soportada por el proyecto                    |
+| Framework HTTP  | NestJS 11             | Modulos, controllers, providers e inyeccion de dependencias |
+| Lenguaje        | TypeScript            | Codigo fuente tipado                                        |
+| Persistencia    | PostgreSQL            | Motor relacional objetivo                                   |
+| Proveedor cloud | Neon                  | Base remota de desarrollo y produccion                      |
+| ORM             | TypeORM               | Solo en infrastructure y configuracion comun                |
+| IDs             | UUID                  | Todos los identificadores principales                       |
+| Autenticacion   | JWT + Passport        | Login real mediante email, password hasheado y JWT          |
+| Archivos        | Cloudinary            | PostgreSQL almacena metadata, no binarios                   |
+| Validacion      | class-validator + Joi | DTOs HTTP y variables de entorno                            |
+| Testing         | Jest + Supertest      | Tests unitarios y e2e                                       |
 
 ## 3. Principios arquitectonicos
 
@@ -186,46 +186,47 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 
 `JwtAuthGuard` rechaza solicitudes sin autenticacion valida con `401`. `RolesGuard` rechaza usuarios autenticados sin el permiso requerido con `403`.
 
-| Endpoint | `admin` | `shelter_manager` | `veterinarian` |
-| --- | --- | --- | --- |
-| `POST /users` | Permitido | Rechazado | Rechazado |
-| `POST /users/:id/deactivate` | Permitido | Rechazado | Rechazado |
-| `POST /users/:id/activate` | Permitido | Rechazado | Rechazado |
-| `GET /users/me` | Permitido | Permitido | Permitido |
-| `POST /animals` | Permitido | Permitido | Rechazado |
-| `GET /animals` | Permitido | Permitido | Permitido |
-| `GET /animals/:id` | Permitido | Permitido | Permitido |
-| `PATCH /animals/:id/status` | Permitido | Permitido | Rechazado |
-| `POST /animals/:animalId/events` | Permitido | Permitido | Rechazado |
-| `GET /animals/:animalId/events` | Permitido | Permitido | Permitido |
-| `POST /care-tasks` | Permitido | Permitido | Rechazado |
-| `GET /care-tasks` | Permitido | Permitido | Permitido |
-| `GET /care-tasks/:id` | Permitido | Permitido | Permitido |
-| `PATCH /care-tasks/:id` | Permitido | Permitido | Rechazado |
-| `POST /care-tasks/:id/complete` | Permitido | Permitido | Rechazado |
-| `POST /care-tasks/:id/cancel` | Permitido | Permitido | Rechazado |
-| `GET /dashboard/overview` | Permitido | Permitido | Permitido |
-| `POST /veterinarians` | Permitido | Permitido | Rechazado |
-| `GET /veterinarians` | Permitido | Permitido | Permitido |
-| `GET /veterinarians/:id` | Permitido | Permitido | Permitido |
-| `PATCH /veterinarians/:id` | Permitido | Permitido | Rechazado |
-| `POST /veterinarians/:id/deactivate` | Permitido | Permitido | Rechazado |
-| `POST /medical-records` | Permitido | Rechazado | Permitido |
-| `PATCH /medical-records/:id` | Permitido | Rechazado | Permitido |
-| `DELETE /medical-records/:id` | Permitido | Rechazado | Permitido |
-| `POST /medical-records/:id/restore` | Permitido | Rechazado | Rechazado |
-| `GET /animals/:animalId/medical-records` | Permitido | Rechazado | Permitido |
-| `POST /expenses` | Permitido | Permitido | Rechazado |
-| `GET /expenses` | Permitido | Permitido | Permitido |
-| `GET /expenses/:id` | Permitido | Permitido | Permitido |
-| `DELETE /expenses/:id` | Permitido | Permitido | Rechazado |
-| `GET /animals/:animalId/expenses` | Permitido | Permitido | Permitido |
-| `POST /media/upload` | Permitido | Permitido | Permitido |
-| `GET /media` | Permitido | Permitido | Permitido |
-| `GET /media/:id` | Permitido | Permitido | Permitido |
-| `DELETE /media/:id` | Permitido | Permitido | Permitido |
-| `GET /audit-logs` | Permitido | Rechazado | Rechazado |
-| `GET /audit-logs/:id` | Permitido | Rechazado | Rechazado |
+| Endpoint                                 | `admin`   | `shelter_manager` | `veterinarian` |
+| ---------------------------------------- | --------- | ----------------- | -------------- |
+| `POST /users`                            | Permitido | Rechazado         | Rechazado      |
+| `POST /users/:id/deactivate`             | Permitido | Rechazado         | Rechazado      |
+| `POST /users/:id/activate`               | Permitido | Rechazado         | Rechazado      |
+| `GET /users/me`                          | Permitido | Permitido         | Permitido      |
+| `POST /animals`                          | Permitido | Permitido         | Rechazado      |
+| `GET /animals`                           | Permitido | Permitido         | Permitido      |
+| `GET /animals/:id`                       | Permitido | Permitido         | Permitido      |
+| `PATCH /animals/:id`                     | Permitido | Permitido         | Rechazado      |
+| `PATCH /animals/:id/status`              | Permitido | Permitido         | Rechazado      |
+| `POST /animals/:animalId/events`         | Permitido | Permitido         | Rechazado      |
+| `GET /animals/:animalId/events`          | Permitido | Permitido         | Permitido      |
+| `POST /care-tasks`                       | Permitido | Permitido         | Rechazado      |
+| `GET /care-tasks`                        | Permitido | Permitido         | Permitido      |
+| `GET /care-tasks/:id`                    | Permitido | Permitido         | Permitido      |
+| `PATCH /care-tasks/:id`                  | Permitido | Permitido         | Rechazado      |
+| `POST /care-tasks/:id/complete`          | Permitido | Permitido         | Rechazado      |
+| `POST /care-tasks/:id/cancel`            | Permitido | Permitido         | Rechazado      |
+| `GET /dashboard/overview`                | Permitido | Permitido         | Permitido      |
+| `POST /veterinarians`                    | Permitido | Permitido         | Rechazado      |
+| `GET /veterinarians`                     | Permitido | Permitido         | Permitido      |
+| `GET /veterinarians/:id`                 | Permitido | Permitido         | Permitido      |
+| `PATCH /veterinarians/:id`               | Permitido | Permitido         | Rechazado      |
+| `POST /veterinarians/:id/deactivate`     | Permitido | Permitido         | Rechazado      |
+| `POST /medical-records`                  | Permitido | Rechazado         | Permitido      |
+| `PATCH /medical-records/:id`             | Permitido | Rechazado         | Permitido      |
+| `DELETE /medical-records/:id`            | Permitido | Rechazado         | Permitido      |
+| `POST /medical-records/:id/restore`      | Permitido | Rechazado         | Rechazado      |
+| `GET /animals/:animalId/medical-records` | Permitido | Rechazado         | Permitido      |
+| `POST /expenses`                         | Permitido | Permitido         | Rechazado      |
+| `GET /expenses`                          | Permitido | Permitido         | Permitido      |
+| `GET /expenses/:id`                      | Permitido | Permitido         | Permitido      |
+| `DELETE /expenses/:id`                   | Permitido | Permitido         | Rechazado      |
+| `GET /animals/:animalId/expenses`        | Permitido | Permitido         | Permitido      |
+| `POST /media/upload`                     | Permitido | Permitido         | Permitido      |
+| `GET /media`                             | Permitido | Permitido         | Permitido      |
+| `GET /media/:id`                         | Permitido | Permitido         | Permitido      |
+| `DELETE /media/:id`                      | Permitido | Permitido         | Permitido      |
+| `GET /audit-logs`                        | Permitido | Rechazado         | Rechazado      |
+| `GET /audit-logs/:id`                    | Permitido | Rechazado         | Rechazado      |
 
 En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset. Ademas, el usuario que subio un asset huerfano puede borrarlo con `DELETE /media/:id` aunque sea `veterinarian`, para cubrir el flujo subir -> cancelar antes de vincular.
 
@@ -235,14 +236,14 @@ En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido 
 
 La matriz de capacidades agrega los endpoints por habilidad de negocio y es la referencia definitiva para el frontend. La fuente de verdad en codigo es `ROLE_CAPABILITIES` en `src/common/authorization/role-capabilities.ts` y la especificacion humana es `docs/role-capabilities.md`. Esta matriz no reemplaza a `RolesGuard`: los guards siguen siendo el unico mecanismo de enforcement y la matriz debe mantenerse sincronizada con ellos.
 
-| Capacidad | `admin` | `shelter_manager` | `veterinarian` | Operaciones representativas |
-| --- | --- | --- | --- | --- |
-| `canEditAnimal` | Si | Si | No | Ficha de animal, eventos generales y tareas de cuidado |
-| `canReadClinicalRecords` | Si | No | Si | Registros clinicos (consulta, creacion, actualizacion, baja) |
-| `canManageUsers` | Si | No | No | Crear, activar y desactivar usuarios internos |
-| `canManageExpenses` | Si | Si | No | Crear y dar de baja gastos |
-| `canManageVets` | Si | Si | No | Crear, editar y desactivar perfiles de veterinarios |
-| `canReadAudit` | Si | No | No | Consultar el historial de auditoria |
+| Capacidad                | `admin` | `shelter_manager` | `veterinarian` | Operaciones representativas                                  |
+| ------------------------ | ------- | ----------------- | -------------- | ------------------------------------------------------------ |
+| `canEditAnimal`          | Si      | Si                | No             | Ficha de animal, eventos generales y tareas de cuidado       |
+| `canReadClinicalRecords` | Si      | No                | Si             | Registros clinicos (consulta, creacion, actualizacion, baja) |
+| `canManageUsers`         | Si      | No                | No             | Crear, activar y desactivar usuarios internos                |
+| `canManageExpenses`      | Si      | Si                | No             | Crear y dar de baja gastos                                   |
+| `canManageVets`          | Si      | Si                | No             | Crear, editar y desactivar perfiles de veterinarios          |
+| `canReadAudit`           | Si      | No                | No             | Consultar el historial de auditoria                          |
 
 ### Contrato OpenAPI versionado
 
@@ -259,6 +260,8 @@ La creacion se realiza mediante `POST /animals`. El caso de uso valida nombre, e
 La consulta de animales se realiza mediante `GET /animals` y `GET /animals/:id`. El listado usa paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. Admite filtros combinables por `status`, `species`, `sex` y busqueda parcial por `name`.
 
 El orden es estable y determinista: `createdAt ASC` y `id ASC` como desempate. TypeORM excluye por defecto los registros con `deletedAt`; las consultas no deben usar `withDeleted`.
+
+La ficha general se edita mediante `PATCH /animals/:id`, sin permitir cambios de estado. Cuando se reemplaza la foto de perfil, el nuevo asset se vincula en la misma transaccion y el anterior vuelve a ser huerfano para que lo alcance la politica de purga.
 
 El cambio de estado se realiza mediante `PATCH /animals/:id/status`. El caso de uso valida la transicion contra una matriz acotada de movimientos permitidos y rechaza con `409` las transiciones invalidas o al mismo estado. Cada cambio persiste un evento `status_change` en la misma transaccion, con `metadata {from, to}` y el `createdByUserId` del actor autenticado.
 
@@ -432,12 +435,12 @@ Los estados por componente son `up`, `degraded` y `down`; el estado global es `o
 
 Todas las tablas de dominio heredan conceptualmente las columnas de `BaseOrmEntity`:
 
-| Columna | Tipo PostgreSQL | Regla |
-| --- | --- | --- |
-| `id` | `uuid` | Primary key, generado por PostgreSQL |
-| `createdAt` | `timestamptz` | Fecha de creacion |
-| `updatedAt` | `timestamptz` | Fecha de ultima actualizacion |
-| `deletedAt` | `timestamptz`, nullable | Baja logica |
+| Columna     | Tipo PostgreSQL         | Regla                                |
+| ----------- | ----------------------- | ------------------------------------ |
+| `id`        | `uuid`                  | Primary key, generado por PostgreSQL |
+| `createdAt` | `timestamptz`           | Fecha de creacion                    |
+| `updatedAt` | `timestamptz`           | Fecha de ultima actualizacion        |
+| `deletedAt` | `timestamptz`, nullable | Baja logica                          |
 
 La aplicacion debe tratar `deletedAt IS NULL` como registro activo, salvo que un caso de uso solicite explicitamente elementos eliminados.
 
@@ -445,16 +448,16 @@ La aplicacion debe tratar `deletedAt IS NULL` como registro activo, salvo que un
 
 Representa una persona con acceso al sistema.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `email` | `varchar(320)` | No | Unico |
-| `passwordHash` | `varchar(255)` | No | Nunca se expone |
-| `firstName` | `varchar(100)` | No | |
-| `lastName` | `varchar(100)` | No | |
-| `roles` | `user_role[]` | No | Default `shelter_manager` |
-| `isActive` | `boolean` | No | Default `true` |
-| columnas comunes | | | `createdAt`, `updatedAt`, `deletedAt` |
+| Columna          | Tipo           | Null | Restricciones                         |
+| ---------------- | -------------- | ---- | ------------------------------------- |
+| `id`             | `uuid`         | No   | PK                                    |
+| `email`          | `varchar(320)` | No   | Unico                                 |
+| `passwordHash`   | `varchar(255)` | No   | Nunca se expone                       |
+| `firstName`      | `varchar(100)` | No   |                                       |
+| `lastName`       | `varchar(100)` | No   |                                       |
+| `roles`          | `user_role[]`  | No   | Default `shelter_manager`             |
+| `isActive`       | `boolean`      | No   | Default `true`                        |
+| columnas comunes |                |      | `createdAt`, `updatedAt`, `deletedAt` |
 
 Enum `user_role`:
 
@@ -470,18 +473,18 @@ Decision: los roles se almacenan como un array enum porque un usuario puede tene
 
 Representa el perfil profesional, separado de la identidad de login.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `userId` | `uuid` | Si | FK a `users.id`, unico cuando existe |
-| `firstName` | `varchar(100)` | No | |
-| `lastName` | `varchar(100)` | No | |
-| `licenseNumber` | `varchar(80)` | No | Unico |
-| `email` | `varchar(320)` | Si | Contacto profesional |
-| `phone` | `varchar(40)` | Si | |
-| `notes` | `text` | Si | |
-| `isActive` | `boolean` | No | Default `true` |
-| columnas comunes | | | |
+| Columna          | Tipo           | Null | Restricciones                        |
+| ---------------- | -------------- | ---- | ------------------------------------ |
+| `id`             | `uuid`         | No   | PK                                   |
+| `userId`         | `uuid`         | Si   | FK a `users.id`, unico cuando existe |
+| `firstName`      | `varchar(100)` | No   |                                      |
+| `lastName`       | `varchar(100)` | No   |                                      |
+| `licenseNumber`  | `varchar(80)`  | No   | Unico                                |
+| `email`          | `varchar(320)` | Si   | Contacto profesional                 |
+| `phone`          | `varchar(40)`  | Si   |                                      |
+| `notes`          | `text`         | Si   |                                      |
+| `isActive`       | `boolean`      | No   | Default `true`                       |
+| columnas comunes |                |      |                                      |
 
 La relacion `userId` es opcional porque un veterinario puede existir como contacto profesional sin tener acceso al sistema.
 
@@ -491,19 +494,19 @@ No se almacenan passwords ni hashes en este modulo. Las credenciales pertenecen 
 
 Representa la ficha principal del animal.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `name` | `varchar(120)` | No | |
-| `species` | `varchar(80)` | No | Ejemplos: `dog`, `cat` |
-| `breed` | `varchar(80)` | Si | Raza, cuando se conoce |
-| `sex` | `animal_sex` | No | Default `unknown` |
-| `status` | `animal_status` | No | Default `admitted` |
-| `birthDate` | `date` | Si | Fecha real o estimada |
-| `intakeDate` | `date` | No | |
-| `profilePhotoMediaId` | `uuid` | Si | FK a `media_assets.id` |
-| `notes` | `text` | Si | |
-| columnas comunes | | | |
+| Columna               | Tipo            | Null | Restricciones          |
+| --------------------- | --------------- | ---- | ---------------------- |
+| `id`                  | `uuid`          | No   | PK                     |
+| `name`                | `varchar(120)`  | No   |                        |
+| `species`             | `varchar(80)`   | No   | Ejemplos: `dog`, `cat` |
+| `breed`               | `varchar(80)`   | Si   | Raza, cuando se conoce |
+| `sex`                 | `animal_sex`    | No   | Default `unknown`      |
+| `status`              | `animal_status` | No   | Default `admitted`     |
+| `birthDate`           | `date`          | Si   | Fecha real o estimada  |
+| `intakeDate`          | `date`          | No   |                        |
+| `profilePhotoMediaId` | `uuid`          | Si   | FK a `media_assets.id` |
+| `notes`               | `text`          | Si   |                        |
+| columnas comunes      |                 |      |                        |
 
 Regla de fechas: si `birthDate` esta presente, no puede ser posterior a `intakeDate`.
 
@@ -529,16 +532,16 @@ deceased
 
 Registra eventos generales del animal, no informacion clinica.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `animalId` | `uuid` | No | FK a `animals.id` |
-| `eventType` | `animal_history_event_type` | No | |
-| `description` | `text` | No | |
-| `occurredAt` | `timestamptz` | No | Fecha del hecho |
-| `createdByUserId` | `uuid` | Si | FK a `users.id` |
-| `metadata` | `jsonb` | No | Default `{}` |
-| columnas comunes | | | |
+| Columna           | Tipo                        | Null | Restricciones     |
+| ----------------- | --------------------------- | ---- | ----------------- |
+| `id`              | `uuid`                      | No   | PK                |
+| `animalId`        | `uuid`                      | No   | FK a `animals.id` |
+| `eventType`       | `animal_history_event_type` | No   |                   |
+| `description`     | `text`                      | No   |                   |
+| `occurredAt`      | `timestamptz`               | No   | Fecha del hecho   |
+| `createdByUserId` | `uuid`                      | Si   | FK a `users.id`   |
+| `metadata`        | `jsonb`                     | No   | Default `{}`      |
+| columnas comunes  |                             |      |                   |
 
 Enum `animal_history_event_type`:
 
@@ -555,18 +558,18 @@ general_note
 
 Registra informacion clinica del animal.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `animalId` | `uuid` | No | FK a `animals.id` |
-| `veterinarianId` | `uuid` | Si | FK a `veterinarians.id` |
-| `recordType` | `medical_record_type` | No | |
-| `title` | `varchar(160)` | No | |
-| `diagnosis` | `text` | Si | |
-| `treatment` | `text` | Si | |
-| `notes` | `text` | Si | |
-| `occurredAt` | `timestamptz` | No | Fecha de atencion |
-| columnas comunes | | | |
+| Columna          | Tipo                  | Null | Restricciones           |
+| ---------------- | --------------------- | ---- | ----------------------- |
+| `id`             | `uuid`                | No   | PK                      |
+| `animalId`       | `uuid`                | No   | FK a `animals.id`       |
+| `veterinarianId` | `uuid`                | Si   | FK a `veterinarians.id` |
+| `recordType`     | `medical_record_type` | No   |                         |
+| `title`          | `varchar(160)`        | No   |                         |
+| `diagnosis`      | `text`                | Si   |                         |
+| `treatment`      | `text`                | Si   |                         |
+| `notes`          | `text`                | Si   |                         |
+| `occurredAt`     | `timestamptz`         | No   | Fecha de atencion       |
+| columnas comunes |                       |      |                         |
 
 Enum `medical_record_type`:
 
@@ -586,15 +589,15 @@ Los adjuntos clinicos no son columnas de esta tabla. Se asocian mediante `media_
 
 Registra trazabilidad de cambios sensibles sobre registros clinicos.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `medicalRecordId` | `uuid` | No | FK a `medical_records.id` |
-| `changedByUserId` | `uuid` | Si | FK a `users.id` |
-| `changeType` | `medical_record_change_type` | No | |
-| `previousValues` | `jsonb` | No | Default `{}` |
-| `changedAt` | `timestamptz` | No | Fecha del cambio |
-| columnas comunes | | | `createdAt`, `updatedAt`, `deletedAt` |
+| Columna           | Tipo                         | Null | Restricciones                         |
+| ----------------- | ---------------------------- | ---- | ------------------------------------- |
+| `id`              | `uuid`                       | No   | PK                                    |
+| `medicalRecordId` | `uuid`                       | No   | FK a `medical_records.id`             |
+| `changedByUserId` | `uuid`                       | Si   | FK a `users.id`                       |
+| `changeType`      | `medical_record_change_type` | No   |                                       |
+| `previousValues`  | `jsonb`                      | No   | Default `{}`                          |
+| `changedAt`       | `timestamptz`                | No   | Fecha del cambio                      |
+| columnas comunes  |                              |      | `createdAt`, `updatedAt`, `deletedAt` |
 
 Enum `medical_record_change_type`:
 
@@ -608,18 +611,18 @@ restore
 
 Representa un gasto asociado a un animal.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `animalId` | `uuid` | No | FK a `animals.id` |
-| `category` | `expense_category` | No | |
-| `amountCents` | `integer` | No | Importe en centavos, `CHECK amountCents >= 0` |
-| `currency` | `char(3)` | No | Default `ARS` |
-| `description` | `varchar(180)` | No | |
-| `ticketMediaId` | `uuid` | Si | FK a `media_assets.id` |
-| `createdByUserId` | `uuid` | Si | FK a `users.id` |
-| `incurredAt` | `timestamptz` | No | Fecha del gasto |
-| columnas comunes | | | |
+| Columna           | Tipo               | Null | Restricciones                                 |
+| ----------------- | ------------------ | ---- | --------------------------------------------- |
+| `id`              | `uuid`             | No   | PK                                            |
+| `animalId`        | `uuid`             | No   | FK a `animals.id`                             |
+| `category`        | `expense_category` | No   |                                               |
+| `amountCents`     | `integer`          | No   | Importe en centavos, `CHECK amountCents >= 0` |
+| `currency`        | `char(3)`          | No   | Default `ARS`                                 |
+| `description`     | `varchar(180)`     | No   |                                               |
+| `ticketMediaId`   | `uuid`             | Si   | FK a `media_assets.id`                        |
+| `createdByUserId` | `uuid`             | Si   | FK a `users.id`                               |
+| `incurredAt`      | `timestamptz`      | No   | Fecha del gasto                               |
+| columnas comunes  |                    |      |                                               |
 
 Enum `expense_category`:
 
@@ -636,17 +639,17 @@ other
 
 Representa una tarea de cuidado operativa asociada a un animal.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `animalId` | `uuid` | No | FK a `animals.id` |
-| `title` | `varchar(160)` | No | |
-| `description` | `text` | Si | |
-| `status` | `care_task_status` | No | Default `pending` |
-| `dueAt` | `timestamptz` | Si | |
-| `completedAt` | `timestamptz` | Si | Se persiste al completar |
-| `createdByUserId` | `uuid` | Si | FK a `users.id` |
-| columnas comunes | | | |
+| Columna           | Tipo               | Null | Restricciones            |
+| ----------------- | ------------------ | ---- | ------------------------ |
+| `id`              | `uuid`             | No   | PK                       |
+| `animalId`        | `uuid`             | No   | FK a `animals.id`        |
+| `title`           | `varchar(160)`     | No   |                          |
+| `description`     | `text`             | Si   |                          |
+| `status`          | `care_task_status` | No   | Default `pending`        |
+| `dueAt`           | `timestamptz`      | Si   |                          |
+| `completedAt`     | `timestamptz`      | Si   | Se persiste al completar |
+| `createdByUserId` | `uuid`             | Si   | FK a `users.id`          |
+| columnas comunes  |                    |      |                          |
 
 Enum `care_task_status`:
 
@@ -660,19 +663,19 @@ cancelled
 
 Representa un recurso almacenado externamente en Cloudinary.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `ownerType` | `media_owner_type` | Si | Tipo de propietario polimorfico; `null` solo para assets huerfanos |
-| `ownerId` | `uuid` | Si | ID del propietario polimorfico; `null` solo para assets huerfanos |
-| `resourceType` | `media_resource_type` | No | Default `image` |
-| `cloudinaryPublicId` | `varchar(255)` | No | Unico |
-| `secureUrl` | `varchar(2048)` | No | URL HTTPS |
-| `format` | `varchar(40)` | Si | |
-| `bytes` | `integer` | Si | Tamano del recurso, `CHECK bytes IS NULL OR bytes >= 0` |
-| `uploadedByUserId` | `uuid` | Si | FK a `users.id` |
-| `metadata` | `jsonb` | No | Default `{}` |
-| columnas comunes | | | |
+| Columna              | Tipo                  | Null | Restricciones                                                      |
+| -------------------- | --------------------- | ---- | ------------------------------------------------------------------ |
+| `id`                 | `uuid`                | No   | PK                                                                 |
+| `ownerType`          | `media_owner_type`    | Si   | Tipo de propietario polimorfico; `null` solo para assets huerfanos |
+| `ownerId`            | `uuid`                | Si   | ID del propietario polimorfico; `null` solo para assets huerfanos  |
+| `resourceType`       | `media_resource_type` | No   | Default `image`                                                    |
+| `cloudinaryPublicId` | `varchar(255)`        | No   | Unico                                                              |
+| `secureUrl`          | `varchar(2048)`       | No   | URL HTTPS                                                          |
+| `format`             | `varchar(40)`         | Si   |                                                                    |
+| `bytes`              | `integer`             | Si   | Tamano del recurso, `CHECK bytes IS NULL OR bytes >= 0`            |
+| `uploadedByUserId`   | `uuid`                | Si   | FK a `users.id`                                                    |
+| `metadata`           | `jsonb`               | No   | Default `{}`                                                       |
+| columnas comunes     |                       |      |                                                                    |
 
 Enum `media_owner_type`:
 
@@ -696,16 +699,16 @@ raw
 
 Registra eventos de auditoria de operaciones sensibles. Es append-only.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `actorUserId` | `uuid` | Si | FK a `users.id` |
-| `action` | `audit_action` | No | |
-| `resourceType` | `audit_resource_type` | No | |
-| `resourceId` | `uuid` | Si | ID del recurso afectado; sin FK por ser polimorfico |
-| `occurredAt` | `timestamptz` | No | Timestamp del hecho |
-| `metadata` | `jsonb` | No | Default `{}`; sin secretos |
-| columnas comunes | | | `createdAt`, `updatedAt`, `deletedAt` (siempre `NULL`) |
+| Columna          | Tipo                  | Null | Restricciones                                          |
+| ---------------- | --------------------- | ---- | ------------------------------------------------------ |
+| `id`             | `uuid`                | No   | PK                                                     |
+| `actorUserId`    | `uuid`                | Si   | FK a `users.id`                                        |
+| `action`         | `audit_action`        | No   |                                                        |
+| `resourceType`   | `audit_resource_type` | No   |                                                        |
+| `resourceId`     | `uuid`                | Si   | ID del recurso afectado; sin FK por ser polimorfico    |
+| `occurredAt`     | `timestamptz`         | No   | Timestamp del hecho                                    |
+| `metadata`       | `jsonb`               | No   | Default `{}`; sin secretos                             |
+| columnas comunes |                       |      | `createdAt`, `updatedAt`, `deletedAt` (siempre `NULL`) |
 
 Enum `audit_action`:
 
@@ -746,16 +749,16 @@ authorization
 
 Registra refresh tokens opacos emitidos en `POST /auth/login` y por cada rotacion de `POST /auth/refresh`.
 
-| Columna | Tipo | Null | Restricciones |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | PK |
-| `userId` | `uuid` | No | FK a `users.id` |
-| `familyId` | `uuid` | No | Familia de tokens; un reuso revoca toda la familia |
-| `tokenHash` | `varchar(64)` | No | Hash SHA-256 del token opaco; unico |
-| `expiresAt` | `timestamptz` | No | |
-| `revokedAt` | `timestamptz` | Si | Se setea al rotar, revocar o detectar reuso |
-| `replacedById` | `uuid` | Si | FK a `refresh_tokens.id` (auto-referencia) |
-| columnas comunes | | | `createdAt`, `updatedAt`, `deletedAt` |
+| Columna          | Tipo          | Null | Restricciones                                      |
+| ---------------- | ------------- | ---- | -------------------------------------------------- |
+| `id`             | `uuid`        | No   | PK                                                 |
+| `userId`         | `uuid`        | No   | FK a `users.id`                                    |
+| `familyId`       | `uuid`        | No   | Familia de tokens; un reuso revoca toda la familia |
+| `tokenHash`      | `varchar(64)` | No   | Hash SHA-256 del token opaco; unico                |
+| `expiresAt`      | `timestamptz` | No   |                                                    |
+| `revokedAt`      | `timestamptz` | Si   | Se setea al rotar, revocar o detectar reuso        |
+| `replacedById`   | `uuid`        | Si   | FK a `refresh_tokens.id` (auto-referencia)         |
+| columnas comunes |               |      | `createdAt`, `updatedAt`, `deletedAt`              |
 
 El token opaco nunca se persiste; solo su hash SHA-256. La rotacion ocurre dentro de una transaccion con `SELECT ... FOR UPDATE` sobre `tokenHash` para serializar requests concurrentes. El reuso de un token revocado fuera de la ventana de gracia revoca la familia completa.
 
@@ -958,25 +961,25 @@ Esta relacion se valida en el servicio de aplicacion. No debe confiarse unicamen
 
 Las relaciones implementadas en la migracion inicial son:
 
-| Tabla | Columna | Referencia | `ON DELETE` |
-| --- | --- | --- | --- |
-| `veterinarians` | `userId` | `users.id` | `SET NULL` |
-| `animal_history_events` | `animalId` | `animals.id` | `RESTRICT` |
-| `animal_history_events` | `createdByUserId` | `users.id` | `SET NULL` |
-| `medical_records` | `animalId` | `animals.id` | `RESTRICT` |
-| `medical_records` | `veterinarianId` | `veterinarians.id` | `SET NULL` |
-| `medical_record_changes` | `medicalRecordId` | `medical_records.id` | `RESTRICT` |
-| `medical_record_changes` | `changedByUserId` | `users.id` | `SET NULL` |
-| `expenses` | `animalId` | `animals.id` | `RESTRICT` |
-| `expenses` | `ticketMediaId` | `media_assets.id` | `SET NULL` |
-| `expenses` | `createdByUserId` | `users.id` | `SET NULL` |
-| `care_tasks` | `animalId` | `animals.id` | `RESTRICT` |
-| `care_tasks` | `createdByUserId` | `users.id` | `SET NULL` |
-| `refresh_tokens` | `userId` | `users.id` | `RESTRICT` |
-| `refresh_tokens` | `replacedById` | `refresh_tokens.id` | `SET NULL` |
-| `animals` | `profilePhotoMediaId` | `media_assets.id` | `SET NULL` |
-| `media_assets` | `uploadedByUserId` | `users.id` | `SET NULL` |
-| `audit_logs` | `actorUserId` | `users.id` | `SET NULL` |
+| Tabla                    | Columna               | Referencia           | `ON DELETE` |
+| ------------------------ | --------------------- | -------------------- | ----------- |
+| `veterinarians`          | `userId`              | `users.id`           | `SET NULL`  |
+| `animal_history_events`  | `animalId`            | `animals.id`         | `RESTRICT`  |
+| `animal_history_events`  | `createdByUserId`     | `users.id`           | `SET NULL`  |
+| `medical_records`        | `animalId`            | `animals.id`         | `RESTRICT`  |
+| `medical_records`        | `veterinarianId`      | `veterinarians.id`   | `SET NULL`  |
+| `medical_record_changes` | `medicalRecordId`     | `medical_records.id` | `RESTRICT`  |
+| `medical_record_changes` | `changedByUserId`     | `users.id`           | `SET NULL`  |
+| `expenses`               | `animalId`            | `animals.id`         | `RESTRICT`  |
+| `expenses`               | `ticketMediaId`       | `media_assets.id`    | `SET NULL`  |
+| `expenses`               | `createdByUserId`     | `users.id`           | `SET NULL`  |
+| `care_tasks`             | `animalId`            | `animals.id`         | `RESTRICT`  |
+| `care_tasks`             | `createdByUserId`     | `users.id`           | `SET NULL`  |
+| `refresh_tokens`         | `userId`              | `users.id`           | `RESTRICT`  |
+| `refresh_tokens`         | `replacedById`        | `refresh_tokens.id`  | `SET NULL`  |
+| `animals`                | `profilePhotoMediaId` | `media_assets.id`    | `SET NULL`  |
+| `media_assets`           | `uploadedByUserId`    | `users.id`           | `SET NULL`  |
+| `audit_logs`             | `actorUserId`         | `users.id`           | `SET NULL`  |
 
 La politica evita perder historial clinico, eventos o gastos por borrar accidentalmente un animal. La baja normal debe realizarse mediante `deletedAt`.
 

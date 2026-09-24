@@ -8,10 +8,7 @@ export function resolveEventOccurredAt(
   const resolved = raw ? new Date(raw) : now;
 
   if (resolved.getTime() > now.getTime()) {
-    throw new DomainException(
-      'Event date cannot be in the future.',
-      'OCCURRED_AT_IN_FUTURE',
-    );
+    throw new DomainException('Event date cannot be in the future.', 'OCCURRED_AT_IN_FUTURE');
   }
 
   if (resolved.getTime() < intakeDate.getTime()) {

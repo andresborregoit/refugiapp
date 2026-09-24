@@ -37,6 +37,7 @@ describe('Animals (e2e)', () => {
   let app: INestApplication;
   const animalsService = {
     create: jest.fn(),
+    update: jest.fn(),
     list: jest.fn(),
     findById: jest.fn(),
     changeStatus: jest.fn(),
@@ -210,10 +211,7 @@ describe('Animals (e2e)', () => {
     it('returns 401 when no token is provided', async () => {
       const noTokenApp = await createAppWithGuard(NoTokenJwtAuthGuard);
 
-      await request(noTokenApp.getHttpServer())
-        .post('/api/v1/animals')
-        .send(validDto)
-        .expect(401);
+      await request(noTokenApp.getHttpServer()).post('/api/v1/animals').send(validDto).expect(401);
 
       await noTokenApp.close();
     });
@@ -242,7 +240,14 @@ describe('Animals (e2e)', () => {
 
     await request(app.getHttpServer())
       .get('/api/v1/animals')
-      .query({ page: 2, limit: 10, status: AnimalStatus.ADMITTED, species: 'dog', sex: AnimalSex.FEMALE, name: 'luna' })
+      .query({
+        page: 2,
+        limit: 10,
+        status: AnimalStatus.ADMITTED,
+        species: 'dog',
+        sex: AnimalSex.FEMALE,
+        name: 'luna',
+      })
       .expect(200)
       .expect(({ body }) => {
         expect(body).toMatchObject({ page: 2, limit: 10, total: 11 });
@@ -277,7 +282,9 @@ describe('Animals (e2e)', () => {
   });
 
   it('returns 404 when the animal does not exist', async () => {
-    animalsService.findById.mockRejectedValue(new ResourceNotFoundException('Animal', 'missing-id'));
+    animalsService.findById.mockRejectedValue(
+      new ResourceNotFoundException('Animal', 'missing-id'),
+    );
 
     await request(app.getHttpServer())
       .get('/api/v1/animals/11111111-1111-1111-1111-111111111111')
@@ -285,6 +292,70 @@ describe('Animals (e2e)', () => {
       .expect(({ body }) => {
         expect(body.code).toBe('RESOURCE_NOT_FOUND');
       });
+  });
+
+  describe('PATCH /api/v1/animals/:id', () => {
+    it('updates the profile and photo when called by an admin', async () => {
+      animalsService.update.mockResolvedValue({
+        id: VALID_UUID,
+        name: 'Roger',
+        species: 'cat',
+        profilePhotoMediaId: '22222222-2222-4222-8222-222222222222',
+      });
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({
+          name: 'Roger',
+          profilePhotoMediaId: '22222222-2222-4222-8222-222222222222',
+        })
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.profilePhotoMediaId).toBe('22222222-2222-4222-8222-222222222222');
+        });
+
+      expect(animalsService.update).toHaveBeenCalledWith(
+        VALID_UUID,
+        expect.objectContaining({ name: 'Roger' }),
+      );
+    });
+
+    it('updates the profile when called by a shelter manager', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+      animalsService.update.mockResolvedValue({ id: VALID_UUID, name: 'Roger' });
+
+      await request(managerApp.getHttpServer())
+        .patch(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer manager-token')
+        .send({ name: 'Roger' })
+        .expect(200);
+
+      await managerApp.close();
+    });
+
+    it('returns 403 when called by a veterinarian', async () => {
+      const veterinarianApp = await createAppWithGuard(VeterinarianJwtAuthGuard);
+
+      await request(veterinarianApp.getHttpServer())
+        .patch(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer veterinarian-token')
+        .send({ name: 'Roger' })
+        .expect(403);
+
+      expect(animalsService.update).not.toHaveBeenCalled();
+      await veterinarianApp.close();
+    });
+
+    it('rejects status changes through the profile endpoint', async () => {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ status: AnimalStatus.DECEASED })
+        .expect(400);
+
+      expect(animalsService.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('PATCH /api/v1/animals/:id/status', () => {
@@ -523,9 +594,7 @@ describe('Animals (e2e)', () => {
     });
 
     it('returns 404 when the animal does not exist', async () => {
-      eventsService.create.mockRejectedValue(
-        new ResourceNotFoundException('Animal', VALID_UUID),
-      );
+      eventsService.create.mockRejectedValue(new ResourceNotFoundException('Animal', VALID_UUID));
 
       await request(app.getHttpServer())
         .post(`/api/v1/animals/${VALID_UUID}/events`)
@@ -614,9 +683,7 @@ describe('Animals (e2e)', () => {
     });
 
     it('returns 404 when the animal does not exist', async () => {
-      eventsService.list.mockRejectedValue(
-        new ResourceNotFoundException('Animal', VALID_UUID),
-      );
+      eventsService.list.mockRejectedValue(new ResourceNotFoundException('Animal', VALID_UUID));
 
       await request(app.getHttpServer())
         .get(`/api/v1/animals/${VALID_UUID}/events`)

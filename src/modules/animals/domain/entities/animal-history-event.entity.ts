@@ -3,10 +3,7 @@ import { AnimalStatus } from '../enums/animal-status.enum';
 
 export const INTAKE_EVENT_DESCRIPTION = 'Animal admitted to the shelter.';
 
-export function buildStatusChangeEventDescription(
-  from: AnimalStatus,
-  to: AnimalStatus,
-): string {
+export function buildStatusChangeEventDescription(from: AnimalStatus, to: AnimalStatus): string {
   return `Status changed from ${from} to ${to}.`;
 }
 

@@ -5,7 +5,9 @@ import { AnimalHistoryEventOrmEntity } from '../entities/animal-history-event.or
 import { TypeOrmAnimalHistoryEventRepository } from './typeorm-animal-history-event.repository';
 
 describe('TypeOrmAnimalHistoryEventRepository', () => {
-  let repository: jest.Mocked<Pick<Repository<AnimalHistoryEventOrmEntity>, 'findAndCount' | 'save' | 'create'>>;
+  let repository: jest.Mocked<
+    Pick<Repository<AnimalHistoryEventOrmEntity>, 'findAndCount' | 'save' | 'create'>
+  >;
   let eventRepository: TypeOrmAnimalHistoryEventRepository;
 
   beforeEach(() => {

@@ -30,6 +30,7 @@ import { AnimalResponseDto } from '../dto/animal-response.dto';
 import { ChangeAnimalStatusDto } from '../dto/change-animal-status.dto';
 import { CreateAnimalDto } from '../dto/create-animal.dto';
 import { ListAnimalsQueryDto } from '../dto/list-animals.query.dto';
+import { UpdateAnimalDto } from '../dto/update-animal.dto';
 import { PaginatedAnimalsResponseDto } from '../dto/paginated-animals-response.dto';
 
 @ApiTags('animals')
@@ -44,7 +45,12 @@ export class AnimalsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create an animal' })
   @ApiCreatedResponse({ type: AnimalResponseDto, description: 'Animal created successfully.' })
-  @ApiErrorResponses(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
+  @ApiErrorResponses(
+    HttpStatus.BAD_REQUEST,
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+  )
   create(
     @Body() dto: CreateAnimalDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -72,6 +78,26 @@ export class AnimalsController {
   @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
   findById(@Param('id', ParseUUIDPipe) id: string): Promise<AnimalResponseDto> {
     return this.animalsService.findById(id);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SHELTER_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update an animal profile without changing its status' })
+  @ApiOkResponse({ type: AnimalResponseDto })
+  @ApiErrorResponses(
+    HttpStatus.BAD_REQUEST,
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+    HttpStatus.CONFLICT,
+  )
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAnimalDto,
+  ): Promise<AnimalResponseDto> {
+    return this.animalsService.update(id, dto);
   }
 
   @Patch(':id/status')
