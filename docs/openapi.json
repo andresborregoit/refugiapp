@@ -3753,6 +3753,122 @@
         ]
       }
     },
+    "/api/v1/species": {
+      "get": {
+        "operationId": "SpeciesController_listSpecies",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeciesListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the animal species catalog",
+        "tags": [
+          "species"
+        ]
+      }
+    },
+    "/api/v1/species/{id}/breeds": {
+      "get": {
+        "operationId": "SpeciesController_listBreeds",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Species id (UUID).",
+            "schema": {
+              "format": "uuid",
+              "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreedListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the breeds for a species",
+        "tags": [
+          "species"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_liveness",
@@ -5524,6 +5640,83 @@
         "required": [
           "totals",
           "recentAnimals"
+        ]
+      },
+      "SpeciesResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+          },
+          "slug": {
+            "type": "string",
+            "example": "dog"
+          },
+          "labelEs": {
+            "type": "string",
+            "example": "Perro"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "labelEs"
+        ]
+      },
+      "SpeciesListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpeciesResponseDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "BreedResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+          },
+          "speciesId": {
+            "type": "string",
+            "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+          },
+          "slug": {
+            "type": "string",
+            "example": "labrador-retriever"
+          },
+          "labelEs": {
+            "type": "string",
+            "example": "Labrador retriever"
+          }
+        },
+        "required": [
+          "id",
+          "speciesId",
+          "slug",
+          "labelEs"
+        ]
+      },
+      "BreedListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreedResponseDto"
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       }
     }

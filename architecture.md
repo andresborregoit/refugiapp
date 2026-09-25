@@ -110,6 +110,7 @@ src/
     care-tasks/
     dashboard/
     medical-records/
+    species/
     veterinarians/
     expenses/
     media/
@@ -227,6 +228,8 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `DELETE /media/:id`                      | Permitido | Permitido         | Permitido      |
 | `GET /audit-logs`                        | Permitido | Rechazado         | Rechazado      |
 | `GET /audit-logs/:id`                    | Permitido | Rechazado         | Rechazado      |
+| `GET /species`                           | Permitido | Permitido         | Permitido      |
+| `GET /species/:id/breeds`                | Permitido | Permitido         | Permitido      |
 
 En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset. Ademas, el usuario que subio un asset huerfano puede borrarlo con `DELETE /media/:id` aunque sea `veterinarian`, para cubrir el flujo subir -> cancelar antes de vincular.
 
@@ -326,6 +329,20 @@ No contiene credenciales. Cuando corresponde, se vincula opcionalmente con `user
 La administracion se realiza mediante `POST /veterinarians`, `GET /veterinarians`, `GET /veterinarians/:id`, `PATCH /veterinarians/:id` y `POST /veterinarians/:id/deactivate`. El listado usa paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. Admite filtros por `name`, `licenseNumber` e `isActive`; por defecto lista veterinarios activos.
 
 La desactivacion no borra ni aplica soft delete. Solo actualiza `isActive=false` para conservar la vinculacion historica desde `medical_records`.
+
+### `species`
+
+Expone el catalogo versionado de especies y razas para alimentar los formularios de animales del frontend. Es un modulo de solo lectura: no persiste escrituras propias ni modifica datos de otros dominios.
+
+La consulta se realiza mediante `GET /species` y `GET /species/:id/breeds`. Ambos requieren JWT y admiten `admin`, `shelter_manager` y `veterinarian`.
+
+`GET /species` devuelve las especies activas (`isActive=true`) sin paginacion (catalogo acotado), con orden determinista `sortOrder ASC, id ASC`. Cada item expone `id`, `slug` (estable en ingles, p. ej. `dog`) y `labelEs` (etiqueta en español, p. ej. `Perro`).
+
+`GET /species/:id/breeds` devuelve las razas activas de la especie indicada por su UUID, con orden `labelEs ASC, id ASC`. Si la especie no existe o esta inactiva, responde `404 RESOURCE_NOT_FOUND`. Cada item expone `id`, `speciesId`, `slug` y `labelEs`.
+
+El `slug` es la clave estable para el frontend (keyeo y fallback local); el `id` UUID es interno. El seed idempotente de la migracion `1792000000000-AddSpeciesCatalog` carga `dog/Perro`, `cat/Gato`, `rabbit/Conejo`, `bird/Ave` y `other/Otro` con un conjunto comun de razas y la opcion `other/Otra` por especie.
+
+Los endpoints de creacion y edicion de animales (`POST /animals`, `PATCH /animals/:id`) siguen aceptando `species` y `breed` como texto libre en esta iteracion para no romper altas existentes; la validacion estricta contra el catalogo queda fuera de este alcance (S11). El modulo no introduce una capacidad nueva en `ROLE_CAPABILITIES` porque es lectura transversal.
 
 ### `expenses`
 
@@ -762,6 +779,32 @@ Registra refresh tokens opacos emitidos en `POST /auth/login` y por cada rotacio
 
 El token opaco nunca se persiste; solo su hash SHA-256. La rotacion ocurre dentro de una transaccion con `SELECT ... FOR UPDATE` sobre `tokenHash` para serializar requests concurrentes. El reuso de un token revocado fuera de la ventana de gracia revoca la familia completa.
 
+### 6.13 `species`
+
+Representa una especie del catalogo.
+
+| Columna          | Tipo           | Null | Restricciones                 |
+| ---------------- | -------------- | ---- | ----------------------------- |
+| `id`             | `uuid`         | No   | PK                            |
+| `slug`           | `varchar(80)`  | No   | Unico, estable en ingles      |
+| `labelEs`        | `varchar(120)` | No   | Etiqueta en español           |
+| `isActive`       | `boolean`      | No   | Default `true`                |
+| `sortOrder`      | `integer`      | No   | Default `0`, orden de catalogo|
+| columnas comunes |                |      |                               |
+
+### 6.14 `breeds`
+
+Representa una raza perteneciente a una especie.
+
+| Columna          | Tipo           | Null | Restricciones                       |
+| ---------------- | -------------- | ---- | ----------------------------------- |
+| `id`             | `uuid`         | No   | PK                                  |
+| `speciesId`      | `uuid`         | No   | FK a `species.id`                   |
+| `slug`           | `varchar(80)`  | No   | Unico junto a `speciesId`           |
+| `labelEs`        | `varchar(120)` | No   |                                     |
+| `isActive`       | `boolean`      | No   | Default `true`                      |
+| columnas comunes |                |      |                                     |
+
 ## 7. Diagrama entidad-relacion
 
 El siguiente DER representa las foreign keys reales de PostgreSQL. La relacion polimorfica de `media_assets` se muestra separadamente porque `ownerId` no puede tener una foreign key a varias tablas al mismo tiempo.
@@ -923,6 +966,28 @@ erDiagram
         timestamptz deletedAt
     }
 
+    SPECIES {
+        uuid id PK
+        varchar slug UK
+        varchar labelEs
+        boolean isActive
+        integer sortOrder
+        timestamptz createdAt
+        timestamptz updatedAt
+        timestamptz deletedAt
+    }
+
+    BREEDS {
+        uuid id PK
+        uuid speciesId FK,UK
+        varchar slug
+        varchar labelEs
+        boolean isActive
+        timestamptz createdAt
+        timestamptz updatedAt
+        timestamptz deletedAt
+    }
+
     USERS ||--o| VETERINARIANS : "may have professional profile"
     USERS ||--o{ ANIMAL_HISTORY_EVENTS : "creates"
     USERS ||--o{ EXPENSES : "registers"
@@ -940,6 +1005,7 @@ erDiagram
     MEDICAL_RECORDS ||--o{ MEDICAL_RECORD_CHANGES : "has changes"
     USERS ||--o{ MEDICAL_RECORD_CHANGES : "changes"
     USERS ||--o{ AUDIT_LOGS : "performs"
+    SPECIES ||--o{ BREEDS : "has breeds"
 ```
 
 ### Relacion polimorfica de media
@@ -980,6 +1046,7 @@ Las relaciones implementadas en la migracion inicial son:
 | `animals`                | `profilePhotoMediaId` | `media_assets.id`    | `SET NULL`  |
 | `media_assets`           | `uploadedByUserId`    | `users.id`           | `SET NULL`  |
 | `audit_logs`             | `actorUserId`         | `users.id`           | `SET NULL`  |
+| `breeds`                 | `speciesId`           | `species.id`         | `RESTRICT`  |
 
 La politica evita perder historial clinico, eventos o gastos por borrar accidentalmente un animal. La baja normal debe realizarse mediante `deletedAt`.
 
@@ -1012,6 +1079,10 @@ La migracion inicial crea:
 - Indice en `audit_logs.occurredAt`.
 - Indice en `audit_logs.actorUserId`.
 - Indice compuesto en `audit_logs.resourceType, resourceId`.
+- Indice unico en `species.slug`.
+- Indice en `species.sortOrder`.
+- Indice unico compuesto en `breeds (speciesId, slug)`.
+- Indice compuesto en `breeds (speciesId, labelEs)`.
 
 Los indices nuevos deben justificarse por consultas reales o por una restriccion de integridad. No agregar indices indiscriminadamente.
 
@@ -1089,6 +1160,8 @@ La migracion `1790000000000-AddOrphanMediaCleanupIndex.ts` agrega el indice parc
 La migracion `1791000000000-AddCareTasks.ts` agrega las acciones de auditoria de tareas de cuidado al enum `audit_action`, el recurso `care_task` a `audit_resource_type`, el enum `care_task_status` y la tabla `care_tasks` con sus indices y foreign keys.
 
 La migracion `1791000000001-AddRefreshTokens.ts` agrega las acciones de auditoria de renovacion de sesion (`auth.refresh_success`, `auth.refresh_failure`), la tabla `refresh_tokens` con su indice unico de `tokenHash`, indices de `familyId`/`userId`/`expiresAt` y las foreign keys a `users` y a la propia tabla.
+
+La migracion `1792000000000-AddSpeciesCatalog.ts` crea las tablas `species` y `breeds` con sus indices y foreign key, y carga el seed inicial idempotente (5 especies y razas comunes por especie, incluida la opcion `other/Otra`) mediante `ON CONFLICT DO NOTHING`.
 
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
 
@@ -1200,6 +1273,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Backup y recuperacion de PostgreSQL con retencion definida, prueba de restauracion aislada y procedimiento de incidente.
 - Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista y sin conexion a la base con `npm run openapi:export`; la configuracion del documento vive en `src/config/swagger.config.ts` y es compartida con `main.ts`. CI reexporta el documento y falla si el contrato cambio sin actualizarse.
 - Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts`, especificacion humana en `docs/role-capabilities.md` y tests unitarios que la congelan.
+- Catalogo de especies y razas (`GET /species`, `GET /species/:id/breeds`) de solo lectura, con `slug` estable, `labelEs`, seed idempotente, orden determinista y acceso a los tres roles autenticados; los endpoints de animales conservan `species`/`breed` como texto libre (validacion estricta contra el catalogo pendiente, S11).
 - Teardown resiliente de las suites de persistencia: el helper `teardownPersistence` cierra base, app y contenedor sin añadir errores secundarios cuando el arranque falla por falta de Docker, y `startIsolatedPostgres` falla con un mensaje explicativo. Todo en `test/utils/persistence-test-setup.ts`.
 
 ### Pendiente

@@ -50,6 +50,7 @@ Implementado:
 - Backup y recuperacion de PostgreSQL con retencion, checksum, restauracion aislada y prueba automatizada.
 - Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista con `npm run openapi:export`.
 - Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts` y especificacion en `docs/role-capabilities.md`.
+- Catalogo de especies y razas (`GET /species`, `GET /species/:id/breeds`) de solo lectura, con `slug` estable, `labelEs`, seed idempotente y acceso a los tres roles autenticados.
 - Teardown resiliente de los tests de persistencia: no añade errores secundarios cuando Docker no esta disponible.
 
 Pendiente:
@@ -100,6 +101,7 @@ src/
     animals/
     dashboard/
     medical-records/
+    species/
     veterinarians/
     expenses/
     media/
@@ -119,6 +121,7 @@ Modulos iniciales:
 - `animals`: ficha general del animal e historial general del refugio.
 - `dashboard`: read-model del panel de control con totales por estado y animales recientes.
 - `medical-records`: historial clinico/veterinario.
+- `species`: catalogo de especies y razas para los formularios de animales.
 - `veterinarians`: veterinarios responsables.
 - `expenses`: gastos asociados a animales y referencia a tickets.
 - `media`: metadata de archivos e imagenes en Cloudinary.
@@ -200,6 +203,8 @@ npm run backup:verify
 Los backups deben permanecer cifrados y privados. Nunca se publican como artifacts de CI ni se versionan en Git.
 
 La migracion `1788897600000-AddBreedToAnimals.ts` agrega el campo opcional `breed` a `animals`.
+
+La migracion `1792000000000-AddSpeciesCatalog.ts` crea las tablas `species` y `breeds` con sus indices y foreign key, y carga el seed idempotente de especies y razas (`ON CONFLICT DO NOTHING`).
 
 La migracion `1789399460070-AddAuditLogs.ts` crea la tabla append-only `audit_logs` con sus enums, indices y foreign key a `users`.
 

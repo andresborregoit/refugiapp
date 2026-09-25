@@ -14,6 +14,7 @@ import { ExpensesModule } from './modules/expenses/expenses.module';
 import { HealthModule } from './modules/health/health.module';
 import { MediaModule } from './modules/media/media.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
+import { SpeciesModule } from './modules/species/species.module';
 import { UsersModule } from './modules/users/users.module';
 import { VeterinariansModule } from './modules/veterinarians/veterinarians.module';
 import { appConfig } from './config/app.config';
@@ -51,6 +52,7 @@ import { envValidationSchema } from './config/validation.schema';
     CareTasksModule,
     DashboardModule,
     MedicalRecordsModule,
+    SpeciesModule,
     VeterinariansModule,
     ExpensesModule,
     MediaModule,
