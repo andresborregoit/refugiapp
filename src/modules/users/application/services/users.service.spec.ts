@@ -13,6 +13,7 @@ const mockedHashPassword = hashPassword as jest.MockedFunction<typeof hashPasswo
 describe('UsersService', () => {
   let service: UsersService;
   const mockRepository = {
+    findMany: jest.fn(),
     findById: jest.fn(),
     findByEmail: jest.fn(),
     findCredentialsByEmail: jest.fn(),
@@ -27,6 +28,17 @@ describe('UsersService', () => {
   beforeEach(() => {
     service = new UsersService(mockRepository as any, mockAuditLogsService as any);
     jest.clearAllMocks();
+  });
+
+  describe('listUsers', () => {
+    it('delegates pagination and returns the repository result', async () => {
+      const query = { page: 2, limit: 10 };
+      const paginated = { items: [], page: 2, limit: 10, total: 11 };
+      mockRepository.findMany.mockResolvedValue(paginated);
+
+      await expect(service.listUsers(query)).resolves.toEqual(paginated);
+      expect(mockRepository.findMany).toHaveBeenCalledWith(query);
+    });
   });
 
   describe('createUser', () => {

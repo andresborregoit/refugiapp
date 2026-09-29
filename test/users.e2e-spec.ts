@@ -22,6 +22,7 @@ const VALID_UUID = '11111111-1111-1111-1111-111111111111';
 
 describe('Users (e2e)', () => {
   const mockUsersService = {
+    listUsers: jest.fn(),
     createUser: jest.fn(),
     deactivateUser: jest.fn(),
     activateUser: jest.fn(),
@@ -191,6 +192,53 @@ describe('Users (e2e)', () => {
         .expect(401);
 
       await noTokenApp.close();
+    });
+  });
+
+  describe('GET /api/v1/users', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      app = await createApp(AlwaysActiveJwtAuthGuard);
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    it('lists users with pagination for an admin', async () => {
+      mockUsersService.listUsers.mockResolvedValue({ items: [], page: 2, limit: 10, total: 11 });
+
+      await request(app.getHttpServer())
+        .get('/api/v1/users?page=2&limit=10')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body).toEqual({ items: [], page: 2, limit: 10, total: 11 });
+          expect(mockUsersService.listUsers).toHaveBeenCalledWith({ page: 2, limit: 10 });
+        });
+    });
+
+    it('returns 400 for invalid pagination parameters', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/users?page=0&limit=101')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(400);
+    });
+
+    it('returns 403 for non-admin roles', async () => {
+      const managerApp = await createApp(ManagerJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .get('/api/v1/users')
+        .set('Authorization', 'Bearer manager-token')
+        .expect(403);
+
+      await managerApp.close();
     });
   });
 

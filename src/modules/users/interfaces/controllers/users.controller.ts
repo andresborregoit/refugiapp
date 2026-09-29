@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -28,6 +29,8 @@ import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-u
 import { ErrorResponseDto } from '../../../../common/interfaces/error-response.dto';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 import { CreateUserDto } from '../dto/create-user.dto';
+import { ListUsersQueryDto } from '../dto/list-users.query.dto';
+import { PaginatedUsersResponseDto } from '../dto/paginated-users-response.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
 import { UsersService } from '../../application/services/users.service';
 
@@ -55,6 +58,22 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<UserResponseDto> {
     return this.usersService.createUser(dto, user.id);
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'List internal users including inactive accounts (admin only)' })
+  @ApiOkResponse({ type: PaginatedUsersResponseDto, description: 'Paginated users.' })
+  @ApiErrorResponses(
+    HttpStatus.BAD_REQUEST,
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
+  listUsers(@Query() query: ListUsersQueryDto) {
+    return this.usersService.listUsers(query);
   }
 
   @Post(':id/deactivate')

@@ -5,6 +5,7 @@ import { UsersController } from './users.controller';
 describe('UsersController', () => {
   let controller: UsersController;
   const mockUsersService = {
+    listUsers: jest.fn(),
     getProfile: jest.fn(),
   };
 
@@ -61,6 +62,17 @@ describe('UsersController', () => {
         isActive: true,
       });
       expect(result).not.toHaveProperty('passwordHash');
+    });
+  });
+
+  describe('listUsers', () => {
+    it('delegates the validated pagination query to the service', async () => {
+      const query = { page: 2, limit: 10 };
+      const result = { items: [], page: 2, limit: 10, total: 0 };
+      mockUsersService.listUsers.mockResolvedValue(result);
+
+      await expect(controller.listUsers(query as any)).resolves.toEqual(result);
+      expect(mockUsersService.listUsers).toHaveBeenCalledWith(query);
     });
   });
 });
