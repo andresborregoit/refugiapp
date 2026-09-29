@@ -43,6 +43,7 @@ const ERROR_SCHEMA_REF = '#/components/schemas/ErrorResponseDto';
 const USER_PATHS: Record<string, Record<string, string[]>> = {
   '/users': {
     post: ['400', '401', '403', '409', '429'],
+    get: ['400', '401', '403', '429'],
   },
   '/users/me': {
     get: ['401', '403', '404', '429'],
@@ -66,6 +67,7 @@ describe('Users Swagger contract', () => {
           provide: UsersService,
           useValue: {
             createUser: jest.fn(),
+            listUsers: jest.fn(),
             deactivateUser: jest.fn(),
             activateUser: jest.fn(),
             getProfile: jest.fn(),
@@ -154,11 +156,33 @@ describe('Users Swagger contract', () => {
       expect(schemaOf('UserResponseDto').properties).not.toHaveProperty('passwordHash');
     });
 
-    it('does not expose pagination fields (page, limit, total, items) because GET /users does not exist yet', () => {
+    it('does not expose pagination fields (page, limit, total, items) on the item DTO', () => {
       const properties = schemaOf('UserResponseDto').properties as Record<string, JsonSchema>;
       for (const paginationField of ['page', 'limit', 'total', 'items']) {
         expect(properties).not.toHaveProperty(paginationField);
       }
+    });
+  });
+
+  describe('GET /users', () => {
+    it('documents pagination parameters and the paginated response', () => {
+      const operation = operationOf('get', '/users');
+      const parameters = operation.parameters ?? [];
+
+      expect(parameters.find((parameter) => parameter.name === 'page')?.schema).toMatchObject({
+        type: 'number',
+        minimum: 1,
+        default: 1,
+      });
+      expect(parameters.find((parameter) => parameter.name === 'limit')?.schema).toMatchObject({
+        type: 'number',
+        minimum: 1,
+        maximum: 100,
+        default: 20,
+      });
+      expect(operation.responses?.['200']?.content?.['application/json']?.schema?.$ref).toBe(
+        '#/components/schemas/PaginatedUsersResponseDto',
+      );
     });
   });
 

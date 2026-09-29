@@ -4,7 +4,11 @@ import { Repository } from 'typeorm';
 import { CreateUserCredentials } from '../../../../domain/entities/create-user-credentials.entity';
 import { UserCredentials } from '../../../../domain/entities/user-credentials.entity';
 import { User } from '../../../../domain/entities/user.entity';
-import { UserRepository } from '../../../../domain/repositories/user.repository';
+import {
+  PaginatedUsers,
+  UserListQuery,
+  UserRepository,
+} from '../../../../domain/repositories/user.repository';
 import { UserOrmEntity } from '../entities/user.orm-entity';
 
 @Injectable()
@@ -30,6 +34,22 @@ export class TypeOrmUserRepository implements UserRepository {
     const entity = await this.repository.findOne({ where: { email } });
 
     return entity ? this.toCredentials(entity) : null;
+  }
+
+  async findMany(query: UserListQuery): Promise<PaginatedUsers> {
+    const [entities, total] = await this.repository.findAndCount({
+      withDeleted: true,
+      order: { createdAt: 'DESC', id: 'ASC' },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
+
+    return {
+      items: entities.map((entity) => this.toDomain(entity)),
+      page: query.page,
+      limit: query.limit,
+      total,
+    };
   }
 
   async create(input: CreateUserCredentials): Promise<User> {

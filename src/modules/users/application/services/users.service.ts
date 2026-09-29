@@ -10,6 +10,7 @@ import { CreateUserCredentials } from '../../domain/entities/create-user-credent
 import { User } from '../../domain/entities/user.entity';
 import { USER_REPOSITORY, UserRepository } from '../../domain/repositories/user.repository';
 import { CreateUserDto } from '../../interfaces/dto/create-user.dto';
+import { ListUsersQueryDto } from '../../interfaces/dto/list-users.query.dto';
 
 @Injectable()
 export class UsersService {
@@ -31,6 +32,10 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  listUsers(query: ListUsersQueryDto) {
+    return this.userRepository.findMany(query);
   }
 
   findByEmail(email: string) {
