@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UserResponseDto } from '../../../users/interfaces/dto/user-response.dto';
 
 export class VeterinarianResponseDto {
   @ApiProperty()
@@ -33,4 +34,11 @@ export class VeterinarianResponseDto {
 
   @ApiPropertyOptional()
   updatedAt?: Date;
+
+  @ApiPropertyOptional({
+    type: UserResponseDto,
+    nullable: true,
+    description: 'Linked user profile, without passwordHash. Null when no user is linked.',
+  })
+  user?: UserResponseDto | null;
 }

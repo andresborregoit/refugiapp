@@ -2,15 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, QueryFailedError, Repository } from 'typeorm';
 import { ResourceConflictException } from '../../../../../../common/exceptions/resource-conflict.exception';
+import { ResourceNotFoundException } from '../../../../../../common/exceptions/resource-not-found.exception';
+import { UserRole } from '../../../../../../common/enums/user-role.enum';
+import { User } from '../../../../../users/domain/entities/user.entity';
+import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 import { CreateVeterinarian } from '../../../../domain/entities/create-veterinarian.entity';
 import { UpdateVeterinarian } from '../../../../domain/entities/update-veterinarian.entity';
 import { Veterinarian } from '../../../../domain/entities/veterinarian.entity';
 import {
+  CreateVeterinarianWithUserInput,
   PaginatedVeterinarians,
   VeterinarianListQuery,
   VeterinarianRepository,
+  VeterinarianWithUser,
 } from '../../../../domain/repositories/veterinarian.repository';
 import { VeterinarianOrmEntity } from '../entities/veterinarian.orm-entity';
+
+const USER_RELATION = { user: true } as const;
 
 @Injectable()
 export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
@@ -40,20 +48,87 @@ export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
     }
   }
 
+  async createWithUser(input: CreateVeterinarianWithUserInput): Promise<VeterinarianWithUser> {
+    try {
+      const result = await this.repository.manager.transaction(async (manager) => {
+        const userRepository = manager.getRepository(UserOrmEntity);
+        const veterinarianRepository = manager.getRepository(VeterinarianOrmEntity);
+
+        let resolvedUserId: string | null = null;
+        let resolvedUser: UserOrmEntity | null = null;
+
+        if (input.createUser) {
+          const createdUser = await userRepository.save(
+            userRepository.create({
+              email: input.createUser.email,
+              passwordHash: input.createUser.passwordHash,
+              firstName: input.createUser.firstName,
+              lastName: input.createUser.lastName,
+              roles: [UserRole.VETERINARIAN],
+              isActive: true,
+            }),
+          );
+          resolvedUserId = createdUser.id;
+          resolvedUser = createdUser;
+        } else if (input.linkUserId) {
+          const linkedUser = await userRepository.findOne({ where: { id: input.linkUserId } });
+
+          if (!linkedUser) {
+            throw new ResourceNotFoundException('User', input.linkUserId);
+          }
+
+          if (input.ensureRole && !linkedUser.roles.includes(input.ensureRole)) {
+            linkedUser.roles = [...linkedUser.roles, input.ensureRole];
+            await userRepository.save(linkedUser);
+          }
+
+          resolvedUserId = linkedUser.id;
+          resolvedUser = linkedUser;
+        }
+
+        const entity = veterinarianRepository.create({
+          firstName: input.veterinarian.firstName,
+          lastName: input.veterinarian.lastName,
+          licenseNumber: input.veterinarian.licenseNumber,
+          userId: resolvedUserId,
+          email: input.veterinarian.email,
+          phone: input.veterinarian.phone,
+          notes: input.veterinarian.notes,
+          isActive: true,
+        });
+
+        const saved = await veterinarianRepository.save(entity);
+        saved.user = resolvedUser;
+
+        return {
+          veterinarian: this.toDomain(saved),
+          user: resolvedUser ? this.toUserDomain(resolvedUser) : null,
+        };
+      });
+
+      return result;
+    } catch (error) {
+      throw mapUniqueConstraintError(error);
+    }
+  }
+
   async findById(id: string): Promise<Veterinarian | null> {
-    const entity = await this.repository.findOne({ where: { id } });
+    const entity = await this.repository.findOne({ where: { id }, relations: USER_RELATION });
 
     return entity ? this.toDomain(entity) : null;
   }
 
   async findByLicenseNumber(licenseNumber: string): Promise<Veterinarian | null> {
-    const entity = await this.repository.findOne({ where: { licenseNumber } });
+    const entity = await this.repository.findOne({
+      where: { licenseNumber },
+      relations: USER_RELATION,
+    });
 
     return entity ? this.toDomain(entity) : null;
   }
 
   async findByUserId(userId: string): Promise<Veterinarian | null> {
-    const entity = await this.repository.findOne({ where: { userId } });
+    const entity = await this.repository.findOne({ where: { userId }, relations: USER_RELATION });
 
     return entity ? this.toDomain(entity) : null;
   }
@@ -79,6 +154,7 @@ export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
       order: { lastName: 'ASC', firstName: 'ASC', id: 'ASC' },
       skip: (query.page - 1) * query.limit,
       take: query.limit,
+      relations: USER_RELATION,
     });
 
     return {
@@ -90,7 +166,7 @@ export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
   }
 
   async update(id: string, input: UpdateVeterinarian): Promise<Veterinarian | null> {
-    const entity = await this.repository.findOne({ where: { id } });
+    const entity = await this.repository.findOne({ where: { id }, relations: USER_RELATION });
 
     if (!entity) {
       return null;
@@ -125,16 +201,17 @@ export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
     }
 
     try {
-      const saved = await this.repository.save(entity);
+      await this.repository.save(entity);
+      const saved = await this.repository.findOne({ where: { id }, relations: USER_RELATION });
 
-      return this.toDomain(saved);
+      return saved ? this.toDomain(saved) : null;
     } catch (error) {
       throw mapUniqueConstraintError(error);
     }
   }
 
   async deactivate(id: string): Promise<Veterinarian | null> {
-    const entity = await this.repository.findOne({ where: { id } });
+    const entity = await this.repository.findOne({ where: { id }, relations: USER_RELATION });
 
     if (!entity) {
       return null;
@@ -157,6 +234,20 @@ export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
       entity.email ?? null,
       entity.phone ?? null,
       entity.notes ?? null,
+      entity.isActive,
+      entity.createdAt,
+      entity.updatedAt,
+      entity.user ? this.toUserDomain(entity.user) : null,
+    );
+  }
+
+  private toUserDomain(entity: UserOrmEntity): User {
+    return new User(
+      entity.id,
+      entity.email,
+      entity.firstName,
+      entity.lastName,
+      entity.roles,
       entity.isActive,
       entity.createdAt,
       entity.updatedAt,
@@ -183,6 +274,13 @@ function mapUniqueConstraintError(error: unknown): never {
       throw new ResourceConflictException(
         'User is already linked to another veterinarian.',
         'USER_ALREADY_LINKED_TO_VETERINARIAN',
+      );
+    }
+
+    if (constraint === 'IDX_97672ac88f789774dd47f7c8be') {
+      throw new ResourceConflictException(
+        'Email is already registered.',
+        'EMAIL_ALREADY_EXISTS',
       );
     }
   }

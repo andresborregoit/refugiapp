@@ -1,3 +1,5 @@
+import { User } from '../../../users/domain/entities/user.entity';
+
 export class Veterinarian {
   constructor(
     public readonly id: string,
@@ -11,5 +13,6 @@ export class Veterinarian {
     public readonly isActive: boolean,
     public readonly createdAt?: Date,
     public readonly updatedAt?: Date,
+    public readonly user?: User | null,
   ) {}
 }
