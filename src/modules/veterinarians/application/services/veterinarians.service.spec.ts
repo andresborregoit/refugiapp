@@ -1,6 +1,10 @@
+import { BadRequestException } from '@nestjs/common';
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { UserRole } from '../../../../common/enums/user-role.enum';
+import { AuditAction } from '../../../audit-logs/domain/enums/audit-action.enum';
+import { AuditResourceType } from '../../../audit-logs/domain/enums/audit-resource-type.enum';
+import { AuditLogsService } from '../../../audit-logs/application/services/audit-logs.service';
 import { UsersService } from '../../../users/application/services/users.service';
 import { User } from '../../../users/domain/entities/user.entity';
 import { CreateVeterinarian } from '../../domain/entities/create-veterinarian.entity';
@@ -11,6 +15,7 @@ import { UpdateVeterinarianDto } from '../../interfaces/dto/update-veterinarian.
 import { VeterinariansService } from './veterinarians.service';
 
 describe('VeterinariansService', () => {
+  const actorId = 'actor-id';
   const veterinarian = new Veterinarian(
     'veterinarian-id',
     null,
@@ -30,8 +35,17 @@ describe('VeterinariansService', () => {
     [UserRole.VETERINARIAN],
     true,
   );
+  const userWithoutRole = new User(
+    'user-id',
+    'sofia.user@refugiapp.local',
+    'Sofia',
+    'Martinez',
+    [UserRole.SHELTER_MANAGER],
+    true,
+  );
   const veterinarianRepository = {
     create: jest.fn(),
+    createWithUser: jest.fn(),
     findById: jest.fn(),
     findByLicenseNumber: jest.fn(),
     findByUserId: jest.fn(),
@@ -41,6 +55,10 @@ describe('VeterinariansService', () => {
   };
   const usersService = {
     findById: jest.fn(),
+    findByEmail: jest.fn(),
+  };
+  const auditLogsService = {
+    record: jest.fn(),
   };
   let service: VeterinariansService;
 
@@ -49,6 +67,7 @@ describe('VeterinariansService', () => {
     service = new VeterinariansService(
       veterinarianRepository,
       usersService as unknown as UsersService,
+      auditLogsService as unknown as AuditLogsService,
     );
   });
 
@@ -66,7 +85,7 @@ describe('VeterinariansService', () => {
       veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
       veterinarianRepository.create.mockResolvedValue(veterinarian);
 
-      const result = await service.create(createDto());
+      const result = await service.create(createDto(), actorId);
 
       expect(usersService.findById).not.toHaveBeenCalled();
       expect(veterinarianRepository.create).toHaveBeenCalledWith(expect.any(CreateVeterinarian));
@@ -83,39 +102,200 @@ describe('VeterinariansService', () => {
         notes: null,
       });
       expect(result).toBe(veterinarian);
+      expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 
     it('creates a veterinarian linked to an existing user', async () => {
       veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
       veterinarianRepository.findByUserId.mockResolvedValue(null);
       usersService.findById.mockResolvedValue(user);
-      veterinarianRepository.create.mockResolvedValue(veterinarian);
+      veterinarianRepository.createWithUser.mockResolvedValue({ veterinarian, user });
 
-      await service.create(
+      const result = await service.create(
         createDto({
           userId: 'user-id',
           email: ' SOFIA@REFUGIAPP.LOCAL ',
           phone: ' +5491100000000 ',
           notes: ' Clinical lead ',
         }),
+        actorId,
       );
 
       expect(usersService.findById).toHaveBeenCalledWith('user-id');
       expect(veterinarianRepository.findByUserId).toHaveBeenCalledWith('user-id');
-      expect(veterinarianRepository.create).toHaveBeenCalledWith(
+      expect(veterinarianRepository.createWithUser).toHaveBeenCalledWith(
+        expect.objectContaining({ linkUserId: 'user-id' }),
+      );
+      expect(veterinarianRepository.createWithUser).not.toHaveBeenCalledWith(
+        expect.objectContaining({ createUser: expect.anything() }),
+      );
+
+      const input = veterinarianRepository.createWithUser.mock.calls[0]![0].veterinarian as CreateVeterinarian;
+
+      expect(input).toMatchObject({
+        firstName: 'Sofia',
+        lastName: 'Martinez',
+        licenseNumber: 'VET-001',
+        userId: 'user-id',
+        email: 'sofia@refugiapp.local',
+        phone: '+5491100000000',
+        notes: 'Clinical lead',
+      });
+      expect(result).toBe(veterinarian);
+    });
+
+    it('creates a user with the veterinarian role and links it in the same transaction', async () => {
+      const createdUser = new User(
+        'created-user-id',
+        'vet@refugiapp.local',
+        'Sofia',
+        'Martinez',
+        [UserRole.VETERINARIAN],
+        true,
+      );
+      veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
+      usersService.findByEmail.mockResolvedValue(null);
+      veterinarianRepository.createWithUser.mockResolvedValue({ veterinarian, user: createdUser });
+
+      await service.create(
+        createDto({
+          email: 'vet@refugiapp.local',
+          createUser: {
+            password: 'Refugia-2026-secure',
+            firstName: ' Sofia ',
+            lastName: ' Martinez ',
+          },
+        }),
+        actorId,
+      );
+
+      expect(usersService.findByEmail).toHaveBeenCalledWith('vet@refugiapp.local');
+      expect(veterinarianRepository.createWithUser).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: 'user-id',
-          email: 'sofia@refugiapp.local',
-          phone: '+5491100000000',
-          notes: 'Clinical lead',
+          createUser: expect.objectContaining({
+            email: 'vet@refugiapp.local',
+            firstName: 'Sofia',
+            lastName: 'Martinez',
+          }),
         }),
       );
+
+      const createUserInput = veterinarianRepository.createWithUser.mock.calls[0]![0].createUser;
+
+      expect(createUserInput.passwordHash).toEqual(expect.any(String));
+      expect(createUserInput.passwordHash).not.toBe('Refugia-2026-secure');
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: actorId,
+          action: AuditAction.USER_CREATE,
+          resourceType: AuditResourceType.USER,
+          resourceId: createdUser.id,
+          metadata: { email: createdUser.email, roles: createdUser.roles },
+        }),
+      );
+    });
+
+    it('reuses an existing unlinked user by email and grants the veterinarian role', async () => {
+      veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
+      usersService.findByEmail.mockResolvedValue(userWithoutRole);
+      veterinarianRepository.findByUserId.mockResolvedValue(null);
+      veterinarianRepository.createWithUser.mockResolvedValue({ veterinarian, user: userWithoutRole });
+
+      await service.create(
+        createDto({
+          createUser: {
+            email: 'sofia.user@refugiapp.local',
+            password: 'Refugia-2026-secure',
+          },
+        }),
+        actorId,
+      );
+
+      expect(veterinarianRepository.createWithUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          linkUserId: 'user-id',
+          ensureRole: UserRole.VETERINARIAN,
+        }),
+      );
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.USER_ROLE_ASSIGN,
+          resourceType: AuditResourceType.USER,
+          resourceId: 'user-id',
+          metadata: {
+            email: userWithoutRole.email,
+            roles: [UserRole.SHELTER_MANAGER, UserRole.VETERINARIAN],
+          },
+        }),
+      );
+    });
+
+    it('does not audit role assignment when the reused user already has the veterinarian role', async () => {
+      veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
+      usersService.findByEmail.mockResolvedValue(user);
+      veterinarianRepository.findByUserId.mockResolvedValue(null);
+      veterinarianRepository.createWithUser.mockResolvedValue({ veterinarian, user });
+
+      await service.create(
+        createDto({
+          createUser: {
+            email: 'sofia.user@refugiapp.local',
+            password: 'Refugia-2026-secure',
+          },
+        }),
+        actorId,
+      );
+
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws ResourceConflictException when the reused user is already linked to another veterinarian', async () => {
+      veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
+      usersService.findByEmail.mockResolvedValue(user);
+      veterinarianRepository.findByUserId.mockResolvedValue(veterinarian);
+
+      await expect(
+        service.create(
+          createDto({
+            createUser: {
+              email: 'sofia.user@refugiapp.local',
+              password: 'Refugia-2026-secure',
+            },
+          }),
+          actorId,
+        ),
+      ).rejects.toThrow(ResourceConflictException);
+      expect(veterinarianRepository.createWithUser).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when userId and createUser are both present', async () => {
+      veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
+
+      await expect(
+        service.create(
+          createDto({
+            userId: 'user-id',
+            createUser: { password: 'Refugia-2026-secure' },
+          }),
+          actorId,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(veterinarianRepository.create).not.toHaveBeenCalled();
+      expect(veterinarianRepository.createWithUser).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when createUser has no email and the profile has none', async () => {
+      veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
+
+      await expect(
+        service.create(createDto({ createUser: { password: 'Refugia-2026-secure' } }), actorId),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws ResourceConflictException when licenseNumber is duplicated', async () => {
       veterinarianRepository.findByLicenseNumber.mockResolvedValue(veterinarian);
 
-      await expect(service.create(createDto())).rejects.toThrow(ResourceConflictException);
+      await expect(service.create(createDto(), actorId)).rejects.toThrow(ResourceConflictException);
       expect(veterinarianRepository.create).not.toHaveBeenCalled();
     });
 
@@ -123,10 +303,10 @@ describe('VeterinariansService', () => {
       veterinarianRepository.findByLicenseNumber.mockResolvedValue(null);
       usersService.findById.mockResolvedValue(null);
 
-      await expect(service.create(createDto({ userId: 'missing-user-id' }))).rejects.toThrow(
+      await expect(service.create(createDto({ userId: 'missing-user-id' }), actorId)).rejects.toThrow(
         ResourceNotFoundException,
       );
-      expect(veterinarianRepository.create).not.toHaveBeenCalled();
+      expect(veterinarianRepository.createWithUser).not.toHaveBeenCalled();
     });
 
     it('throws ResourceConflictException when user is already linked', async () => {
@@ -134,10 +314,10 @@ describe('VeterinariansService', () => {
       usersService.findById.mockResolvedValue(user);
       veterinarianRepository.findByUserId.mockResolvedValue(veterinarian);
 
-      await expect(service.create(createDto({ userId: 'user-id' }))).rejects.toThrow(
+      await expect(service.create(createDto({ userId: 'user-id' }), actorId)).rejects.toThrow(
         ResourceConflictException,
       );
-      expect(veterinarianRepository.create).not.toHaveBeenCalled();
+      expect(veterinarianRepository.createWithUser).not.toHaveBeenCalled();
     });
   });
 

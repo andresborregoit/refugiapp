@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ExecutionContext,
   INestApplication,
@@ -131,7 +132,82 @@ describe('Veterinarians (e2e)', () => {
         licenseNumber: 'VET-001',
         isActive: true,
       });
-      expect(veterinariansService.create).toHaveBeenCalledWith(expect.objectContaining(validDto));
+      expect(veterinariansService.create).toHaveBeenCalledWith(
+        expect.objectContaining(validDto),
+        adminPayload.id,
+      );
+    });
+
+    it('creates a veterinarian with a nested createUser payload when called by an admin', async () => {
+      const linkedUser = {
+        id: USER_UUID,
+        email: 'vet@refugiapp.local',
+        firstName: 'Sofia',
+        lastName: 'Martinez',
+        roles: [UserRole.VETERINARIAN],
+        isActive: true,
+      };
+      veterinariansService.create.mockResolvedValue(
+        createVeterinarian({ userId: USER_UUID, user: linkedUser }),
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/veterinarians')
+        .set('Authorization', 'Bearer admin-token')
+        .send({
+          ...validDto,
+          email: 'vet@refugiapp.local',
+          createUser: { password: 'Refugia-2026-secure' },
+        })
+        .expect(201);
+
+      expect(res.body.user).toMatchObject({ id: USER_UUID, email: 'vet@refugiapp.local' });
+      expect(res.body.user).not.toHaveProperty('passwordHash');
+      expect(veterinariansService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'vet@refugiapp.local',
+          createUser: { password: 'Refugia-2026-secure' },
+        }),
+        adminPayload.id,
+      );
+    });
+
+    it('returns 400 when the nested createUser password is too short', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/veterinarians')
+        .set('Authorization', 'Bearer admin-token')
+        .send({ ...validDto, createUser: { password: 'short' } })
+        .expect(400);
+
+      expect(veterinariansService.create).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when the nested createUser email is invalid', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/veterinarians')
+        .set('Authorization', 'Bearer admin-token')
+        .send({ ...validDto, createUser: { password: 'Refugia-2026-secure', email: 'not-an-email' } })
+        .expect(400);
+
+      expect(veterinariansService.create).not.toHaveBeenCalled();
+    });
+
+    it('propagates a 400 VET_USER_PAYLOAD_CONFLICT when userId and createUser are both present', async () => {
+      veterinariansService.create.mockRejectedValue(
+        new BadRequestException({
+          code: 'VET_USER_PAYLOAD_CONFLICT',
+          message: 'Provide either userId or createUser, not both.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .post('/api/v1/veterinarians')
+        .set('Authorization', 'Bearer admin-token')
+        .send({ ...validDto, userId: USER_UUID, createUser: { password: 'Refugia-2026-secure' } })
+        .expect(400)
+        .expect(({ body }) => {
+          expect(body.code).toBe('VET_USER_PAYLOAD_CONFLICT');
+        });
     });
 
     it('creates a veterinarian linked to an optional userId when called by a manager', async () => {
@@ -146,6 +222,7 @@ describe('Veterinarians (e2e)', () => {
 
       expect(veterinariansService.create).toHaveBeenCalledWith(
         expect.objectContaining({ licenseNumber: 'VET-001', userId: USER_UUID }),
+        managerPayload.id,
       );
 
       await managerApp.close();

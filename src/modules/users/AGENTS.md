@@ -19,3 +19,7 @@
 - `GET /users` devuelve una pagina determinista de usuarios solo para `admin`, incluye cuentas activas e inactivas mediante `withDeleted`, ordena por `createdAt DESC` e `id ASC`, y nunca expone `passwordHash`.
 - `createUser`, `deactivateUser` y `activateUser` reciben el `actorId` autenticado y registran eventos en `audit_logs` (`user.create`, `user.deactivate`, `user.activate`, `user.role_assign`).
 - Los eventos de auditoria nunca incluyen `passwordHash` ni passwords; `metadata` solo lleva `email` y `roles`.
+
+## Relacion con `veterinarians`
+- El modulo `veterinarians` puede crear un usuario con rol `veterinarian` (alta conjunta atomica) o reutilizar un usuario existente no vinculado y otorgarle ese rol. No duplicar emails: `users.email` es unico y el repositorio de veterinarios mapea la violacion de unicidad a `409 EMAIL_ALREADY_EXISTS`.
+- `VeterinarianResponseDto` referencia `UserResponseDto` para exponer el perfil vinculado sin `passwordHash`; mantener ese contrato al modificar `UserResponseDto`.

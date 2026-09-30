@@ -1780,6 +1780,7 @@
     },
     "/api/v1/veterinarians": {
       "post": {
+        "description": "Optionally creates and links a user with the veterinarian role in the same transaction (createUser). If the createUser email already belongs to an unlinked user, that user is reused and the veterinarian role is granted. userId and createUser are mutually exclusive.",
         "operationId": "VeterinariansController_create",
         "parameters": [],
         "requestBody": {
@@ -1844,7 +1845,24 @@
             }
           },
           "409": {
-            "description": "License number or user already linked."
+            "description": "License number, email or user already linked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The request rate limit was exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1961,6 +1979,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "The request rate limit was exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2020,6 +2048,16 @@
           },
           "404": {
             "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The request rate limit was exceeded.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2113,7 +2151,24 @@
             }
           },
           "409": {
-            "description": "License number or user already linked."
+            "description": "License number or user already linked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The request rate limit was exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2166,6 +2221,16 @@
           },
           "404": {
             "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The request rate limit was exceeded.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4958,6 +5023,38 @@
           "total"
         ]
       },
+      "CreateVeterinarianUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "vet@refugiapp.local",
+            "description": "Login email for the new user. Defaults to the veterinarian email when omitted."
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 12,
+            "example": "Refugia-2026-secure",
+            "writeOnly": true,
+            "description": "Plain text password for the new user. Never exposed by the API."
+          },
+          "firstName": {
+            "type": "string",
+            "example": "Sofia",
+            "description": "First name for the new user. Defaults to the veterinarian first name."
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Martinez",
+            "description": "Last name for the new user. Defaults to the veterinarian last name."
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
       "CreateVeterinarianDto": {
         "type": "object",
         "properties": {
@@ -4977,10 +5074,23 @@
             "type": "string"
           },
           "userId": {
-            "type": "object"
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "example": "22222222-2222-4222-8222-222222222222",
+            "description": "Id of an existing user to link. Mutually exclusive with createUser. Prefer createUser over typing a raw UUID."
+          },
+          "createUser": {
+            "description": "Creates a user with the veterinarian role and links it in the same transaction. If the email already exists on an unlinked user, it is reused and the veterinarian role is granted.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CreateVeterinarianUserDto"
+              }
+            ]
           },
           "notes": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -5030,6 +5140,16 @@
           "updatedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "user": {
+            "nullable": true,
+            "description": "Linked user profile, without passwordHash. Null when no user is linked.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserResponseDto"
+              }
+            ]
           }
         },
         "required": [
