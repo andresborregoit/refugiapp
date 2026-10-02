@@ -29,7 +29,9 @@ describe('AuthService', () => {
   };
   const usersService = {
     findCredentialsByEmail: jest.fn(),
+    findCredentialsById: jest.fn(),
     findById: jest.fn(),
+    updatePassword: jest.fn(),
   };
   const auditLogsService = {
     record: jest.fn(),
@@ -37,6 +39,15 @@ describe('AuthService', () => {
   const refreshTokenRepository = {
     create: jest.fn(),
     rotate: jest.fn(),
+    revokeAllForUser: jest.fn(),
+  };
+  const passwordResetTokenRepository = {
+    create: jest.fn(),
+    consumeAndUpdatePassword: jest.fn(),
+  };
+  const passwordNotificationGateway = {
+    sendPasswordReset: jest.fn(),
+    sendPasswordChanged: jest.fn(),
   };
   let service: AuthService;
   let activeUser: UserCredentials;
@@ -62,6 +73,8 @@ describe('AuthService', () => {
       usersService as any,
       auditLogsService as any,
       refreshTokenRepository as any,
+      passwordResetTokenRepository as any,
+      passwordNotificationGateway as any,
     );
   });
 
@@ -187,6 +200,100 @@ describe('AuthService', () => {
       );
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'auth.refresh_failure' }),
+      );
+    });
+  });
+
+  describe('password management', () => {
+    it('rejects a password change when the current password is incorrect', async () => {
+      usersService.findCredentialsById.mockResolvedValue(activeUser);
+
+      await expect(
+        service.changePassword('user-id', {
+          currentPassword: 'incorrect-password',
+          newPassword: 'new-password-value',
+        }),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: expect.objectContaining({ code: 'INVALID_CURRENT_PASSWORD' }),
+      });
+      expect(usersService.updatePassword).not.toHaveBeenCalled();
+    });
+
+    it('changes the password, revokes refresh sessions, and sends a notification', async () => {
+      usersService.findCredentialsById.mockResolvedValue(activeUser);
+      passwordNotificationGateway.sendPasswordChanged.mockResolvedValue(undefined);
+
+      await service.changePassword('user-id', {
+        currentPassword: 'correct-password',
+        newPassword: 'new-password-value',
+      });
+
+      expect(usersService.updatePassword).toHaveBeenCalledWith('user-id', expect.any(String));
+      expect(refreshTokenRepository.revokeAllForUser).toHaveBeenCalledWith('user-id');
+      expect(passwordNotificationGateway.sendPasswordChanged).toHaveBeenCalledWith(
+        'admin@refugiapp.local',
+      );
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'auth.password_change' }),
+      );
+    });
+
+    it('returns the same generic recovery response for an unknown account', async () => {
+      usersService.findCredentialsByEmail.mockResolvedValue(null);
+
+      const response = await service.requestPasswordReset({ email: 'missing@refugiapp.local' });
+
+      expect(response.message).toContain('If an active account exists');
+      expect(passwordResetTokenRepository.create).not.toHaveBeenCalled();
+      expect(passwordNotificationGateway.sendPasswordReset).not.toHaveBeenCalled();
+    });
+
+    it('stores only the recovery token hash and delivers the raw token', async () => {
+      usersService.findCredentialsByEmail.mockResolvedValue(activeUser);
+      passwordNotificationGateway.sendPasswordReset.mockResolvedValue(undefined);
+
+      await service.requestPasswordReset({ email: 'ADMIN@refugiapp.local' });
+
+      const stored = passwordResetTokenRepository.create.mock.calls[0]![0] as {
+        tokenHash: string;
+      };
+      const delivered = passwordNotificationGateway.sendPasswordReset.mock.calls[0]![1] as string;
+      expect(stored.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(stored.tokenHash).not.toBe(delivered);
+    });
+
+    it.each([
+      ['expired', 'PASSWORD_RESET_TOKEN_EXPIRED'],
+      ['already_used', 'PASSWORD_RESET_TOKEN_ALREADY_USED'],
+      ['not_found', 'INVALID_PASSWORD_RESET_TOKEN'],
+    ] as const)('rejects a %s recovery token', async (status, code) => {
+      passwordResetTokenRepository.consumeAndUpdatePassword.mockResolvedValue({ status });
+
+      await expect(
+        service.confirmPasswordReset({ token: 'recovery-token', newPassword: 'new-password-value' }),
+      ).rejects.toMatchObject({ status: 401, response: expect.objectContaining({ code }) });
+    });
+
+    it('completes recovery and sends the password changed notification', async () => {
+      passwordResetTokenRepository.consumeAndUpdatePassword.mockResolvedValue({
+        status: 'consumed',
+        userId: 'user-id',
+        email: 'admin@refugiapp.local',
+      });
+      passwordNotificationGateway.sendPasswordChanged.mockResolvedValue(undefined);
+
+      await service.confirmPasswordReset({
+        token: 'recovery-token',
+        newPassword: 'new-password-value',
+      });
+
+      expect(passwordResetTokenRepository.consumeAndUpdatePassword).toHaveBeenCalledWith(
+        expect.stringMatching(/^[0-9a-f]{64}$/),
+        expect.stringMatching(/^\$2[aby]\$/),
+      );
+      expect(passwordNotificationGateway.sendPasswordChanged).toHaveBeenCalledWith(
+        'admin@refugiapp.local',
       );
     });
   });

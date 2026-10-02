@@ -73,6 +73,16 @@ export const envValidationSchema = Joi.object({
     .max(3_600_000)
     .default(30 * 1000),
 
+  PASSWORD_RESET_TOKEN_TTL_MS: Joi.number()
+    .integer()
+    .min(60_000)
+    .max(86_400_000)
+    .default(30 * 60 * 1000),
+  PASSWORD_RESET_URL: Joi.string().uri().default('http://localhost:3000/reset-password'),
+  PASSWORD_NOTIFICATION_WEBHOOK_URL: Joi.string().uri().allow('').default(''),
+  PASSWORD_NOTIFICATION_WEBHOOK_SECRET: Joi.string().allow('').default(''),
+  PASSWORD_NOTIFICATION_TIMEOUT_MS: Joi.number().integer().min(100).max(30_000).default(5000),
+
   CLOUDINARY_CLOUD_NAME: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string().min(1).required(),

@@ -3,6 +3,7 @@
 ## Responsabilidad
 - Maneja autenticacion JWT, estrategias Passport, guards de autenticacion y emision de tokens.
 - Emite y rota refresh tokens opacos con deteccion de reuso.
+- Gestiona cambio autenticado y recuperacion de contraseña con tokens opacos de un solo uso.
 - No debe almacenar usuarios directamente ni conocer detalles de persistencia de usuarios.
 
 ## Convenciones
@@ -25,6 +26,9 @@
 
 ## Seguridad
 - Nunca retornar hashes de password ni hashes de refresh tokens.
+- Los tokens de recuperacion se persisten solo como SHA-256, expiran, se consumen una vez y revocan todas las sesiones refresh al cambiar la contraseña.
+- Las solicitudes de recuperacion siempre devuelven la misma respuesta, exista o no una cuenta activa.
+- Las notificaciones de contraseña se delegan al gateway de infrastructure; nunca loguear el token ni la URL de recuperacion.
 - Usar secretos desde `ConfigService`.
 - Mantener expiracion, issuer y audience configurables por entorno.
 - El TTL del refresh token se configura con `JWT_REFRESH_TOKEN_TTL_MS` (default 7 dias).

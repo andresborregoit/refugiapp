@@ -10,6 +10,7 @@ import { MediaAssetOrmEntity } from '../../src/modules/media/infrastructure/pers
 import { MedicalRecordChangeOrmEntity } from '../../src/modules/medical-records/infrastructure/persistence/typeorm/entities/medical-record-change.orm-entity';
 import { MedicalRecordOrmEntity } from '../../src/modules/medical-records/infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { RefreshTokenOrmEntity } from '../../src/modules/auth/infrastructure/persistence/typeorm/entities/refresh-token.orm-entity';
+import { PasswordResetTokenOrmEntity } from '../../src/modules/auth/infrastructure/persistence/typeorm/entities/password-reset-token.orm-entity';
 import { UserOrmEntity } from '../../src/modules/users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 import { VeterinarianOrmEntity } from '../../src/modules/veterinarians/infrastructure/persistence/typeorm/entities/veterinarian.orm-entity';
 
@@ -37,6 +38,7 @@ const ALL_ENTITIES = [
   MedicalRecordChangeOrmEntity,
   MedicalRecordOrmEntity,
   RefreshTokenOrmEntity,
+  PasswordResetTokenOrmEntity,
   UserOrmEntity,
   VeterinarianOrmEntity,
 ];
@@ -50,6 +52,7 @@ const ALL_TABLES = [
   'veterinarians',
   'media_assets',
   'care_tasks',
+  'password_reset_tokens',
   'refresh_tokens',
   'audit_logs',
   'users',

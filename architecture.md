@@ -166,6 +166,8 @@ sub, email, roles
 
 El refresh valida que el usuario siga existiendo y activo antes de emitir tokens nuevos. El TTL del refresh token se configura con `JWT_REFRESH_TOKEN_TTL_MS` (default 7 dias). El login registra `auth.login_success`/`auth.login_failure` y el refresh `auth.refresh_success`/`auth.refresh_failure` en `audit_logs`; el metadata solo incluye `email` y el motivo, nunca tokens ni hashes.
 
+`POST /auth/change-password` permite al usuario autenticado cambiar su contraseña tras verificar la actual. `POST /auth/password-recovery/request` responde siempre `202` con el mismo mensaje para cuentas existentes, inexistentes o inactivas. Para una cuenta activa genera un token opaco, persiste solo su hash SHA-256 y solicita la entrega por email mediante el webhook configurado. `POST /auth/password-recovery/confirm` consume el token una sola vez dentro de una transaccion, valida su expiracion y actualiza el hash de contraseña. Tanto el cambio autenticado como la recuperacion revocan todos los refresh tokens activos y emiten una notificacion de cambio. La politica minima reutiliza `PASSWORD_MIN_LENGTH` y `hashPassword`.
+
 ### `users`
 
 Gestiona la identidad y el acceso de usuarios internos del refugio.
@@ -192,6 +194,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `POST /users/:id/deactivate`             | Permitido | Rechazado         | Rechazado      |
 | `POST /users/:id/activate`               | Permitido | Rechazado         | Rechazado      |
 | `GET /users/me`                          | Permitido | Permitido         | Permitido      |
+| `POST /auth/change-password`             | Permitido | Permitido         | Permitido      |
 | `POST /animals`                          | Permitido | Permitido         | Rechazado      |
 | `GET /animals`                           | Permitido | Permitido         | Permitido      |
 | `GET /animals/:id`                       | Permitido | Permitido         | Permitido      |
@@ -394,6 +397,8 @@ expense.create, expense.soft_delete
 care_task.create, care_task.update, care_task.complete, care_task.cancel
 auth.login_success, auth.login_failure
 auth.refresh_success, auth.refresh_failure
+auth.password_change, auth.password_reset_requested
+auth.password_reset_completed, auth.password_reset_failed
 access.denied
 ```
 
@@ -772,6 +777,18 @@ Registra refresh tokens opacos emitidos en `POST /auth/login` y por cada rotacio
 | `expiresAt`      | `timestamptz` | No   |                                                    |
 | `revokedAt`      | `timestamptz` | Si   | Se setea al rotar, revocar o detectar reuso        |
 | `replacedById`   | `uuid`        | Si   | FK a `refresh_tokens.id` (auto-referencia)         |
+
+### 6.13 `password_reset_tokens`
+
+Registra tokens opacos de recuperacion. Solo se almacena `tokenHash` (SHA-256); `usedAt` invalida el token tras consumirlo o reemplazarlo por una solicitud posterior. La confirmacion bloquea la fila con `SELECT ... FOR UPDATE`, actualiza la contraseña y revoca refresh tokens en la misma transaccion.
+
+| Campo       | Tipo          | Null | Regla                                  |
+| ----------- | ------------- | ---- | -------------------------------------- |
+| `id`        | `uuid`        | No   | PK                                     |
+| `userId`    | `uuid`        | No   | FK a `users.id`, `ON DELETE CASCADE`   |
+| `tokenHash` | `varchar(64)` | No   | Unico; nunca contiene el token original |
+| `expiresAt` | `timestamptz` | No   | Expiracion configurable                |
+| `usedAt`    | `timestamptz` | Si   | Consumo o invalidacion                 |
 | columnas comunes |               |      | `createdAt`, `updatedAt`, `deletedAt`              |
 
 El token opaco nunca se persiste; solo su hash SHA-256. La rotacion ocurre dentro de una transaccion con `SELECT ... FOR UPDATE` sobre `tokenHash` para serializar requests concurrentes. El reuso de un token revocado fuera de la ventana de gracia revoca la familia completa.
@@ -991,6 +1008,7 @@ Las relaciones implementadas en la migracion inicial son:
 | `care_tasks`             | `createdByUserId`     | `users.id`           | `SET NULL`  |
 | `refresh_tokens`         | `userId`              | `users.id`           | `RESTRICT`  |
 | `refresh_tokens`         | `replacedById`        | `refresh_tokens.id`  | `SET NULL`  |
+| `password_reset_tokens`  | `userId`              | `users.id`           | `CASCADE`   |
 | `animals`                | `profilePhotoMediaId` | `media_assets.id`    | `SET NULL`  |
 | `media_assets`           | `uploadedByUserId`    | `users.id`           | `SET NULL`  |
 | `audit_logs`             | `actorUserId`         | `users.id`           | `SET NULL`  |
@@ -1019,6 +1037,8 @@ La migracion inicial crea:
 - Indice en `refresh_tokens.familyId`.
 - Indice en `refresh_tokens.userId`.
 - Indice en `refresh_tokens.expiresAt`.
+- Indice unico en `password_reset_tokens.tokenHash`.
+- Indices en `password_reset_tokens.userId` y `password_reset_tokens.expiresAt`.
 - Indice compuesto en `media_assets.ownerType, ownerId`.
 - Indice unico en `media_assets.cloudinaryPublicId`.
 - Indice parcial en `media_assets (createdAt, id) WHERE ownerType IS NULL AND ownerId IS NULL AND deletedAt IS NULL` (`IDX_media_assets_orphan_cleanup`), que respalda la consulta del job de limpieza de huerfanos.
@@ -1103,6 +1123,8 @@ La migracion `1790000000000-AddOrphanMediaCleanupIndex.ts` agrega el indice parc
 La migracion `1791000000000-AddCareTasks.ts` agrega las acciones de auditoria de tareas de cuidado al enum `audit_action`, el recurso `care_task` a `audit_resource_type`, el enum `care_task_status` y la tabla `care_tasks` con sus indices y foreign keys.
 
 La migracion `1791000000001-AddRefreshTokens.ts` agrega las acciones de auditoria de renovacion de sesion (`auth.refresh_success`, `auth.refresh_failure`), la tabla `refresh_tokens` con su indice unico de `tokenHash`, indices de `familyId`/`userId`/`expiresAt` y las foreign keys a `users` y a la propia tabla.
+
+La migracion `1792000000000-AddPasswordRecovery.ts` agrega las acciones de auditoria de contraseñas y la tabla `password_reset_tokens`, con hash unico, expiracion, consumo de un solo uso y FK a `users`.
 
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
 
@@ -1203,6 +1225,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Panel de control de solo lectura (`GET /dashboard/overview`) con totales por estado, animales recientes y `DashboardAnimalDto` alineado a la respuesta real (`profilePhotoMediaId` nullable), contrato Swagger con ejemplo UUID y E2E de presencia del campo, autorizacion y correlation ID.
 - CRUD de tareas de cuidado (`care-tasks`) con validacion del animal, estados `pending`/`completed`/`cancelled`, transiciones acotadas, edicion parcial con limpieza por `null`, escritura protegida por roles y auditoria (`care_task.create/update/complete/cancel`).
 - Refresh tokens opacos con rotacion atomica (`POST /auth/refresh`), hash SHA-256 persistido, familias (`familyId`), deteccion de reuso con ventana de gracia y revocacion de familia, auditoria de `auth.refresh_success`/`auth.refresh_failure`.
+- Cambio autenticado y recuperacion de contraseña con politica compartida, tokens opacos de un solo uso, respuesta anti-enumeracion, notificacion por webhook de email, revocacion de sesiones y auditoria.
 - E2E de dashboard, care-tasks y rotacion concurrente de refresh tokens contra PostgreSQL real y descartable mediante Testcontainers, incluida la renovacion concurrente que deja un unico token valido.
 - Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL, estado `degraded` y `503` cuando la base no responde.
 - Logs estructurados en JSON con redaccion de datos sensibles y correlation ID por request (`x-request-id`) propagado a logs y respuestas de error.

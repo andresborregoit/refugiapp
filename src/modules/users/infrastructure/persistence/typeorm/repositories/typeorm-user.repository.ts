@@ -36,6 +36,12 @@ export class TypeOrmUserRepository implements UserRepository {
     return entity ? this.toCredentials(entity) : null;
   }
 
+  async findCredentialsById(id: string): Promise<UserCredentials | null> {
+    const entity = await this.repository.findOne({ where: { id } });
+
+    return entity ? this.toCredentials(entity) : null;
+  }
+
   async findMany(query: UserListQuery): Promise<PaginatedUsers> {
     const [entities, total] = await this.repository.findAndCount({
       withDeleted: true,
@@ -90,6 +96,10 @@ export class TypeOrmUserRepository implements UserRepository {
     const saved = await this.repository.save(entity);
 
     return this.toDomain(saved);
+  }
+
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    await this.repository.update({ id }, { passwordHash });
   }
 
   private toDomain(entity: UserOrmEntity): User {

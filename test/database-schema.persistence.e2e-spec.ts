@@ -44,6 +44,7 @@ const DOMAIN_TABLES = [
   'expenses',
   'media_assets',
   'care_tasks',
+  'password_reset_tokens',
   'refresh_tokens',
   'audit_logs',
 ];
@@ -145,6 +146,10 @@ describe('PostgreSQL schema contract (integration)', () => {
       'care_task.cancel',
       'auth.refresh_success',
       'auth.refresh_failure',
+      'auth.password_change',
+      'auth.password_reset_requested',
+      'auth.password_reset_completed',
+      'auth.password_reset_failed',
     ]);
     expect(enums.audit_resource_type).toEqual([
       'user',
@@ -208,6 +213,7 @@ describe('PostgreSQL schema contract (integration)', () => {
     expectFk('care_tasks', 'createdByUserId', 'users', 'SET NULL');
     expectFk('refresh_tokens', 'userId', 'users', 'RESTRICT');
     expectFk('refresh_tokens', 'replacedById', 'refresh_tokens', 'SET NULL');
+    expectFk('password_reset_tokens', 'userId', 'users', 'CASCADE');
   });
 
   it('declares the documented indexes and unique constraints', async () => {
@@ -262,6 +268,9 @@ describe('PostgreSQL schema contract (integration)', () => {
     expectIndex('refresh_tokens', ['familyId']);
     expectIndex('refresh_tokens', ['userId']);
     expectIndex('refresh_tokens', ['expiresAt']);
+    expectIndex('password_reset_tokens', ['tokenHash'], true);
+    expectIndex('password_reset_tokens', ['userId']);
+    expectIndex('password_reset_tokens', ['expiresAt']);
   });
 
   it('declares the CHECK constraints for non-negative money and bytes', async () => {

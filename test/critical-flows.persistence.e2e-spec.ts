@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { DataSource } from 'typeorm';
+import { DataSource, IsNull } from 'typeorm';
 import { IsolatedPostgres, resetDatabase, startIsolatedPostgres, teardownPersistence } from './utils/persistence-test-setup';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { UserRole } from '../src/common/enums/user-role.enum';
@@ -24,6 +24,8 @@ import { MediaAssetOrmEntity } from '../src/modules/media/infrastructure/persist
 import { MedicalRecordType } from '../src/modules/medical-records/domain/enums/medical-record-type.enum';
 import { MedicalRecordOrmEntity } from '../src/modules/medical-records/infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { UserOrmEntity } from '../src/modules/users/infrastructure/persistence/typeorm/entities/user.orm-entity';
+import { PASSWORD_NOTIFICATION_GATEWAY } from '../src/modules/auth/domain/services/password-notification.gateway';
+import { PasswordResetTokenOrmEntity } from '../src/modules/auth/infrastructure/persistence/typeorm/entities/password-reset-token.orm-entity';
 
 const TEST_PASSWORD = 'Rfg45-Integration-Password';
 const ADMIN_EMAIL = 'admin.rfg45@refugiapp.test';
@@ -34,6 +36,10 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
   let database: DataSource;
   let isolated: IsolatedPostgres;
   let passwordHash: string;
+  const passwordNotificationGateway = {
+    sendPasswordReset: jest.fn<Promise<void>, [string, string, Date]>(),
+    sendPasswordChanged: jest.fn<Promise<void>, [string]>(),
+  };
 
   const cloudinaryStorage: jest.Mocked<
     Pick<CloudinaryStorageService, 'buildUploadFolder' | 'upload' | 'delete'>
@@ -73,6 +79,8 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
     })
       .overrideProvider(CloudinaryStorageService)
       .useValue(cloudinaryStorage)
+      .overrideProvider(PASSWORD_NOTIFICATION_GATEWAY)
+      .useValue(passwordNotificationGateway)
       .compile();
 
     database = moduleRef.get(DataSource);
@@ -141,6 +149,86 @@ describe('Critical flows with PostgreSQL persistence (e2e)', () => {
       code: invalidPassword.body.code,
       message: invalidPassword.body.message,
     });
+  });
+
+  it('changes an authenticated password only with the correct current password', async () => {
+    await seedUser(ADMIN_EMAIL, [UserRole.ADMIN]);
+    const loginResponse = await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/login`)
+      .send({ email: ADMIN_EMAIL, password: TEST_PASSWORD })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/change-password`)
+      .set('Authorization', `Bearer ${loginResponse.body.accessToken as string}`)
+      .send({ currentPassword: 'wrong-current-password', newPassword: 'New-Password-Value-123' })
+      .expect(401)
+      .expect(({ body }) => expect(body.code).toBe('INVALID_CURRENT_PASSWORD'));
+
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/change-password`)
+      .set('Authorization', `Bearer ${loginResponse.body.accessToken as string}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: 'New-Password-Value-123' })
+      .expect(204);
+
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/login`)
+      .send({ email: ADMIN_EMAIL, password: TEST_PASSWORD })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/login`)
+      .send({ email: ADMIN_EMAIL, password: 'New-Password-Value-123' })
+      .expect(200);
+
+    expect(passwordNotificationGateway.sendPasswordChanged).toHaveBeenCalledWith(ADMIN_EMAIL);
+  });
+
+  it('completes recovery once, rejects reuse and expiry, and does not enumerate accounts', async () => {
+    await seedUser(ADMIN_EMAIL, [UserRole.ADMIN]);
+
+    const existing = await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/password-recovery/request`)
+      .send({ email: ADMIN_EMAIL })
+      .expect(202);
+    const missing = await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/password-recovery/request`)
+      .send({ email: 'missing@refugiapp.test' })
+      .expect(202);
+
+    expect(missing.body).toEqual(existing.body);
+    const recoveryToken = passwordNotificationGateway.sendPasswordReset.mock.calls[0]![1];
+
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/password-recovery/confirm`)
+      .send({ token: recoveryToken, newPassword: 'Recovered-Password-123' })
+      .expect(204);
+
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/password-recovery/confirm`)
+      .send({ token: recoveryToken, newPassword: 'Another-Password-123' })
+      .expect(401)
+      .expect(({ body }) => expect(body.code).toBe('PASSWORD_RESET_TOKEN_ALREADY_USED'));
+
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/login`)
+      .send({ email: ADMIN_EMAIL, password: 'Recovered-Password-123' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/password-recovery/request`)
+      .send({ email: ADMIN_EMAIL })
+      .expect(202);
+    const expiredToken = passwordNotificationGateway.sendPasswordReset.mock.calls[1]![1];
+    await database.getRepository(PasswordResetTokenOrmEntity).update(
+      { usedAt: IsNull() },
+      { expiresAt: new Date(Date.now() - 1000) },
+    );
+
+    await request(app.getHttpServer())
+      .post(`${API_PREFIX}/auth/password-recovery/confirm`)
+      .send({ token: expiredToken, newPassword: 'Expired-Password-123' })
+      .expect(401)
+      .expect(({ body }) => expect(body.code).toBe('PASSWORD_RESET_TOKEN_EXPIRED'));
   });
 
   it('covers user persistence, validation, 401, 403, deactivation and reactivation', async () => {

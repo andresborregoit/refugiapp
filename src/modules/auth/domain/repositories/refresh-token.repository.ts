@@ -26,4 +26,5 @@ export type RefreshRotationResult =
 export interface RefreshTokenRepository {
   create(input: CreateRefreshToken): Promise<RefreshToken>;
   rotate(input: RotateRefreshTokenInput): Promise<RefreshRotationResult>;
+  revokeAllForUser(userId: string): Promise<void>;
 }
