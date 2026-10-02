@@ -1,3 +1,4 @@
+import { UserRole } from '../../../../common/enums/user-role.enum';
 import { CreateUserCredentials } from '../entities/create-user-credentials.entity';
 import { User } from '../entities/user.entity';
 import { UserCredentials } from '../entities/user-credentials.entity';
@@ -14,6 +15,13 @@ export interface PaginatedUsers {
   total: number;
 }
 
+export interface UpdateUserData {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  roles?: UserRole[];
+}
+
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 
 export interface UserRepository {
@@ -23,6 +31,8 @@ export interface UserRepository {
   findCredentialsById(id: string): Promise<UserCredentials | null>;
   findMany(query: UserListQuery): Promise<PaginatedUsers>;
   create(input: CreateUserCredentials): Promise<User>;
+  update(id: string, input: UpdateUserData): Promise<User | null>;
+  countActiveAdmins(excludeId?: string): Promise<number>;
   softDelete(id: string): Promise<void>;
   activate(id: string): Promise<User | null>;
   updatePassword(id: string, passwordHash: string): Promise<void>;

@@ -53,6 +53,7 @@ Nota: `POST /medical-records/:id/restore` esta reservado a `admin`; `shelter_man
 Solo `admin` gestiona usuarios internos y roles:
 
 - `POST /users`
+- `PATCH /users/:id`
 - `POST /users/:id/deactivate`
 - `POST /users/:id/activate`
 
