@@ -1,4 +1,4 @@
-import { ConflictException, INestApplication, NotFoundException, UnauthorizedException, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ConflictException, INestApplication, NotFoundException, UnauthorizedException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -11,10 +11,11 @@ import { UsersController } from '../src/modules/users/interfaces/controllers/use
 import { UsersService } from '../src/modules/users/application/services/users.service';
 import { User } from '../src/modules/users/domain/entities/user.entity';
 
-const adminPayload = { sub: 'admin-id', email: 'admin@refugiapp.local', roles: [UserRole.ADMIN] };
-const managerPayload = { sub: 'manager-id', email: 'manager@refugiapp.local', roles: [UserRole.SHELTER_MANAGER] };
+const adminPayload = { sub: 'admin-id', id: 'admin-id', email: 'admin@refugiapp.local', roles: [UserRole.ADMIN] };
+const managerPayload = { sub: 'manager-id', id: 'manager-id', email: 'manager@refugiapp.local', roles: [UserRole.SHELTER_MANAGER] };
 const veterinarianPayload = {
   sub: 'veterinarian-id',
+  id: 'veterinarian-id',
   email: 'veterinarian@refugiapp.local',
   roles: [UserRole.VETERINARIAN],
 };
@@ -24,6 +25,7 @@ describe('Users (e2e)', () => {
   const mockUsersService = {
     listUsers: jest.fn(),
     createUser: jest.fn(),
+    updateUser: jest.fn(),
     deactivateUser: jest.fn(),
     activateUser: jest.fn(),
     getProfile: jest.fn(),
@@ -239,6 +241,149 @@ describe('Users (e2e)', () => {
         .expect(403);
 
       await managerApp.close();
+    });
+  });
+
+  describe('PATCH /api/v1/users/:id', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      app = await createApp(AlwaysActiveJwtAuthGuard);
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    it('updates a user when called by an admin', async () => {
+      const updated = new User(
+        VALID_UUID,
+        'updated@refugiapp.local',
+        'Updated',
+        'User',
+        [UserRole.SHELTER_MANAGER],
+        true,
+      );
+      mockUsersService.updateUser.mockResolvedValue(updated);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ firstName: 'Updated', email: 'updated@refugiapp.local' })
+        .expect(200);
+
+      expect(res.body).not.toHaveProperty('passwordHash');
+      expect(res.body).toMatchObject({ firstName: 'Updated', email: 'updated@refugiapp.local' });
+      expect(mockUsersService.updateUser).toHaveBeenCalledWith(
+        VALID_UUID,
+        { firstName: 'Updated', email: 'updated@refugiapp.local' },
+        'admin-id',
+      );
+    });
+
+    it('returns 409 when the email is already registered', async () => {
+      mockUsersService.updateUser.mockRejectedValue(
+        new ConflictException({ code: 'EMAIL_ALREADY_EXISTS', message: 'Email is already registered.' }),
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ email: 'taken@refugiapp.local' })
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.code).toBe('EMAIL_ALREADY_EXISTS');
+        });
+    });
+
+    it('returns 409 when demoting the last active admin', async () => {
+      mockUsersService.updateUser.mockRejectedValue(
+        new ConflictException({
+          code: 'LAST_ADMIN_FORBIDDEN',
+          message: 'Cannot remove the admin role from the last active admin.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ roles: ['shelter_manager'] })
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.code).toBe('LAST_ADMIN_FORBIDDEN');
+        });
+    });
+
+    it('returns 404 when the user does not exist', async () => {
+      mockUsersService.updateUser.mockRejectedValue(
+        new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'User with id was not found.' }),
+      );
+
+      await request(app.getHttpServer())
+        .patch('/api/v1/users/22222222-2222-2222-2222-222222222222')
+        .set('Authorization', 'Bearer admin-token')
+        .send({ firstName: 'Ghost' })
+        .expect(404);
+    });
+
+    it('returns 400 for an invalid uuid, an empty payload or invalid fields', async () => {
+      await request(app.getHttpServer())
+        .patch('/api/v1/users/not-a-uuid')
+        .set('Authorization', 'Bearer admin-token')
+        .send({ firstName: 'Ghost' })
+        .expect(400);
+
+      mockUsersService.updateUser.mockRejectedValueOnce(
+        new BadRequestException({ code: 'EMPTY_UPDATE_PAYLOAD', message: 'Provide at least one field.' }),
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({})
+        .expect(400)
+        .expect(({ body }) => {
+          expect(body.code).toBe('EMPTY_UPDATE_PAYLOAD');
+        });
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ roles: [] })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ email: 'not-an-email' })
+        .expect(400);
+    });
+
+    it('returns 403 when called by a manager', async () => {
+      const managerApp = await createApp(ManagerJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer manager-token')
+        .send({ firstName: 'Hacker' })
+        .expect(403);
+
+      await managerApp.close();
+    });
+
+    it('returns 401 when no token is provided', async () => {
+      const noTokenApp = await createApp(NoTokenJwtAuthGuard);
+
+      await request(noTokenApp.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .send({ firstName: 'Hacker' })
+        .expect(401);
+
+      await noTokenApp.close();
     });
   });
 

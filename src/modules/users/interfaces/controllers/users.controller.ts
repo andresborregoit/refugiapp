@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -31,6 +32,7 @@ import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard
 import { CreateUserDto } from '../dto/create-user.dto';
 import { ListUsersQueryDto } from '../dto/list-users.query.dto';
 import { PaginatedUsersResponseDto } from '../dto/paginated-users-response.dto';
+import { UpdateUserDto } from '../dto/update-user.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
 import { UsersService } from '../../application/services/users.service';
 
@@ -74,6 +76,35 @@ export class UsersController {
   )
   listUsers(@Query() query: ListUsersQueryDto) {
     return this.usersService.listUsers(query);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update a user profile and roles (admin only)' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+    description: 'User id (UUID).',
+  })
+  @ApiOkResponse({ type: UserResponseDto, description: 'User updated successfully.' })
+  @ApiConflictResponse({ type: ErrorResponseDto, description: 'Email already registered or last admin protection.' })
+  @ApiErrorResponses(
+    HttpStatus.BAD_REQUEST,
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
+  updateUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<UserResponseDto> {
+    return this.usersService.updateUser(id, dto, user.id);
   }
 
   @Post(':id/deactivate')

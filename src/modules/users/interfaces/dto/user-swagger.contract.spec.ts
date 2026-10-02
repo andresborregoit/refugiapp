@@ -11,6 +11,7 @@ interface JsonSchema {
   example?: unknown;
   enum?: string[];
   writeOnly?: boolean;
+  required?: string[];
   oneOf?: unknown[];
   items?: { type?: string; enum?: string[] };
   properties?: Record<string, JsonSchema>;
@@ -45,6 +46,9 @@ const USER_PATHS: Record<string, Record<string, string[]>> = {
     post: ['400', '401', '403', '409', '429'],
     get: ['400', '401', '403', '429'],
   },
+  '/users/{id}': {
+    patch: ['400', '401', '403', '404', '409', '429'],
+  },
   '/users/me': {
     get: ['401', '403', '404', '429'],
   },
@@ -68,6 +72,7 @@ describe('Users Swagger contract', () => {
           useValue: {
             createUser: jest.fn(),
             listUsers: jest.fn(),
+            updateUser: jest.fn(),
             deactivateUser: jest.fn(),
             activateUser: jest.fn(),
             getProfile: jest.fn(),
@@ -199,6 +204,42 @@ describe('Users Swagger contract', () => {
     });
   });
 
+  describe('UpdateUserDto schema', () => {
+    it('declares every field as optional', () => {
+      const required = schemaOf('UpdateUserDto').required ?? [];
+      expect(required).toEqual([]);
+    });
+
+    it('documents roles with the UserRole enum', () => {
+      const roles = propertyOf('UpdateUserDto', 'roles');
+      expect(roles.items?.enum).toEqual([
+        UserRole.ADMIN,
+        UserRole.SHELTER_MANAGER,
+        UserRole.VETERINARIAN,
+      ]);
+    });
+
+    it('never exposes passwordHash', () => {
+      expect(schemaOf('UpdateUserDto').properties).not.toHaveProperty('passwordHash');
+    });
+  });
+
+  describe('PATCH /users/{id}', () => {
+    it('documents the partial update response', () => {
+      const operation = operationOf('patch', '/users/{id}');
+      expect(operation.responses?.['200']?.content?.['application/json']?.schema?.$ref).toBe(
+        '#/components/schemas/UserResponseDto',
+      );
+    });
+
+    it('documents 409 for email conflicts and last admin protection', () => {
+      const operation = operationOf('patch', '/users/{id}');
+      const conflict = operation.responses?.['409'];
+      expect(conflict?.description).toContain('last admin');
+      expect(conflict?.content?.['application/json']?.schema?.$ref).toBe(ERROR_SCHEMA_REF);
+    });
+  });
+
   describe('Error responses', () => {
     for (const [path, methods] of Object.entries(USER_PATHS)) {
       for (const [method, expectedStatuses] of Object.entries(methods)) {
@@ -235,9 +276,10 @@ describe('Users Swagger contract', () => {
   });
 
   describe('Path parameters', () => {
-    it('documents the id path param as a uuid for deactivate and activate', () => {
-      for (const path of ['/users/{id}/deactivate', '/users/{id}/activate']) {
-        const parameters = operationOf('post', path).parameters ?? [];
+    it('documents the id path param as a uuid for update, deactivate and activate', () => {
+      for (const path of ['/users/{id}', '/users/{id}/deactivate', '/users/{id}/activate']) {
+        const method = path === '/users/{id}' ? 'patch' : 'post';
+        const parameters = operationOf(method, path).parameters ?? [];
         const idParam = parameters.find((parameter) => parameter.name === 'id');
         expect(idParam).toBeDefined();
         expect(idParam?.schema?.format).toBe('uuid');

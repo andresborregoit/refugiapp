@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { UserRole } from '../../../../../../common/enums/user-role.enum';
 import { CreateUserCredentials } from '../../../../domain/entities/create-user-credentials.entity';
 import { UserCredentials } from '../../../../domain/entities/user-credentials.entity';
 import { User } from '../../../../domain/entities/user.entity';
 import {
   PaginatedUsers,
+  UpdateUserData,
   UserListQuery,
   UserRepository,
 } from '../../../../domain/repositories/user.repository';
@@ -71,6 +73,51 @@ export class TypeOrmUserRepository implements UserRepository {
     const saved = await this.repository.save(entity);
 
     return this.toDomain(saved);
+  }
+
+  async update(id: string, input: UpdateUserData): Promise<User | null> {
+    const entity = await this.repository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+
+    if (!entity || entity.deletedAt) {
+      return null;
+    }
+
+    if (input.firstName !== undefined) {
+      entity.firstName = input.firstName;
+    }
+
+    if (input.lastName !== undefined) {
+      entity.lastName = input.lastName;
+    }
+
+    if (input.email !== undefined) {
+      entity.email = input.email;
+    }
+
+    if (input.roles !== undefined) {
+      entity.roles = input.roles;
+    }
+
+    const saved = await this.repository.save(entity);
+
+    return this.toDomain(saved);
+  }
+
+  async countActiveAdmins(excludeId?: string): Promise<number> {
+    const query = this.repository
+      .createQueryBuilder('user')
+      .where('user.isActive = :isActive', { isActive: true })
+      .andWhere('user.deletedAt IS NULL')
+      .andWhere('CAST(:role AS user_role) = ANY(user.roles)', { role: UserRole.ADMIN });
+
+    if (excludeId) {
+      query.andWhere('user.id != :excludeId', { excludeId });
+    }
+
+    return query.getCount();
   }
 
   async softDelete(id: string): Promise<void> {
