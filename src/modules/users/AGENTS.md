@@ -13,6 +13,7 @@
 ## Seguridad
 - No exponer `passwordHash` en DTOs de respuesta.
 - Usar el helper centralizado de hashing antes de persistir passwords.
+- La escritura del hash por cambio de contraseña se expone al caso de uso de `auth`; `users` no valida tokens de recuperacion ni envia notificaciones.
 - Los endpoints de creacion, activacion y desactivacion de usuarios requieren `admin` mediante `JwtAuthGuard`, `RolesGuard` y `@Roles(UserRole.ADMIN)`.
 - `GET /users/me` requiere autenticacion JWT y admite los roles `admin`, `shelter_manager` y `veterinarian` mediante `JwtAuthGuard`, `RolesGuard` y `@Roles`.
 - `GET /users/me` devuelve el perfil completo (`UserResponseDto`) consultando el repositorio por el `id` del JWT, no replica el payload; responde `404 RESOURCE_NOT_FOUND` si el usuario no existe.

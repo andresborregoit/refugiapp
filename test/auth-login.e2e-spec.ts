@@ -13,6 +13,8 @@ import { JwtAuthGuard } from '../src/modules/auth/infrastructure/guards/jwt-auth
 import { JwtStrategy } from '../src/modules/auth/infrastructure/strategies/jwt.strategy';
 import { AuthController } from '../src/modules/auth/interfaces/controllers/auth.controller';
 import { REFRESH_TOKEN_REPOSITORY } from '../src/modules/auth/domain/repositories/refresh-token.repository';
+import { PASSWORD_RESET_TOKEN_REPOSITORY } from '../src/modules/auth/domain/repositories/password-reset-token.repository';
+import { PASSWORD_NOTIFICATION_GATEWAY } from '../src/modules/auth/domain/services/password-notification.gateway';
 import { AuditLogsService } from '../src/modules/audit-logs/application/services/audit-logs.service';
 import { UsersService } from '../src/modules/users/application/services/users.service';
 import { UserCredentials } from '../src/modules/users/domain/entities/user-credentials.entity';
@@ -38,7 +40,9 @@ describe('Auth login (e2e)', () => {
   let inactiveUser: UserCredentials;
   const usersService = {
     findCredentialsByEmail: jest.fn(),
+    findCredentialsById: jest.fn(),
     findById: jest.fn(),
+    updatePassword: jest.fn(),
   };
   const auditLogsService = {
     record: jest.fn(),
@@ -46,6 +50,15 @@ describe('Auth login (e2e)', () => {
   const refreshTokenRepository = {
     create: jest.fn(),
     rotate: jest.fn(),
+    revokeAllForUser: jest.fn(),
+  };
+  const passwordResetTokenRepository = {
+    create: jest.fn(),
+    consumeAndUpdatePassword: jest.fn(),
+  };
+  const passwordNotificationGateway = {
+    sendPasswordReset: jest.fn(),
+    sendPasswordChanged: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -92,6 +105,14 @@ describe('Auth login (e2e)', () => {
         {
           provide: REFRESH_TOKEN_REPOSITORY,
           useValue: refreshTokenRepository,
+        },
+        {
+          provide: PASSWORD_RESET_TOKEN_REPOSITORY,
+          useValue: passwordResetTokenRepository,
+        },
+        {
+          provide: PASSWORD_NOTIFICATION_GATEWAY,
+          useValue: passwordNotificationGateway,
         },
         {
           provide: ConfigService,

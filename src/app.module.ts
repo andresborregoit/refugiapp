@@ -22,6 +22,7 @@ import { databaseConfig } from './config/database.config';
 import { healthConfig } from './config/health.config';
 import { jwtConfig } from './config/jwt.config';
 import { mediaConfig } from './config/media.config';
+import { passwordNotificationConfig } from './config/password-notification.config';
 import { createRateLimitOptions } from './config/rate-limit.config';
 import { securityConfig } from './config/security.config';
 import { createTypeOrmOptions } from './config/typeorm.config';
@@ -31,7 +32,16 @@ import { envValidationSchema } from './config/validation.schema';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig, cloudinaryConfig, healthConfig, securityConfig, mediaConfig],
+      load: [
+        appConfig,
+        databaseConfig,
+        jwtConfig,
+        cloudinaryConfig,
+        healthConfig,
+        securityConfig,
+        mediaConfig,
+        passwordNotificationConfig,
+      ],
       validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,

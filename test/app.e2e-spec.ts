@@ -22,6 +22,8 @@ import { AuthService } from '../src/modules/auth/application/services/auth.servi
 import { AuthController } from '../src/modules/auth/interfaces/controllers/auth.controller';
 import { LoginDto } from '../src/modules/auth/interfaces/dto/login.dto';
 import { REFRESH_TOKEN_REPOSITORY } from '../src/modules/auth/domain/repositories/refresh-token.repository';
+import { PASSWORD_RESET_TOKEN_REPOSITORY } from '../src/modules/auth/domain/repositories/password-reset-token.repository';
+import { PASSWORD_NOTIFICATION_GATEWAY } from '../src/modules/auth/domain/services/password-notification.gateway';
 import { AuditLogsService } from '../src/modules/audit-logs/application/services/audit-logs.service';
 import { UsersService } from '../src/modules/users/application/services/users.service';
 
@@ -59,6 +61,8 @@ describe('AppController (e2e)', () => {
           provide: UsersService,
           useValue: {
             findCredentialsByEmail: jest.fn().mockResolvedValue(null),
+            findCredentialsById: jest.fn().mockResolvedValue(null),
+            updatePassword: jest.fn(),
           },
         },
         {
@@ -72,6 +76,21 @@ describe('AppController (e2e)', () => {
           useValue: {
             create: jest.fn(),
             rotate: jest.fn(),
+            revokeAllForUser: jest.fn(),
+          },
+        },
+        {
+          provide: PASSWORD_RESET_TOKEN_REPOSITORY,
+          useValue: {
+            create: jest.fn(),
+            consumeAndUpdatePassword: jest.fn(),
+          },
+        },
+        {
+          provide: PASSWORD_NOTIFICATION_GATEWAY,
+          useValue: {
+            sendPasswordReset: jest.fn(),
+            sendPasswordChanged: jest.fn(),
           },
         },
         {

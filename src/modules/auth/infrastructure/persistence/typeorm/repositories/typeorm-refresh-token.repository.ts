@@ -90,6 +90,10 @@ export class TypeOrmRefreshTokenRepository implements RefreshTokenRepository {
     });
   }
 
+  async revokeAllForUser(userId: string): Promise<void> {
+    await this.repository.update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
+  }
+
   private async revokeFamily(manager: EntityManager, familyId: string): Promise<void> {
     await manager.update(
       RefreshTokenOrmEntity,

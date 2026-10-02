@@ -17,5 +17,9 @@ export enum AuditAction {
   AUTH_LOGIN_FAILURE = 'auth.login_failure',
   AUTH_REFRESH_SUCCESS = 'auth.refresh_success',
   AUTH_REFRESH_FAILURE = 'auth.refresh_failure',
+  AUTH_PASSWORD_CHANGE = 'auth.password_change',
+  AUTH_PASSWORD_RESET_REQUESTED = 'auth.password_reset_requested',
+  AUTH_PASSWORD_RESET_COMPLETED = 'auth.password_reset_completed',
+  AUTH_PASSWORD_RESET_FAILED = 'auth.password_reset_failed',
   ACCESS_DENIED = 'access.denied',
 }

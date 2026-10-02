@@ -20,8 +20,10 @@ export interface UserRepository {
   findById(id: string): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
   findCredentialsByEmail(email: string): Promise<UserCredentials | null>;
+  findCredentialsById(id: string): Promise<UserCredentials | null>;
   findMany(query: UserListQuery): Promise<PaginatedUsers>;
   create(input: CreateUserCredentials): Promise<User>;
   softDelete(id: string): Promise<void>;
   activate(id: string): Promise<User | null>;
+  updatePassword(id: string, passwordHash: string): Promise<void>;
 }

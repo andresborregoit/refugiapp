@@ -46,6 +46,14 @@ export class UsersService {
     return this.userRepository.findCredentialsByEmail(email);
   }
 
+  findCredentialsById(id: string) {
+    return this.userRepository.findCredentialsById(id);
+  }
+
+  updatePassword(id: string, passwordHash: string) {
+    return this.userRepository.updatePassword(id, passwordHash);
+  }
+
   async createUser(dto: CreateUserDto, actorId: string): Promise<User> {
     const email = dto.email.trim().toLowerCase();
 

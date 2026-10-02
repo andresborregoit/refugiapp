@@ -47,6 +47,7 @@ Implementado:
 - Endpoint de panel de control (`GET /dashboard/overview`) con totales por estado y animales recientes, reutilizando `AnimalOrmEntity` sin nuevas tablas, con `DashboardAnimalDto` alineado a la respuesta real (`profilePhotoMediaId` nullable) y contrato Swagger listo para el cliente movil.
 - CRUD de tareas de cuidado (`care-tasks`) con estados `pending`/`completed`/`cancelled`, transiciones acotadas, edicion parcial y auditoria por rol.
 - Refresh tokens opacos con rotacion atomica (`POST /auth/refresh`), deteccion de reuso y revocacion de familia.
+- Cambio y recuperacion de contraseña con tokens de un solo uso, respuesta anti-enumeracion, revocacion de sesiones y notificaciones por webhook de email.
 - Backup y recuperacion de PostgreSQL con retencion, checksum, restauracion aislada y prueba automatizada.
 - Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista con `npm run openapi:export`.
 - Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts` y especificacion en `docs/role-capabilities.md`.
@@ -115,6 +116,7 @@ test/
 Modulos iniciales:
 
 - `auth`: JWT, Passport strategy, guard y login real mediante email, password hasheado y JWT.
+- `auth` tambien expone `POST /auth/change-password`, `POST /auth/password-recovery/request` y `POST /auth/password-recovery/confirm`.
 - `users`: usuarios internos y roles.
 - `animals`: ficha general del animal e historial general del refugio.
 - `dashboard`: read-model del panel de control con totales por estado y animales recientes.
@@ -202,6 +204,8 @@ Los backups deben permanecer cifrados y privados. Nunca se publican como artifac
 La migracion `1788897600000-AddBreedToAnimals.ts` agrega el campo opcional `breed` a `animals`.
 
 La migracion `1789399460070-AddAuditLogs.ts` crea la tabla append-only `audit_logs` con sus enums, indices y foreign key a `users`.
+
+La migracion `1792000000000-AddPasswordRecovery.ts` crea `password_reset_tokens` y agrega las acciones de auditoria del ciclo de contraseñas.
 
 Para cambios nuevos de schema, modificar primero las entidades ORM, generar una migracion nueva con nombre descriptivo, revisar el SQL generado y versionar codigo y migracion juntos.
 
