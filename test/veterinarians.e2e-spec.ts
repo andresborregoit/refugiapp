@@ -39,6 +39,7 @@ describe('Veterinarians (e2e)', () => {
     findById: jest.fn(),
     update: jest.fn(),
     deactivate: jest.fn(),
+    reactivate: jest.fn(),
   };
 
   class AdminJwtAuthGuard {
@@ -379,6 +380,89 @@ describe('Veterinarians (e2e)', () => {
       .expect(204);
 
     expect(veterinariansService.deactivate).toHaveBeenCalledWith(VALID_UUID);
+  });
+
+  describe('POST /api/v1/veterinarians/:id/reactivate', () => {
+    it('reactivates a veterinarian when called by an admin', async () => {
+      veterinariansService.reactivate.mockResolvedValue(createVeterinarian({ isActive: true }));
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/veterinarians/${VALID_UUID}/reactivate`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(200);
+
+      expect(res.body).toMatchObject({ id: VALID_UUID, licenseNumber: 'VET-001', isActive: true });
+      expect(res.body).not.toHaveProperty('passwordHash');
+      expect(veterinariansService.reactivate).toHaveBeenCalledWith(VALID_UUID, adminPayload.id);
+    });
+
+    it('reactivates a veterinarian when called by a manager', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+      veterinariansService.reactivate.mockResolvedValue(createVeterinarian({ isActive: true }));
+
+      await request(managerApp.getHttpServer())
+        .post(`/api/v1/veterinarians/${VALID_UUID}/reactivate`)
+        .set('Authorization', 'Bearer manager-token')
+        .expect(200);
+
+      expect(veterinariansService.reactivate).toHaveBeenCalledWith(VALID_UUID, managerPayload.id);
+
+      await managerApp.close();
+    });
+
+    it('returns 404 when the veterinarian does not exist', async () => {
+      veterinariansService.reactivate.mockRejectedValue(
+        new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'Veterinarian with id missing-id was not found.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/veterinarians/${VALID_UUID}/reactivate`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404);
+    });
+
+    it('returns 409 when the veterinarian is already active', async () => {
+      veterinariansService.reactivate.mockRejectedValue(
+        new ConflictException({
+          code: 'VETERINARIAN_ALREADY_ACTIVE',
+          message: 'Veterinarian is already active.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/veterinarians/${VALID_UUID}/reactivate`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.code).toBe('VETERINARIAN_ALREADY_ACTIVE');
+        });
+    });
+
+    it('returns 403 when called by a veterinarian', async () => {
+      const veterinarianApp = await createAppWithGuard(VeterinarianJwtAuthGuard);
+
+      await request(veterinarianApp.getHttpServer())
+        .post(`/api/v1/veterinarians/${VALID_UUID}/reactivate`)
+        .set('Authorization', 'Bearer veterinarian-token')
+        .expect(403);
+
+      expect(veterinariansService.reactivate).not.toHaveBeenCalled();
+
+      await veterinarianApp.close();
+    });
+
+    it('returns 401 when no token is provided', async () => {
+      const noTokenApp = await createAppWithGuard(NoTokenJwtAuthGuard);
+
+      await request(noTokenApp.getHttpServer())
+        .post(`/api/v1/veterinarians/${VALID_UUID}/reactivate`)
+        .expect(401);
+
+      await noTokenApp.close();
+    });
   });
 
   function createVeterinarian(overrides: Partial<Veterinarian> = {}): Veterinarian {

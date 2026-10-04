@@ -19,9 +19,10 @@
 - `licenseNumber` debe ser unico (`409 LICENSE_NUMBER_ALREADY_EXISTS`).
 - `email` del usuario auto-creado debe ser unico (`409 EMAIL_ALREADY_EXISTS`).
 - `userId` no puede apuntar a un usuario ya vinculado (`409 USER_ALREADY_LINKED_TO_VETERINARIAN`).
-- `isActive` permite desactivar sin borrar historial.
+- `isActive` permite desactivar y reactivar sin borrar historial.
+- Reactivar un veterinario ya activo responde `409 VETERINARIAN_ALREADY_ACTIVE`; reactivar uno inexistente responde `404 RESOURCE_NOT_FOUND`.
 
 ## Seguridad
-- Escritura (`POST`, `PATCH`, `POST /:id/deactivate`) solo para `admin` y `shelter_manager`; lectura para los tres roles.
+- Escritura (`POST`, `PATCH`, `POST /:id/deactivate`, `POST /:id/reactivate`) solo para `admin` y `shelter_manager`; lectura para los tres roles.
 - El usuario auto-creado siempre recibe el rol `veterinarian`, nunca `admin` ni `shelter_manager`.
-- Los eventos de auditoria registrados desde el servicio son `user.create` (usuario nuevo) y `user.role_assign` (rol agregado a usuario reutilizado); `metadata` solo lleva `email` y `roles`, nunca passwords ni hashes.
+- Los eventos de auditoria registrados desde el servicio son `user.create` (usuario nuevo), `user.role_assign` (rol agregado a usuario reutilizado) y `user.activate` (reactivacion de un veterinario desactivado); `metadata` solo lleva `email`, `roles` y `licenseNumber`, nunca passwords ni hashes. `user.activate` reutiliza el enum de auditoria de `users` para evitar migraciones, con `resourceId` apuntando al veterinario y `metadata {email, licenseNumber}`.

@@ -18,6 +18,7 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
 import { ApiErrorResponses } from '../../../../common/decorators/api-error-responses.decorator';
@@ -109,5 +110,28 @@ export class VeterinariansController {
   @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.TOO_MANY_REQUESTS)
   deactivate(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.veterinariansService.deactivate(id);
+  }
+
+  @Post(':id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SHELTER_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reactivate a deactivated veterinarian preserving clinical history' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+    description: 'Veterinarian id (UUID).',
+  })
+  @ApiOkResponse({ type: VeterinarianResponseDto, description: 'Veterinarian reactivated successfully.' })
+  @ApiConflictResponse({ type: ErrorResponseDto, description: 'Veterinarian is already active.' })
+  @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.TOO_MANY_REQUESTS)
+  reactivate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<VeterinarianResponseDto> {
+    return this.veterinariansService.reactivate(id, actor.id);
   }
 }

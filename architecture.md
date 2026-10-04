@@ -214,6 +214,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `GET /veterinarians/:id`                 | Permitido | Permitido         | Permitido      |
 | `PATCH /veterinarians/:id`               | Permitido | Permitido         | Rechazado      |
 | `POST /veterinarians/:id/deactivate`     | Permitido | Permitido         | Rechazado      |
+| `POST /veterinarians/:id/reactivate`     | Permitido | Permitido         | Rechazado      |
 | `POST /medical-records`                  | Permitido | Rechazado         | Permitido      |
 | `PATCH /medical-records/:id`             | Permitido | Rechazado         | Permitido      |
 | `DELETE /medical-records/:id`            | Permitido | Rechazado         | Permitido      |
@@ -326,13 +327,15 @@ Gestiona el perfil profesional del veterinario: matricula, datos de contacto, no
 
 No contiene credenciales. Cuando corresponde, se vincula opcionalmente con `users` mediante `userId`.
 
-La administracion se realiza mediante `POST /veterinarians`, `GET /veterinarians`, `GET /veterinarians/:id`, `PATCH /veterinarians/:id` y `POST /veterinarians/:id/deactivate`. El listado usa paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. Admite filtros por `name`, `licenseNumber` e `isActive`; por defecto lista veterinarios activos.
+La administracion se realiza mediante `POST /veterinarians`, `GET /veterinarians`, `GET /veterinarians/:id`, `PATCH /veterinarians/:id`, `POST /veterinarians/:id/deactivate` y `POST /veterinarians/:id/reactivate`. El listado usa paginacion con `page` minimo 1, `limit` entre 1 y 100 y valores por defecto 1 y 20. Admite filtros por `name`, `licenseNumber` e `isActive`; por defecto lista veterinarios activos.
 
 `POST /veterinarians` soporta alta conjunta con un usuario de autenticacion mediante `createUser`, que evita tipear un `userId` UUID a mano. `userId` y `createUser` son mutuamente excluyentes (`400 VET_USER_PAYLOAD_CONFLICT`). El payload `createUser` acepta `password` (minimo 12 caracteres), `email` opcional (default: el `email` del perfil del veterinario), `firstName` y `lastName` opcionales (default: los del veterinario); si falta el email en ambos lados responde `400 VET_CREATE_USER_EMAIL_REQUIRED`.
 
 La creacion es atomica: el caso de uso delega en `VeterinarianRepository.createWithUser`, que dentro de una misma transaccion inserta el `User` con rol `veterinarian` (o reutiliza un usuario activo no vinculado cuyo email coincida y le agrega el rol) e inserta el `Veterinarian` vinculado por `userId`. Si falla el segundo paso se revierte todo, sin usuarios huerfanos. Errores documentados: `409 LICENSE_NUMBER_ALREADY_EXISTS`, `409 EMAIL_ALREADY_EXISTS` (email de usuario ya registrado, por ejemplo un usuario soft-deleted) y `409 USER_ALREADY_LINKED_TO_VETERINARIAN`.
 
 La desactivacion no borra ni aplica soft delete. Solo actualiza `isActive=false` para conservar la vinculacion historica desde `medical_records`.
+
+La reactivacion se realiza mediante `POST /veterinarians/:id/reactivate`. El caso de uso valida la existencia (404) y que el veterinario este desactivado (`409 VETERINARIAN_ALREADY_ACTIVE` si ya esta activo), vuelve `isActive=true` sin tocar `deletedAt` (los veterinarios no usan soft delete) y registra `user.activate` en `audit_logs` con `resourceId` del veterinario y `metadata {email, licenseNumber}`. Reutiliza el enum `user.activate` de `users` para evitar una migracion de enum en `audit_logs`.
 
 Todas las respuestas (`VeterinarianResponseDto`) incluyen el objeto `user` vinculado (subconjunto de `UserResponseDto`, sin `passwordHash`) o `null`; el repositorio hace `leftJoin` de `veterinarians.user` para evitar consultas N+1. El usuario auto-creado siempre recibe el rol `veterinarian`; el servicio registra `user.create` (usuario nuevo) o `user.role_assign` (rol agregado a un usuario reutilizado) en `audit_logs`, con `metadata` limitado a `email` y `roles`.
 
@@ -342,7 +345,7 @@ Todas las respuestas (`VeterinarianResponseDto`) incluyen el objeto `user` vincu
 
 *Decision:* `POST /veterinarians` acepta `createUser` y resuelve el vinculo de forma atomica en el backend (opcion A del ticket RFG-119). Se descarta la orquestacion movil compensatoria (opcion B) y el selector con UUID a mano (opcion C) porque dejan estados intermedios y dependen del cliente.
 
-*Consecuencias:* el backend queda como unica fuente de verdad del vinculo; el frontend solo envia `createUser` con email/password (o reutiliza `GET /users` para vincular un usuario existente). El rol se asigna automaticamente como `veterinarian`, nunca `admin` ni `shelter_manager`. La reactivacion de veterinarios (`POST /veterinarians/:id/reactivate`) permanece pendiente de backend y no forma parte de este cambio.
+*Consecuencias:* el backend queda como unica fuente de verdad del vinculo; el frontend solo envia `createUser` con email/password (o reutiliza `GET /users` para vincular un usuario existente). El rol se asigna automaticamente como `veterinarian`, nunca `admin` ni `shelter_manager`. La reactivacion de veterinarios se implemento posteriormente en `POST /veterinarians/:id/reactivate` (RFG-93), conservando el historial clinico via `isActive`.
 
 ### `expenses`
 

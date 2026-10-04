@@ -224,6 +224,20 @@ export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
     return this.toDomain(saved);
   }
 
+  async reactivate(id: string): Promise<Veterinarian | null> {
+    const entity = await this.repository.findOne({ where: { id }, relations: USER_RELATION });
+
+    if (!entity) {
+      return null;
+    }
+
+    entity.isActive = true;
+
+    const saved = await this.repository.save(entity);
+
+    return this.toDomain(saved);
+  }
+
   private toDomain(entity: VeterinarianOrmEntity): Veterinarian {
     return new Veterinarian(
       entity.id,

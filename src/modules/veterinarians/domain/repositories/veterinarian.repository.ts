@@ -43,4 +43,5 @@ export interface VeterinarianRepository {
   findMany(query: VeterinarianListQuery): Promise<PaginatedVeterinarians>;
   update(id: string, input: UpdateVeterinarian): Promise<Veterinarian | null>;
   deactivate(id: string): Promise<Veterinarian | null>;
+  reactivate(id: string): Promise<Veterinarian | null>;
 }
