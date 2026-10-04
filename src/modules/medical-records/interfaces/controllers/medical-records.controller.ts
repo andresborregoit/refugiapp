@@ -30,8 +30,10 @@ import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 import { MedicalRecordsService } from '../../application/services/medical-records.service';
 import { CreateMedicalRecordDto } from '../dto/create-medical-record.dto';
+import { ListMedicalRecordChangesQueryDto } from '../dto/list-medical-record-changes.query.dto';
 import { ListMedicalRecordsQueryDto } from '../dto/list-medical-records.query.dto';
 import { MedicalRecordResponseDto } from '../dto/medical-record-response.dto';
+import { PaginatedMedicalRecordChangesResponseDto } from '../dto/paginated-medical-record-changes-response.dto';
 import { PaginatedMedicalRecordsResponseDto } from '../dto/paginated-medical-records-response.dto';
 import { UpdateMedicalRecordDto } from '../dto/update-medical-record.dto';
 
@@ -81,6 +83,24 @@ export class MedicalRecordsController {
     }
 
     return record;
+  }
+
+  @Get(':id/changes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.VETERINARIAN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List change history of a medical record',
+    description:
+      'Returns the audit trail stored in medical_record_changes for a record. Each item exposes the changed fields (changedFields), their previous values (previousValues), the actor (changedByUserId) and the timestamp (changedAt). Available for admin and veterinarian. The history remains readable for soft-deleted records.',
+  })
+  @ApiOkResponse({ type: PaginatedMedicalRecordChangesResponseDto })
+  @ApiErrorResponses(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
+  listChanges(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: ListMedicalRecordChangesQueryDto,
+  ): Promise<PaginatedMedicalRecordChangesResponseDto> {
+    return this.medicalRecordsService.listChanges(id, query);
   }
 
   @Patch(':id')

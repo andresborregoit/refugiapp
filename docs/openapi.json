@@ -3508,6 +3508,152 @@
         ]
       }
     },
+    "/api/v1/medical-records/{id}/changes": {
+      "get": {
+        "description": "Returns the audit trail stored in medical_record_changes for a record. Each item exposes the changed fields (changedFields), their previous values (previousValues), the actor (changedByUserId) and the timestamp (changedAt). Available for admin and veterinarian. The history remains readable for soft-deleted records.",
+        "operationId": "MedicalRecordsController_listChanges",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "changeType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "update",
+                "soft_delete",
+                "restore"
+              ]
+            }
+          },
+          {
+            "name": "changedByUserId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedMedicalRecordChangesResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List change history of a medical record",
+        "tags": [
+          "medical-records"
+        ]
+      }
+    },
     "/api/v1/medical-records/{id}/restore": {
       "post": {
         "operationId": "MedicalRecordsController_restore",
@@ -5943,6 +6089,84 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MedicalRecordResponseDto"
+            }
+          },
+          "page": {
+            "type": "number",
+            "example": 1
+          },
+          "limit": {
+            "type": "number",
+            "example": 20
+          },
+          "total": {
+            "type": "number",
+            "example": 5
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "limit",
+          "total"
+        ]
+      },
+      "MedicalRecordChangeResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicalRecordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "changedByUserId": {
+            "type": "object",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "changeType": {
+            "type": "string",
+            "enum": [
+              "update",
+              "soft_delete",
+              "restore"
+            ]
+          },
+          "changedFields": {
+            "description": "Names of the fields that changed, derived from previousValues.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "previousValues": {
+            "type": "object",
+            "description": "Previous values of the changed fields. For update, only the fields that changed. For soft_delete, a snapshot of all clinical fields. For restore, the deletedAt that was cleared."
+          },
+          "changedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "medicalRecordId",
+          "changeType",
+          "changedFields",
+          "previousValues",
+          "changedAt"
+        ]
+      },
+      "PaginatedMedicalRecordChangesResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicalRecordChangeResponseDto"
             }
           },
           "page": {

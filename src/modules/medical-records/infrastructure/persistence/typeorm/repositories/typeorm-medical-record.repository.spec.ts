@@ -29,6 +29,7 @@ describe('TypeOrmMedicalRecordRepository', () => {
   let changeRepository: {
     create: jest.Mock;
     save: jest.Mock;
+    findAndCount: jest.Mock;
   };
   let medicalRecordRepository: TypeOrmMedicalRecordRepository;
 
@@ -63,6 +64,7 @@ describe('TypeOrmMedicalRecordRepository', () => {
     changeRepository = {
       create: jest.fn(),
       save: jest.fn(),
+      findAndCount: jest.fn(),
     };
     medicalRecordRepository = new TypeOrmMedicalRecordRepository(
       repository as unknown as Repository<MedicalRecordOrmEntity>,
@@ -333,6 +335,85 @@ describe('TypeOrmMedicalRecordRepository', () => {
 
       expect(repository.findAndCount.mock.calls[0]![0]!.where.occurredAt).toBeDefined();
       expect(repository.findAndCount.mock.calls[1]![0]!.where.occurredAt).toBeDefined();
+    });
+  });
+
+  describe('findChanges', () => {
+    it('filters by medicalRecordId, changeType, actor and date range with reverse chronological order', async () => {
+      const changeEntity = Object.assign(new MedicalRecordChangeOrmEntity(), {
+        id: 'change-id',
+        medicalRecordId: 'record-id',
+        changedByUserId: 'actor-id',
+        changeType: MedicalRecordChangeType.UPDATE,
+        previousValues: { title: 'Old title' },
+        changedAt: new Date('2026-03-11T10:00:00.000Z'),
+      });
+      changeRepository.findAndCount.mockResolvedValue([[changeEntity], 5]);
+
+      const result = await medicalRecordRepository.findChanges({
+        medicalRecordId: 'record-id',
+        page: 2,
+        limit: 2,
+        changeType: MedicalRecordChangeType.UPDATE,
+        changedByUserId: 'actor-id',
+        from: new Date('2026-03-01T00:00:00.000Z'),
+        to: new Date('2026-03-31T23:59:59.000Z'),
+      });
+
+      const options = changeRepository.findAndCount.mock.calls[0]![0]!;
+
+      expect(options.where).toMatchObject({
+        medicalRecordId: 'record-id',
+        changeType: MedicalRecordChangeType.UPDATE,
+        changedByUserId: 'actor-id',
+      });
+      expect(options.where.changedAt).toBeDefined();
+      expect(options.order).toEqual({ changedAt: 'DESC', id: 'DESC' });
+      expect(options.skip).toBe(2);
+      expect(options.take).toBe(2);
+      expect(result).toMatchObject({ page: 2, limit: 2, total: 5 });
+      expect(result.items[0]).toMatchObject({
+        id: 'change-id',
+        medicalRecordId: 'record-id',
+        changedByUserId: 'actor-id',
+        changeType: MedicalRecordChangeType.UPDATE,
+        previousValues: { title: 'Old title' },
+      });
+      expect(result.items[0]!.changedFields).toEqual(['title']);
+    });
+
+    it('filters only by medicalRecordId when optional filters are omitted', async () => {
+      changeRepository.findAndCount.mockResolvedValue([[], 0]);
+
+      await medicalRecordRepository.findChanges({
+        medicalRecordId: 'record-id',
+        page: 1,
+        limit: 20,
+      });
+
+      const options = changeRepository.findAndCount.mock.calls[0]![0]!;
+
+      expect(options.where).toEqual({ medicalRecordId: 'record-id' });
+    });
+
+    it('supports one-sided date ranges', async () => {
+      changeRepository.findAndCount.mockResolvedValue([[], 0]);
+
+      await medicalRecordRepository.findChanges({
+        medicalRecordId: 'record-id',
+        page: 1,
+        limit: 20,
+        from: new Date('2026-03-01T00:00:00.000Z'),
+      });
+      await medicalRecordRepository.findChanges({
+        medicalRecordId: 'record-id',
+        page: 1,
+        limit: 20,
+        to: new Date('2026-03-31T23:59:59.000Z'),
+      });
+
+      expect(changeRepository.findAndCount.mock.calls[0]![0]!.where.changedAt).toBeDefined();
+      expect(changeRepository.findAndCount.mock.calls[1]![0]!.where.changedAt).toBeDefined();
     });
   });
 

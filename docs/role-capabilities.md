@@ -42,11 +42,12 @@ Las lecturas (`GET /animals`, `GET /animals/:id`, `GET /animals/:animalId/events
 Agrupa el acceso a los registros clinicos:
 
 - `GET /animals/:animalId/medical-records`
+- `GET /medical-records/:id/changes` (historial de cambios del registro)
 - `POST /medical-records`
 - `PATCH /medical-records/:id`
 - `DELETE /medical-records/:id`
 
-Nota: `POST /medical-records/:id/restore` esta reservado a `admin`; `shelter_manager` no tiene acceso a registros clinicos.
+Nota: `POST /medical-records/:id/restore` esta reservado a `admin`; `shelter_manager` no tiene acceso a registros clinicos ni a su historial de cambios.
 
 ### `canManageUsers` (`admin`)
 
