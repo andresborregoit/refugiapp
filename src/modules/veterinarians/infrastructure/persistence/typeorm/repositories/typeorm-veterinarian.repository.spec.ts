@@ -357,7 +357,29 @@ describe('TypeOrmVeterinarianRepository', () => {
     expect(repository).not.toHaveProperty('softDelete');
   });
 
-  function createEntity(): VeterinarianOrmEntity {
+  it('reactivates with isActive=true without soft delete', async () => {
+    const entity = createEntity({ isActive: false });
+    repository.findOne.mockResolvedValue(entity);
+
+    const result = await veterinarianRepository.reactivate('veterinarian-id');
+
+    expect(repository.findOne).toHaveBeenCalledWith({
+      where: { id: 'veterinarian-id' },
+      relations: { user: true },
+    });
+    expect(repository.save).toHaveBeenCalledWith(expect.objectContaining({ isActive: true }));
+    expect(result).toMatchObject({ id: 'veterinarian-id', isActive: true });
+    expect(repository).not.toHaveProperty('softDelete');
+  });
+
+  it('returns null when reactivating a missing veterinarian', async () => {
+    repository.findOne.mockResolvedValue(null);
+
+    await expect(veterinarianRepository.reactivate('missing-id')).resolves.toBeNull();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  function createEntity(overrides: Partial<VeterinarianOrmEntity> = {}): VeterinarianOrmEntity {
     return Object.assign(new VeterinarianOrmEntity(), {
       id: 'veterinarian-id',
       userId: 'user-id',
@@ -370,6 +392,7 @@ describe('TypeOrmVeterinarianRepository', () => {
       isActive: true,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      ...overrides,
     });
   }
 });

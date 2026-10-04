@@ -52,6 +52,7 @@ describe('VeterinariansService', () => {
     findMany: jest.fn(),
     update: jest.fn(),
     deactivate: jest.fn(),
+    reactivate: jest.fn(),
   };
   const usersService = {
     findById: jest.fn(),
@@ -413,5 +414,59 @@ describe('VeterinariansService', () => {
     veterinarianRepository.deactivate.mockResolvedValue(null);
 
     await expect(service.deactivate('missing-id')).rejects.toThrow(ResourceNotFoundException);
+  });
+
+  describe('reactivate', () => {
+    const deactivatedVeterinarian = { ...veterinarian, isActive: false };
+
+    it('reactivates a veterinarian preserving clinical history and audits the action', async () => {
+      veterinarianRepository.findById.mockResolvedValue(deactivatedVeterinarian);
+      veterinarianRepository.reactivate.mockResolvedValue(veterinarian);
+
+      const result = await service.reactivate('veterinarian-id', actorId);
+
+      expect(veterinarianRepository.reactivate).toHaveBeenCalledWith('veterinarian-id');
+      expect(result).toBe(veterinarian);
+      expect(auditLogsService.record).toHaveBeenCalledWith({
+        actorUserId: actorId,
+        action: AuditAction.USER_ACTIVATE,
+        resourceType: AuditResourceType.USER,
+        resourceId: 'veterinarian-id',
+        metadata: {
+          email: veterinarian.email,
+          licenseNumber: veterinarian.licenseNumber,
+        },
+      });
+    });
+
+    it('throws ResourceNotFoundException when the veterinarian does not exist', async () => {
+      veterinarianRepository.findById.mockResolvedValue(null);
+
+      await expect(service.reactivate('missing-id', actorId)).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(veterinarianRepository.reactivate).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws ResourceConflictException when the veterinarian is already active', async () => {
+      veterinarianRepository.findById.mockResolvedValue(veterinarian);
+
+      await expect(service.reactivate('veterinarian-id', actorId)).rejects.toThrow(
+        ResourceConflictException,
+      );
+      expect(veterinarianRepository.reactivate).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws ResourceNotFoundException when reactivation returns no veterinarian', async () => {
+      veterinarianRepository.findById.mockResolvedValue(deactivatedVeterinarian);
+      veterinarianRepository.reactivate.mockResolvedValue(null);
+
+      await expect(service.reactivate('veterinarian-id', actorId)).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
   });
 });

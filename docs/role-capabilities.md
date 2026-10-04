@@ -18,7 +18,7 @@ La autorizacion de cada endpoint se sigue resolviendo con `JwtAuthGuard` + `Role
 | `canReadClinicalRecords` | Si | No | Si | Leer y gestionar registros clinicos (consultas, vacunas, tratamientos, cirugias) |
 | `canManageUsers` | Si | No | No | Crear, activar y desactivar usuarios internos y asignar roles |
 | `canManageExpenses` | Si | Si | No | Crear y dar de baja gastos asociados a animales |
-| `canManageVets` | Si | Si | No | Crear, editar y desactivar perfiles de veterinarios |
+| `canManageVets` | Si | Si | No | Crear, editar, desactivar y reactivar perfiles de veterinarios |
 | `canReadAudit` | Si | No | No | Consultar el historial de auditoria (append-only) |
 
 ## Derivacion desde los endpoints
@@ -75,6 +75,7 @@ Escrituras sobre perfiles de veterinarios:
 - `POST /veterinarians`
 - `PATCH /veterinarians/:id`
 - `POST /veterinarians/:id/deactivate`
+- `POST /veterinarians/:id/reactivate`
 
 Las lecturas (`GET /veterinarians`, `GET /veterinarians/:id`) estan disponibles para los tres roles.
 

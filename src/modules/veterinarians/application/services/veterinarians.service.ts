@@ -131,6 +131,40 @@ export class VeterinariansService {
     }
   }
 
+  async reactivate(id: string, actorId: string): Promise<Veterinarian> {
+    const veterinarian = await this.veterinarianRepository.findById(id);
+
+    if (!veterinarian) {
+      throw new ResourceNotFoundException('Veterinarian', id);
+    }
+
+    if (veterinarian.isActive) {
+      throw new ResourceConflictException(
+        'Veterinarian is already active.',
+        'VETERINARIAN_ALREADY_ACTIVE',
+      );
+    }
+
+    const reactivated = await this.veterinarianRepository.reactivate(id);
+
+    if (!reactivated) {
+      throw new ResourceNotFoundException('Veterinarian', id);
+    }
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.USER_ACTIVATE,
+      resourceType: AuditResourceType.USER,
+      resourceId: id,
+      metadata: {
+        email: reactivated.email,
+        licenseNumber: reactivated.licenseNumber,
+      },
+    });
+
+    return reactivated;
+  }
+
   private async createWithLinkedUser(userId: string, veterinarian: CreateVeterinarian): Promise<Veterinarian> {
     await this.ensureUserExists(userId);
     await this.ensureUserIsNotLinked(userId);
