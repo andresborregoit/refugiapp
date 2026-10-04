@@ -14,6 +14,8 @@ import { RolesGuard } from '../src/common/guards/roles.guard';
 import { JwtAuthGuard } from '../src/modules/auth/infrastructure/guards/jwt-auth.guard';
 import { MedicalRecordsService } from '../src/modules/medical-records/application/services/medical-records.service';
 import { MedicalRecord } from '../src/modules/medical-records/domain/entities/medical-record.entity';
+import { MedicalRecordChange } from '../src/modules/medical-records/domain/entities/medical-record-change.entity';
+import { MedicalRecordChangeType } from '../src/modules/medical-records/domain/enums/medical-record-change-type.enum';
 import { MedicalRecordType } from '../src/modules/medical-records/domain/enums/medical-record-type.enum';
 import { AnimalMedicalRecordsController } from '../src/modules/medical-records/interfaces/controllers/animal-medical-records.controller';
 import { MedicalRecordsController } from '../src/modules/medical-records/interfaces/controllers/medical-records.controller';
@@ -37,6 +39,7 @@ describe('MedicalRecords (e2e)', () => {
     findById: jest.fn(),
     list: jest.fn(),
     listByAnimal: jest.fn(),
+    listChanges: jest.fn(),
     update: jest.fn(),
     softDelete: jest.fn(),
     restore: jest.fn(),
@@ -654,6 +657,160 @@ describe('MedicalRecords (e2e)', () => {
     });
   });
 
+  describe('GET /api/v1/medical-records/:id/changes', () => {
+    const recordId = '22222222-2222-4222-8222-222222222222';
+    const missingId = '99999999-9999-4999-8999-999999999999';
+
+    it('lists change history when called by an admin', async () => {
+      medicalRecordsService.listChanges.mockResolvedValue({
+        items: [createChange()],
+        page: 2,
+        limit: 10,
+        total: 1,
+      });
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .set('Authorization', 'Bearer admin-token')
+        .query({
+          page: 2,
+          limit: 10,
+          changeType: MedicalRecordChangeType.UPDATE,
+          changedByUserId: '11111111-1111-4111-8111-111111111111',
+          from: '2026-03-01T00:00:00.000Z',
+          to: '2026-03-31T23:59:59.000Z',
+        })
+        .expect(200);
+
+      expect(res.body).toMatchObject({
+        page: 2,
+        limit: 10,
+        total: 1,
+        items: [
+          {
+            id: 'change-id',
+            medicalRecordId: 'record-id',
+            changedByUserId: 'actor-id',
+            changeType: MedicalRecordChangeType.UPDATE,
+            changedFields: ['title'],
+            previousValues: { title: 'Old title' },
+          },
+        ],
+      });
+      expect(medicalRecordsService.listChanges).toHaveBeenCalledWith(
+        recordId,
+        expect.objectContaining({
+          page: 2,
+          limit: 10,
+          changeType: MedicalRecordChangeType.UPDATE,
+          changedByUserId: '11111111-1111-4111-8111-111111111111',
+          from: '2026-03-01T00:00:00.000Z',
+          to: '2026-03-31T23:59:59.000Z',
+        }),
+      );
+    });
+
+    it('lists change history when called by a veterinarian', async () => {
+      const vetApp = await createAppWithGuard(VeterinarianJwtAuthGuard);
+      medicalRecordsService.listChanges.mockResolvedValue({
+        items: [],
+        page: 1,
+        limit: 20,
+        total: 0,
+      });
+
+      await request(vetApp.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .set('Authorization', 'Bearer vet-token')
+        .expect(200);
+
+      expect(medicalRecordsService.listChanges).toHaveBeenCalledWith(
+        recordId,
+        expect.objectContaining({ page: 1, limit: 20 }),
+      );
+
+      await vetApp.close();
+    });
+
+    it('returns 403 when called by a shelter_manager', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .set('Authorization', 'Bearer manager-token')
+        .expect(403);
+
+      expect(medicalRecordsService.listChanges).not.toHaveBeenCalled();
+
+      await managerApp.close();
+    });
+
+    it('returns 401 when no token is provided', async () => {
+      const noTokenApp = await createAppWithGuard(NoTokenJwtAuthGuard);
+
+      await request(noTokenApp.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .expect(401);
+
+      expect(medicalRecordsService.listChanges).not.toHaveBeenCalled();
+
+      await noTokenApp.close();
+    });
+
+    it('returns 404 when the medical record does not exist', async () => {
+      medicalRecordsService.listChanges.mockRejectedValue(
+        new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'MedicalRecord with id missing-id was not found.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/medical-records/${missingId}/changes`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404);
+    });
+
+    it('returns 400 when the id is not a valid UUID', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/medical-records/not-a-uuid/changes')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(400);
+
+      expect(medicalRecordsService.listChanges).not.toHaveBeenCalled();
+    });
+
+    it('rejects unsafe pagination limits', async () => {
+      await request(app.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .set('Authorization', 'Bearer admin-token')
+        .query({ limit: 101 })
+        .expect(400);
+
+      expect(medicalRecordsService.listChanges).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when changeType is invalid', async () => {
+      await request(app.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .set('Authorization', 'Bearer admin-token')
+        .query({ changeType: 'invalid_type' })
+        .expect(400);
+
+      expect(medicalRecordsService.listChanges).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when date filters are invalid', async () => {
+      await request(app.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .set('Authorization', 'Bearer admin-token')
+        .query({ from: 'not-a-date' })
+        .expect(400);
+
+      expect(medicalRecordsService.listChanges).not.toHaveBeenCalled();
+    });
+  });
+
   function createMedicalRecord(
     overrides: Partial<MedicalRecord> = {},
   ): MedicalRecord {
@@ -671,6 +828,20 @@ describe('MedicalRecords (e2e)', () => {
         new Date('2026-03-10T10:00:00.000Z'),
         new Date('2026-03-10T10:00:00.000Z'),
         null,
+      ),
+      overrides,
+    );
+  }
+
+  function createChange(overrides: Partial<MedicalRecordChange> = {}): MedicalRecordChange {
+    return Object.assign(
+      new MedicalRecordChange(
+        'change-id',
+        'record-id',
+        'actor-id',
+        MedicalRecordChangeType.UPDATE,
+        { title: 'Old title' },
+        new Date('2026-03-11T10:00:00.000Z'),
       ),
       overrides,
     );

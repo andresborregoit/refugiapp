@@ -15,13 +15,16 @@ import { CreateMedicalRecord } from '../../domain/entities/create-medical-record
 import { MedicalRecord } from '../../domain/entities/medical-record.entity';
 import { UpdateMedicalRecord } from '../../domain/entities/update-medical-record.entity';
 import {
+  MedicalRecordChangesQuery,
   MedicalRecordListQuery,
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,
+  PaginatedMedicalRecordChanges,
   PaginatedMedicalRecords,
 } from '../../domain/repositories/medical-record.repository';
 import { validateRecordOccurredAt } from '../../domain/services/medical-record-date';
 import { CreateMedicalRecordDto } from '../../interfaces/dto/create-medical-record.dto';
+import { ListMedicalRecordChangesQueryDto } from '../../interfaces/dto/list-medical-record-changes.query.dto';
 import { ListMedicalRecordsQueryDto } from '../../interfaces/dto/list-medical-records.query.dto';
 import { UpdateMedicalRecordDto } from '../../interfaces/dto/update-medical-record.dto';
 
@@ -242,6 +245,39 @@ export class MedicalRecordsService {
     });
 
     return restored;
+  }
+
+  async listChanges(
+    recordId: string,
+    query: ListMedicalRecordChangesQueryDto,
+  ): Promise<PaginatedMedicalRecordChanges> {
+    const record = await this.medicalRecordRepository.findByIdWithDeleted(recordId);
+
+    if (!record) {
+      throw new ResourceNotFoundException('MedicalRecord', recordId);
+    }
+
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+
+    if (from && to && from > to) {
+      throw new BadRequestException({
+        code: 'INVALID_DATE_RANGE',
+        message: 'from must be less than or equal to to.',
+      });
+    }
+
+    const repositoryQuery: MedicalRecordChangesQuery = {
+      medicalRecordId: recordId,
+      page: query.page,
+      limit: query.limit,
+      changeType: query.changeType,
+      changedByUserId: query.changedByUserId,
+      from,
+      to,
+    };
+
+    return this.medicalRecordRepository.findChanges(repositoryQuery);
   }
 
   async listByAnimal(

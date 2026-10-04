@@ -5,7 +5,9 @@ import { Animal } from '../../../animals/domain/entities/animal.entity';
 import { AnimalSex } from '../../../animals/domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../../animals/domain/enums/animal-status.enum';
 import { MedicalRecordType } from '../../domain/enums/medical-record-type.enum';
+import { MedicalRecordChangeType } from '../../domain/enums/medical-record-change-type.enum';
 import { MedicalRecord } from '../../domain/entities/medical-record.entity';
+import { MedicalRecordChange } from '../../domain/entities/medical-record-change.entity';
 import { UpdateMedicalRecord } from '../../domain/entities/update-medical-record.entity';
 import { VeterinarianRepository } from '../../../veterinarians/domain/repositories/veterinarian.repository';
 import { MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
@@ -57,6 +59,7 @@ describe('MedicalRecordsService', () => {
     findById: jest.fn(),
     findByIdWithDeleted: jest.fn(),
     findMany: jest.fn(),
+    findChanges: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     softDelete: jest.fn(),
@@ -663,6 +666,81 @@ describe('MedicalRecordsService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
       expect(medicalRecordRepository.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listChanges', () => {
+    const change = new MedicalRecordChange(
+      'change-id',
+      'record-id',
+      'actor-id',
+      MedicalRecordChangeType.UPDATE,
+      { title: 'Old title' },
+      new Date('2026-03-11T10:00:00.000Z'),
+    );
+
+    it('throws ResourceNotFoundException when the record does not exist', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(null);
+
+      await expect(
+        service.listChanges('missing-id', { page: 1, limit: 20 }),
+      ).rejects.toThrow(ResourceNotFoundException);
+      expect(medicalRecordRepository.findChanges).not.toHaveBeenCalled();
+    });
+
+    it('delegates to the repository with filters and allows deleted records', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(deletedRecord);
+      const paginated = { items: [change], page: 2, limit: 10, total: 1 };
+      medicalRecordRepository.findChanges.mockResolvedValue(paginated);
+
+      const result = await service.listChanges('record-id', {
+        page: 2,
+        limit: 10,
+        changeType: MedicalRecordChangeType.UPDATE,
+        changedByUserId: 'actor-id',
+        from: '2026-03-01T00:00:00.000Z',
+        to: '2026-03-31T23:59:59.000Z',
+      });
+
+      expect(medicalRecordRepository.findByIdWithDeleted).toHaveBeenCalledWith('record-id');
+      expect(medicalRecordRepository.findChanges).toHaveBeenCalledWith({
+        medicalRecordId: 'record-id',
+        page: 2,
+        limit: 10,
+        changeType: MedicalRecordChangeType.UPDATE,
+        changedByUserId: 'actor-id',
+        from: new Date('2026-03-01T00:00:00.000Z'),
+        to: new Date('2026-03-31T23:59:59.000Z'),
+      });
+      expect(result).toBe(paginated);
+    });
+
+    it('does not register an audit event for a read operation', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(record);
+      medicalRecordRepository.findChanges.mockResolvedValue({
+        items: [],
+        page: 1,
+        limit: 20,
+        total: 0,
+      });
+
+      await service.listChanges('record-id', { page: 1, limit: 20 });
+
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when from is after to', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(record);
+
+      await expect(
+        service.listChanges('record-id', {
+          page: 1,
+          limit: 20,
+          from: '2026-04-01T00:00:00.000Z',
+          to: '2026-03-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(medicalRecordRepository.findChanges).not.toHaveBeenCalled();
     });
   });
 });

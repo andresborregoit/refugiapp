@@ -220,6 +220,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `DELETE /medical-records/:id`            | Permitido | Rechazado         | Permitido      |
 | `POST /medical-records/:id/restore`      | Permitido | Rechazado         | Rechazado      |
 | `GET /animals/:animalId/medical-records` | Permitido | Rechazado         | Permitido      |
+| `GET /medical-records/:id/changes`       | Permitido | Rechazado         | Permitido      |
 | `POST /expenses`                         | Permitido | Permitido         | Rechazado      |
 | `GET /expenses`                          | Permitido | Permitido         | Permitido      |
 | `GET /expenses/:id`                      | Permitido | Permitido         | Permitido      |
@@ -320,6 +321,8 @@ Los adjuntos clinicos se gestionan mediante `media_assets` con `ownerType=medica
 La persistencia del registro y la vinculacion de adjuntos ocurren dentro de una misma transaccion. No se persiste el actor que creo el registro (no existe columna `createdByUserId` en `medical_records`).
 
 La consulta de la evolucion clinica se realiza mediante `GET /animals/:animalId/medical-records`. Requiere JWT y admite solo `admin` y `veterinarian`. El caso de uso valida que el animal exista antes de listar y la consulta siempre filtra por `animalId`, con paginacion segura (`page` minimo 1, `limit` entre 1 y 100, default 20), filtros opcionales por `recordType`, `from` y `to`, y orden `occurredAt DESC, id DESC`.
+
+La consulta del historial de cambios se realiza mediante `GET /medical-records/:id/changes`. Requiere JWT y admite solo `admin` y `veterinarian`. El caso de uso valida la existencia del registro con `findByIdWithDeleted` (404 si no existe), de modo que el historial permanece legible para registros soft-deleted. Usa paginacion segura (`page` minimo 1, `limit` entre 1 y 100, default 20), filtros opcionales por `changeType`, `changedByUserId` y rango `from`/`to` sobre `changedAt`, y orden determinista `changedAt DESC, id DESC`. Cada item expone el actor (`changedByUserId`, nullable), la operacion (`changeType`), los campos modificados (`changedFields`, derivado de `Object.keys(previousValues)`) y el timestamp (`changedAt`). Es una operacion de solo lectura y no registra eventos en `audit_logs`.
 
 ### `veterinarians`
 
@@ -628,6 +631,8 @@ update
 soft_delete
 restore
 ```
+
+El historial se consulta mediante `GET /medical-records/:id/changes` (solo `admin` y `veterinarian`), con paginacion y filtros por `changeType`, `changedByUserId` y rango sobre `changedAt`. La tabla es de solo escritura interna: los cambios se persisten desde `medical-records` y nunca se editan ni borran via HTTP.
 
 ### 6.8 `expenses`
 
@@ -1208,6 +1213,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Actualizacion parcial de registros medicos (`PATCH /medical-records/:id`) con validacion de campos, veterinario opcional (activo), fecha con limites, proteccion por roles y trazabilidad mediante `medical_record_changes`.
 - Baja logica de registros medicos (`DELETE /medical-records/:id`) con proteccion por roles y trazabilidad mediante `medical_record_changes`.
 - Restauracion de registros medicos eliminados (`POST /medical-records/:id/restore`) protegida solo para `admin` con trazabilidad.
+- Consulta del historial de cambios medicos (`GET /medical-records/:id/changes`) con paginacion, filtros por tipo/actor/rango de fechas, orden determinista `changedAt DESC, id DESC`, lectura de registros soft-deleted y acceso restringido a `admin` y `veterinarian`.
 - Seed explicito e idempotente para el primer administrador.
 - Hashing bcrypt centralizado para passwords.
 - Creacion de gastos (`POST /expenses`) con validacion de animal, comprobante opcional contra `media_assets`, `createdByUserId` del actor autenticado, importes en centavos no negativos y escritura protegida por roles.

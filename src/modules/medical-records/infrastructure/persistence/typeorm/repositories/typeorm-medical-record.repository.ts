@@ -5,10 +5,13 @@ import { MediaOwnerType } from '../../../../../../modules/media/domain/enums/med
 import { MediaAssetOrmEntity } from '../../../../../../modules/media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { CreateMedicalRecord } from '../../../../domain/entities/create-medical-record.entity';
 import { MedicalRecord } from '../../../../domain/entities/medical-record.entity';
+import { MedicalRecordChange } from '../../../../domain/entities/medical-record-change.entity';
 import { UpdateMedicalRecord } from '../../../../domain/entities/update-medical-record.entity';
 import {
+  MedicalRecordChangesQuery,
   MedicalRecordListQuery,
   MedicalRecordRepository,
+  PaginatedMedicalRecordChanges,
   PaginatedMedicalRecords,
 } from '../../../../domain/repositories/medical-record.repository';
 import { MedicalRecordChangeType } from '../../../../domain/enums/medical-record-change-type.enum';
@@ -66,6 +69,42 @@ export class TypeOrmMedicalRecordRepository implements MedicalRecordRepository {
 
     return {
       items: entities.map((entity) => this.toDomain(entity)),
+      page: query.page,
+      limit: query.limit,
+      total,
+    };
+  }
+
+  async findChanges(query: MedicalRecordChangesQuery): Promise<PaginatedMedicalRecordChanges> {
+    const where: FindOptionsWhere<MedicalRecordChangeOrmEntity> = {
+      medicalRecordId: query.medicalRecordId,
+    };
+
+    if (query.changeType) {
+      where.changeType = query.changeType;
+    }
+
+    if (query.changedByUserId) {
+      where.changedByUserId = query.changedByUserId;
+    }
+
+    if (query.from && query.to) {
+      where.changedAt = Between(query.from, query.to);
+    } else if (query.from) {
+      where.changedAt = MoreThanOrEqual(query.from);
+    } else if (query.to) {
+      where.changedAt = LessThanOrEqual(query.to);
+    }
+
+    const [entities, total] = await this.changeRepository.findAndCount({
+      where,
+      order: { changedAt: 'DESC', id: 'DESC' },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
+
+    return {
+      items: entities.map((entity) => this.toChangeDomain(entity)),
       page: query.page,
       limit: query.limit,
       total,
@@ -236,6 +275,17 @@ export class TypeOrmMedicalRecordRepository implements MedicalRecordRepository {
       entity.createdAt,
       entity.updatedAt,
       entity.deletedAt ?? null,
+    );
+  }
+
+  private toChangeDomain(entity: MedicalRecordChangeOrmEntity): MedicalRecordChange {
+    return new MedicalRecordChange(
+      entity.id,
+      entity.medicalRecordId,
+      entity.changedByUserId ?? null,
+      entity.changeType,
+      entity.previousValues,
+      entity.changedAt,
     );
   }
 }
