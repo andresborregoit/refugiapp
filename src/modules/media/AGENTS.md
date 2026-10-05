@@ -42,9 +42,12 @@
 ## Limpieza automatica de huerfanos
 - `MediaService.purgeExpiredOrphans` elimina (soft-delete + Cloudinary) los assets huerfanos con antiguedad mayor a `MEDIA_ORPHAN_RETENTION_HOURS` (default 48).
 - La query usa `findOrphanedOlderThan` (`ownerType` y `ownerId` nulos, `createdAt` anterior al umbral), orden `createdAt ASC, id ASC` y limite `MEDIA_ORPHAN_PURGE_LIMIT` (default 500).
-- El runner CLI es `npm run media:purge-orphans`; acepta `--dry-run`, `--older-than-hours=` y `--limit=`. El cron externo debe invocarlo (no hay scheduler in-process).
-- `dryRun` solo devuelve candidatos y no muta nada. En ejecucion real, `deleted` cuenta filas con soft-delete exitoso y `failed` cuenta assets con fallo de soft-delete o de limpieza remota; un fallo remoto no revierte el soft-delete.
-- El indice parcial `IDX_media_assets_orphan_cleanup` respalda esta consulta.
+- El borrado por asset usa `softDeleteOrphanOlderThan`, condicional y atomico (`id`, `ownerType`/`ownerId` nulos y `createdAt` anterior al umbral): si la fila no se ve afectada, el asset se cuenta como `skipped` y no se llama a Cloudinary. Esto protege la race subir -> vincular vs purga.
+- El runner CLI es `npm run media:purge-orphans`; acepta `--dry-run`, `--older-than-hours=`, `--limit=` y `--request-id=`. El cron externo debe invocarlo (no hay scheduler in-process).
+- `dryRun` solo devuelve candidatos y no muta nada. En ejecucion real, `deleted` cuenta filas con soft-delete exitoso, `failed` cuenta assets con fallo de soft-delete o de limpieza remota (un fallo remoto no revierte el soft-delete) y `skipped` cuenta assets que dejaron de ser huerfanos o ya eliminados.
+- El runner y el caso de uso emiten logs JSON con `requestId` (`media.orphan_purge.start`, `.started`, `.completed`, `.skipped`, `.cloudinary_failed`, `.failed`, `.fatal`) sin secretos ni URLs remotas.
+- Exit codes: `0` si `dry-run` o `failed=0`; `1` si `failed>0`, argumentos invalidos o error no recuperable. El cron debe alertar con exit `1`.
+- El indice parcial `IDX_media_assets_orphan_cleanup` respalda la seleccion y el borrado condicional.
 
 ## Seguridad
 - No exponer `CLOUDINARY_API_SECRET`.

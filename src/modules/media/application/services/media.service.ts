@@ -3,11 +3,11 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
-  Logger,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
 import { UserRole } from '../../../../common/enums/user-role.enum';
+import { JsonLoggerService } from '../../../../common/logger/json-logger.service';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { MediaAsset } from '../../domain/entities/media-asset.entity';
 import { MediaOwnerType } from '../../domain/enums/media-owner-type.enum';
@@ -34,6 +34,8 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 export const DEFAULT_ORPHAN_PURGE_LIMIT = 500;
 
+const MIN_ORPHAN_RETENTION_HOURS = 1;
+
 export interface PurgeOrphanMediaOptions {
   olderThanHours: number;
   dryRun?: boolean;
@@ -46,11 +48,12 @@ export interface PurgeOrphanMediaResult {
   candidates: string[];
   deleted: number;
   failed: number;
+  skipped: number;
 }
 
 @Injectable()
 export class MediaService {
-  private readonly logger = new Logger(MediaService.name);
+  private readonly logger = new JsonLoggerService(MediaService.name);
 
   constructor(
     @Inject(MEDIA_ASSET_REPOSITORY)
@@ -175,41 +178,116 @@ export class MediaService {
   async purgeExpiredOrphans(
     options: PurgeOrphanMediaOptions,
   ): Promise<PurgeOrphanMediaResult> {
+    if (!Number.isFinite(options.olderThanHours) || options.olderThanHours < MIN_ORPHAN_RETENTION_HOURS) {
+      throw new BadRequestException({
+        code: 'INVALID_ORPHAN_RETENTION',
+        message: 'olderThanHours must be a number of hours equal to or greater than 1.',
+      });
+    }
+
+    if (options.limit !== undefined && (!Number.isFinite(options.limit) || options.limit < 1)) {
+      throw new BadRequestException({
+        code: 'INVALID_ORPHAN_PURGE_LIMIT',
+        message: 'limit must be a positive integer.',
+      });
+    }
+
+    const startedAt = Date.now();
+    const dryRun = options.dryRun ?? false;
     const threshold = new Date(Date.now() - options.olderThanHours * 60 * 60 * 1000);
     const limit = options.limit ?? DEFAULT_ORPHAN_PURGE_LIMIT;
     const candidates = await this.mediaAssetRepository.findOrphanedOlderThan(threshold, limit);
     const candidateIds = candidates.map((asset) => asset.id);
 
-    if (options.dryRun) {
+    this.logger.log(
+      {
+        event: 'media.orphan_purge.started',
+        dryRun,
+        olderThanHours: options.olderThanHours,
+        limit,
+        threshold: threshold.toISOString(),
+        candidates: candidateIds.length,
+      },
+      MediaService.name,
+    );
+
+    if (dryRun) {
       return {
         dryRun: true,
         threshold,
         candidates: candidateIds,
         deleted: 0,
         failed: 0,
+        skipped: 0,
       };
     }
 
     let deleted = 0;
     let failed = 0;
+    let skipped = 0;
 
     for (const asset of candidates) {
       try {
-        await this.mediaAssetRepository.softDeleteById(asset.id);
+        const softDeleted = await this.mediaAssetRepository.softDeleteOrphanOlderThan(
+          asset.id,
+          threshold,
+        );
+
+        if (!softDeleted) {
+          skipped += 1;
+          this.logger.warn(
+            {
+              event: 'media.orphan_purge.skipped',
+              assetId: asset.id,
+              reason: 'asset_no_longer_orphan_or_already_deleted',
+            },
+            MediaService.name,
+          );
+          continue;
+        }
+
         try {
           await this.cloudinaryStorageService.delete(asset.publicId);
         } catch (error) {
           this.logger.error(
-            `Cloudinary cleanup failed for orphan asset ${asset.id} (${asset.publicId}): ${error}`,
+            {
+              event: 'media.orphan_purge.cloudinary_failed',
+              assetId: asset.id,
+              publicId: asset.publicId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            MediaService.name,
           );
           failed += 1;
         }
         deleted += 1;
       } catch (error) {
-        this.logger.error(`Orphan asset cleanup failed for ${asset.id}: ${error}`);
+        this.logger.error(
+          {
+            event: 'media.orphan_purge.failed',
+            assetId: asset.id,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          MediaService.name,
+        );
         failed += 1;
       }
     }
+
+    const durationMs = Date.now() - startedAt;
+    this.logger.log(
+      {
+        event: 'media.orphan_purge.completed',
+        dryRun,
+        threshold: threshold.toISOString(),
+        candidates: candidateIds.length,
+        deleted,
+        failed,
+        skipped,
+        durationMs,
+      },
+      MediaService.name,
+    );
 
     return {
       dryRun: false,
@@ -217,6 +295,7 @@ export class MediaService {
       candidates: candidateIds,
       deleted,
       failed,
+      skipped,
     };
   }
 

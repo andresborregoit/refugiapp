@@ -8,6 +8,7 @@ import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter
 import { UserRole } from '../src/common/enums/user-role.enum';
 import { hashPassword } from '../src/common/security/password-hasher';
 import { MediaService } from '../src/modules/media/application/services/media.service';
+import { MediaOwnerType } from '../src/modules/media/domain/enums/media-owner-type.enum';
 import { MediaResourceType } from '../src/modules/media/domain/enums/media-resource-type.enum';
 import {
   CloudinaryStorageService,
@@ -232,6 +233,52 @@ describe('Orphan media policy with PostgreSQL persistence (e2e)', () => {
       .get(`${API_PREFIX}/media/${recentId}`)
       .set('Authorization', `Bearer ${vetToken}`)
       .expect(200);
+  });
+
+  it('never purges a linked asset even when it is older than the retention window', async () => {
+    await seedUser(ADMIN_EMAIL, [UserRole.ADMIN]);
+    const adminToken = await login(ADMIN_EMAIL);
+
+    const upload = await request(app.getHttpServer())
+      .post(`${API_PREFIX}/media/upload`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .attach('file', Buffer.from('linked-png'), {
+        filename: 'linked.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+
+    const mediaId = upload.body.id as string;
+
+    const animalResponse = await request(app.getHttpServer())
+      .post(`${API_PREFIX}/animals`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Linked',
+        species: 'dog',
+        intakeDate: '2025-01-01',
+        profilePhotoMediaId: mediaId,
+      })
+      .expect(201);
+    const animalId = animalResponse.body.id as string;
+    expect(animalResponse.body).toMatchObject({ profilePhotoMediaId: mediaId });
+
+    await database
+      .getRepository(MediaAssetOrmEntity)
+      .update({ id: mediaId }, { createdAt: new Date(Date.now() - 100 * 60 * 60 * 1000) });
+
+    const run = await mediaService.purgeExpiredOrphans({
+      olderThanHours: 48,
+      dryRun: false,
+    });
+
+    expect(run).toMatchObject({ dryRun: false, deleted: 0, failed: 0 });
+    expect(run.candidates).toEqual([]);
+    expect(cloudinaryStorage.delete).not.toHaveBeenCalledWith(upload.body.publicId);
+
+    const stored = await database.getRepository(MediaAssetOrmEntity).findOneByOrFail({ id: mediaId });
+    expect(stored).toMatchObject({ ownerType: MediaOwnerType.ANIMAL, ownerId: animalId });
+    expect(stored.deletedAt).toBeNull();
   });
 
   async function seedUser(email: string, roles: UserRole[]): Promise<UserOrmEntity> {

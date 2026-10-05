@@ -35,14 +35,43 @@ Flags disponibles:
 | Flag | Proposito | Default |
 | --- | --- | --- |
 | `--dry-run` | Solo lista candidatos, no muta | `false` |
-| `--older-than-hours=` | Antiguedad minima en horas | `MEDIA_ORPHAN_RETENTION_HOURS` (48) |
-| `--limit=` | Maximo de huerfanos por ejecucion | `MEDIA_ORPHAN_PURGE_LIMIT` (500) |
+| `--older-than-hours=` | Antiguedad minima en horas (1..720) | `MEDIA_ORPHAN_RETENTION_HOURS` (48) |
+| `--limit=` | Maximo de huerfanos por ejecucion (1..10000) | `MEDIA_ORPHAN_PURGE_LIMIT` (500) |
+| `--request-id=` | Correlation ID de la ejecucion (se genera un UUID si se omite) | UUID generado |
+
+Un flag numerico provisto pero invalido (no numerico, menor a 1 o fuera de rango) hace fallar la ejecucion con exit code `1` y un log JSON de error; no cae silenciosamente al default.
 
 ### Semantica del resultado
 
 - `candidates`: ids de los assets huerfanos activos mas antiguos que el umbral.
 - `deleted`: assets con soft-delete exitoso (aunque la limpieza remota falle).
 - `failed`: assets con fallo de soft-delete o de limpieza remota. Un fallo remoto no revierte el soft-delete local.
+- `skipped`: assets que entre la seleccion y el borrado dejaron de ser huerfanos (se vincularon) o ya estaban soft-deleted. El borrado es condicional y atomico (`ownerType IS NULL AND ownerId IS NULL`), por lo que un asset recien vinculado nunca se elimina por esta via.
+
+### Logs estructurados
+
+El runner y el caso de uso emiten logs JSON con `requestId` (el mismo `--request-id` de la ejecucion). Eventos emitidos:
+
+```text
+media.orphan_purge.start        inicio del runner (dry-run, horas, limite)
+media.orphan_purge.started      inicio del caso de uso (candidatos, umbral)
+media.orphan_purge.completed    resumen final (deleted, failed, skipped, durationMs)
+media.orphan_purge.skipped      asset saltado por race (warning)
+media.orphan_purge.cloudinary_failed  fallo de limpieza remota por asset
+media.orphan_purge.failed       fallo de soft-delete por asset o de validacion
+media.orphan_purge.fatal        error no recuperable
+```
+
+Ningun log incluye secretos, URLs de Cloudinary ni contenido binario.
+
+### Exit codes
+
+| Exit code | Significado |
+| --- | --- |
+| `0` | `dry-run`, o ejecucion real sin fallos (`failed = 0`) |
+| `1` | `failed > 0`, argumentos invalidos o error no recuperable |
+
+El cron debe alertar cuando el exit code sea `1`.
 
 ### Programacion del cron
 
@@ -52,7 +81,29 @@ La API no ejecuta scheduler in-process. Un cron externo debe invocar el runner d
 0 3 * * *  cd /srv/refugiapp && npm run media:purge-orphans
 ```
 
-En despliegues containerizados se recomienda un Kubernetes CronJob sobre la misma imagen, ejecutando `npm run media:purge-orphans`. Verificar primero con `--dry-run` tras cada despliegue.
+En despliegues containerizados se recomienda un Kubernetes CronJob sobre la misma imagen. Usar `concurrencyPolicy: Forbid` para evitar doble ejecucion y verificar primero con `--dry-run` tras cada despliegue:
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: refugiapp-media-orphan-purge
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: purge
+              image: <registry>/refugiapp-api:<digest>
+              command: ["npm", "run", "media:purge-orphans", "--", "--dry-run"]
+```
 
 ### Consulta respaldada
 
@@ -77,3 +128,4 @@ En `POST /media/upload`, si la persistencia en PostgreSQL falla despues de subir
 3. Intentar borrar un huerfano ajeno como `veterinarian`: `403`.
 4. Ejecutar `npm run media:purge-orphans -- --dry-run` y revisar los candidatos.
 5. Envejecer un huerfano de prueba y ejecutar la purga real; verificar que desaparece de las consultas y que su archivo remoto se elimina en Cloudinary.
+6. Verificar los exit codes: `0` cuando `failed=0`, `1` si hubo fallos o argumentos invalidos.

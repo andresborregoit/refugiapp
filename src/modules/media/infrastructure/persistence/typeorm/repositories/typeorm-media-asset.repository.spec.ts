@@ -252,6 +252,34 @@ describe('TypeOrmMediaAssetRepository', () => {
     });
   });
 
+  describe('softDeleteOrphanOlderThan', () => {
+    it('soft-deletes only active orphan assets older than the threshold', async () => {
+      repository.softDelete.mockResolvedValue({ affected: 1 } as any);
+      const threshold = new Date('2025-01-01T00:00:00.000Z');
+
+      const result = await mediaAssetRepository.softDeleteOrphanOlderThan('media-id', threshold);
+
+      expect(repository.softDelete).toHaveBeenCalledWith({
+        id: 'media-id',
+        ownerType: IsNull(),
+        ownerId: IsNull(),
+        createdAt: LessThan(threshold),
+      });
+      expect(result).toBe(true);
+    });
+
+    it('returns false when no matching orphan row is affected', async () => {
+      repository.softDelete.mockResolvedValue({ affected: 0 } as any);
+
+      const result = await mediaAssetRepository.softDeleteOrphanOlderThan(
+        'media-id',
+        new Date('2025-01-01T00:00:00.000Z'),
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe('existsByPublicId', () => {
     it('should return true when asset exists', async () => {
       repository.count.mockResolvedValue(1);

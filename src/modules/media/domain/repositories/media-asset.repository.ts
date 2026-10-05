@@ -23,5 +23,6 @@ export interface MediaAssetRepository {
   findOrphanedOlderThan(threshold: Date, limit: number): Promise<MediaAsset[]>;
   create(asset: MediaAsset): Promise<MediaAsset>;
   softDeleteById(id: string): Promise<void>;
+  softDeleteOrphanOlderThan(id: string, threshold: Date): Promise<boolean>;
   existsByPublicId(publicId: string): Promise<boolean>;
 }

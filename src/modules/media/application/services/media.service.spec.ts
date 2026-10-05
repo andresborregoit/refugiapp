@@ -35,6 +35,7 @@ describe('MediaService', () => {
       findOrphanedOlderThan: jest.fn(),
       create: jest.fn(),
       softDeleteById: jest.fn(),
+      softDeleteOrphanOlderThan: jest.fn(),
       existsByPublicId: jest.fn(),
     };
 
@@ -407,13 +408,14 @@ describe('MediaService', () => {
       });
 
       expect(mediaAssetRepository.findOrphanedOlderThan).toHaveBeenCalled();
-      expect(mediaAssetRepository.softDeleteById).not.toHaveBeenCalled();
+      expect(mediaAssetRepository.softDeleteOrphanOlderThan).not.toHaveBeenCalled();
       expect(cloudinaryStorageService.delete).not.toHaveBeenCalled();
       expect(result).toMatchObject({
         dryRun: true,
         candidates: ['orphan-1', 'orphan-2'],
         deleted: 0,
         failed: 0,
+        skipped: 0,
       });
     });
 
@@ -422,7 +424,7 @@ describe('MediaService', () => {
         orphan('orphan-1'),
         orphan('orphan-2'),
       ]);
-      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+      mediaAssetRepository.softDeleteOrphanOlderThan.mockResolvedValue(true);
       cloudinaryStorageService.delete.mockResolvedValue(undefined);
 
       const result = await service.purgeExpiredOrphans({
@@ -431,15 +433,15 @@ describe('MediaService', () => {
         dryRun: false,
       });
 
-      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledTimes(2);
+      expect(mediaAssetRepository.softDeleteOrphanOlderThan).toHaveBeenCalledTimes(2);
       expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-orphan-1');
       expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-orphan-2');
-      expect(result).toMatchObject({ dryRun: false, deleted: 2, failed: 0 });
+      expect(result).toMatchObject({ dryRun: false, deleted: 2, failed: 0, skipped: 0 });
     });
 
     it('should count remote cleanup failures as failed without throwing', async () => {
       mediaAssetRepository.findOrphanedOlderThan.mockResolvedValue([orphan('orphan-1')]);
-      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+      mediaAssetRepository.softDeleteOrphanOlderThan.mockResolvedValue(true);
       cloudinaryStorageService.delete.mockRejectedValue(new Error('remote error'));
 
       const result = await service.purgeExpiredOrphans({
@@ -448,13 +450,16 @@ describe('MediaService', () => {
         dryRun: false,
       });
 
-      expect(result).toMatchObject({ deleted: 1, failed: 1 });
-      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('orphan-1');
+      expect(result).toMatchObject({ deleted: 1, failed: 1, skipped: 0 });
+      expect(mediaAssetRepository.softDeleteOrphanOlderThan).toHaveBeenCalledWith(
+        'orphan-1',
+        expect.any(Date),
+      );
     });
 
     it('should count soft-delete failures as failed', async () => {
       mediaAssetRepository.findOrphanedOlderThan.mockResolvedValue([orphan('orphan-1')]);
-      mediaAssetRepository.softDeleteById.mockRejectedValue(new Error('db error'));
+      mediaAssetRepository.softDeleteOrphanOlderThan.mockRejectedValue(new Error('db error'));
 
       const result = await service.purgeExpiredOrphans({
         olderThanHours: 48,
@@ -462,8 +467,37 @@ describe('MediaService', () => {
         dryRun: false,
       });
 
-      expect(result).toMatchObject({ deleted: 0, failed: 1 });
+      expect(result).toMatchObject({ deleted: 0, failed: 1, skipped: 0 });
       expect(cloudinaryStorageService.delete).not.toHaveBeenCalled();
+    });
+
+    it('should skip orphan assets already linked when the conditional delete affects nothing', async () => {
+      mediaAssetRepository.findOrphanedOlderThan.mockResolvedValue([orphan('orphan-1')]);
+      mediaAssetRepository.softDeleteOrphanOlderThan.mockResolvedValue(false);
+
+      const result = await service.purgeExpiredOrphans({
+        olderThanHours: 48,
+        limit: 10,
+        dryRun: false,
+      });
+
+      expect(result).toMatchObject({ deleted: 0, failed: 0, skipped: 1 });
+      expect(cloudinaryStorageService.delete).not.toHaveBeenCalled();
+    });
+
+    it('should reject an invalid retention window', async () => {
+      await expect(
+        service.purgeExpiredOrphans({ olderThanHours: 0, dryRun: true }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.purgeExpiredOrphans({ olderThanHours: Number.NaN, dryRun: true }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject an invalid purge limit', async () => {
+      await expect(
+        service.purgeExpiredOrphans({ olderThanHours: 48, limit: 0, dryRun: true }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

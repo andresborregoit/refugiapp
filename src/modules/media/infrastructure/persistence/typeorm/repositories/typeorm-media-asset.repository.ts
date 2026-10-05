@@ -75,6 +75,17 @@ export class TypeOrmMediaAssetRepository implements MediaAssetRepository {
     await this.repository.softDelete({ id });
   }
 
+  async softDeleteOrphanOlderThan(id: string, threshold: Date): Promise<boolean> {
+    const result = await this.repository.softDelete({
+      id,
+      ownerType: IsNull(),
+      ownerId: IsNull(),
+      createdAt: LessThan(threshold),
+    });
+
+    return (result.affected ?? 0) > 0;
+  }
+
   async existsByPublicId(publicId: string): Promise<boolean> {
     const count = await this.repository.count({ where: { cloudinaryPublicId: publicId } });
     return count > 0;
