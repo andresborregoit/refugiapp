@@ -22,4 +22,9 @@ export enum AuditAction {
   AUTH_PASSWORD_RESET_COMPLETED = 'auth.password_reset_completed',
   AUTH_PASSWORD_RESET_FAILED = 'auth.password_reset_failed',
   ACCESS_DENIED = 'access.denied',
+  PUSH_DEVICE_REGISTER = 'push.device_register',
+  PUSH_DEVICE_REMOVE = 'push.device_remove',
+  PUSH_PREFERENCES_UPDATE = 'push.preferences_update',
+  PUSH_DISPATCH_COMPLETED = 'push.dispatch_completed',
+  PUSH_TOKEN_INVALID = 'push.token_invalid',
 }

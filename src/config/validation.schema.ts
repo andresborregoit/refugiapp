@@ -102,4 +102,12 @@ export const envValidationSchema = Joi.object({
 
   MEDIA_ORPHAN_RETENTION_HOURS: Joi.number().integer().min(1).max(720).default(48),
   MEDIA_ORPHAN_PURGE_LIMIT: Joi.number().integer().min(1).max(10000).default(500),
+
+  PUSH_PROVIDER: Joi.string().valid('expo', 'noop').default('noop'),
+  EXPO_PUSH_URL: Joi.string().uri().default('https://exp.host/--/api/v2/push/send'),
+  PUSH_TIMEOUT_MS: Joi.number().integer().min(100).max(30_000).default(8000),
+  PUSH_BATCH_SIZE: Joi.number().integer().min(1).max(100).default(100),
+  PUSH_DISPATCH_LIMIT: Joi.number().integer().min(1).max(10000).default(200),
+  PUSH_UPCOMING_WINDOW_MINUTES: Joi.number().integer().min(5).max(1440).default(60),
+  PUSH_DRY_RUN: Joi.boolean().default(false),
 });

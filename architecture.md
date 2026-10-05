@@ -114,6 +114,7 @@ src/
     expenses/
     media/
     audit-logs/
+    notifications/
     health/
   app.controller.ts
   app.module.ts
@@ -232,6 +233,12 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `DELETE /media/:id`                      | Permitido | Permitido         | Permitido      |
 | `GET /audit-logs`                        | Permitido | Rechazado         | Rechazado      |
 | `GET /audit-logs/:id`                    | Permitido | Rechazado         | Rechazado      |
+| `POST /notifications/devices`            | Permitido | Permitido         | Permitido      |
+| `GET /notifications/devices/me`          | Permitido | Permitido         | Permitido      |
+| `DELETE /notifications/devices/:id`      | Permitido | Permitido         | Permitido      |
+| `GET /notifications/preferences/me`      | Permitido | Permitido         | Permitido      |
+| `PUT /notifications/preferences/me`      | Permitido | Permitido         | Permitido      |
+| `GET /notifications/deliveries`          | Permitido | Rechazado         | Rechazado      |
 
 En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset. Ademas, el usuario que subio un asset huerfano puede borrarlo con `DELETE /media/:id` aunque sea `veterinarian`, para cubrir el flujo subir -> cancelar antes de vincular.
 
@@ -417,6 +424,16 @@ La consulta se realiza mediante `GET /audit-logs` y `GET /audit-logs/:id`. Requi
 Cada respuesta incluye `actorUserId` (identificador crudo, se conserva por compatibilidad con el movil) y el objeto legible `actor` (`id`, `firstName`, `lastName`, `email`), resuelto con `leftJoin` sobre `users` en la misma query para evitar N+1. `actor` es `null` cuando el evento es de sistema (`actorUserId` nulo) o cuando el usuario actor fue eliminado (baja logica via `deletedAt` o borrado fisico que nulea la FK por `onDelete: SET NULL`). El `email` solo se expone aqui porque el endpoint es exclusivo de `admin`, que ya ve emails en `GET /users`.
 
 Retencion: la constante de dominio `AUDIT_LOG_RETENTION_DAYS` define 730 dias. La purga fisica se ejecuta con `npm run audit:purge`, que invoca `AuditLogsService.purgeExpired`.
+
+### `notifications`
+
+Gestiona suscripciones push por usuario, preferencias y el outbox de envíos desduplicado (RFG-127). Es el contrato backend para la app móvil (RFG-126, Expo).
+
+La suscripción se realiza mediante `POST /notifications/devices` con el token Expo del usuario autenticado. Solo se persiste el hash SHA-256 para lookup (`tokenHash`, único) más el token necesario para el envío; las respuestas y los logs solo exponen `tokenSuffix` (últimos 6). La rotación reasigna el token al usuario actual y el logout lo da de baja con `DELETE /notifications/devices/:id`.
+
+Las preferencias (`GET/PUT /notifications/preferences/me`) controlan `overdueEnabled`, `upcomingEnabled`, `upcomingWindowMinutes` (5..1440, default 60) y `quietStart/quietEnd` (juntos o nulos) en la zona horaria del usuario. `GET /notifications/deliveries` es solo para `admin` y expone el outbox sin tokens.
+
+El envío lo ejecuta un cron externo con `npm run notifications:dispatch` (no hay scheduler in-process). El dispatcher selecciona tareas `pending` con `dueAt` (`overdue` vencidas, `upcoming` dentro de la ventana), respeta preferencias y quiet hours, e inserta en `notification_deliveries` con clave de desduplicación `v1:{kind}:{careTaskId}:{yyyy-mm-dd}:{userId}` (`UNIQUE(dedupKey)`), por lo que reintentos y ejecuciones concurrentes no duplican. Los tokens rechazados con `DeviceNotRegistered` se desactivan sin bloquear el lote. Ver `docs/push-notifications.md` para la guía operativa.
 
 ### `health`
 
@@ -760,6 +777,11 @@ auth.login_success
 auth.login_failure
 auth.refresh_success
 auth.refresh_failure
+push.device_register
+push.device_remove
+push.preferences_update
+push.dispatch_completed
+push.token_invalid
 access.denied
 ```
 
@@ -772,6 +794,7 @@ expense
 care_task
 auth_session
 authorization
+notification
 ```
 
 ### 6.12 `refresh_tokens`
@@ -802,6 +825,57 @@ Registra tokens opacos de recuperacion. Solo se almacena `tokenHash` (SHA-256); 
 | columnas comunes |               |      | `createdAt`, `updatedAt`, `deletedAt`              |
 
 El token opaco nunca se persiste; solo su hash SHA-256. La rotacion ocurre dentro de una transaccion con `SELECT ... FOR UPDATE` sobre `tokenHash` para serializar requests concurrentes. El reuso de un token revocado fuera de la ventana de gracia revoca la familia completa.
+
+### 6.14 `device_subscriptions`
+
+Registra dispositivos push por usuario. El token Expo en claro solo vive en `expoPushToken` (necesario para enviar) y nunca se expone en respuestas ni logs; el lookup usa `tokenHash` (SHA-256, único).
+
+| Columna          | Tipo              | Null | Restricciones                                      |
+| ---------------- | ----------------- | ---- | -------------------------------------------------- |
+| `id`             | `uuid`            | No   | PK                                                 |
+| `userId`         | `uuid`            | No   | FK a `users.id`, `ON DELETE CASCADE`               |
+| `tokenHash`      | `varchar(64)`     | No   | Hash SHA-256 del token Expo; único                 |
+| `expoPushToken`  | `varchar(255)`    | No   | Token para el envío; nunca se expone ni se loguea  |
+| `tokenSuffix`    | `varchar(12)`     | No   | Últimos 6 caracteres, solo diagnóstico             |
+| `platform`       | `device_platform` | No   | `ios`, `android`                                   |
+| `timezone`       | `varchar(64)`     | No   | Zona IANA del dispositivo                          |
+| `appVersion`     | `varchar(32)`     | Si   |                                                    |
+| `isActive`       | `boolean`         | No   | Default `true`; `false` ante rechazo del proveedor |
+| `lastSeenAt`     | `timestamptz`     | No   | Último registro/rotación                           |
+| columnas comunes |                   |      | `createdAt`, `updatedAt`, `deletedAt`               |
+
+### 6.15 `notification_preferences`
+
+Una fila por usuario con sus preferencias de notificación.
+
+| Columna                  | Tipo          | Null | Restricciones                          |
+| ------------------------ | ------------- | ---- | -------------------------------------- |
+| `userId`                 | `uuid`        | No   | PK y FK a `users.id`, `ON DELETE CASCADE` |
+| `overdueEnabled`         | `boolean`     | No   | Default `true`                         |
+| `upcomingEnabled`        | `boolean`     | No   | Default `true`                         |
+| `upcomingWindowMinutes`  | `integer`     | No   | Default `60`, `CHECK` 5..1440          |
+| `quietStart`             | `time`        | Si   | Junto con `quietEnd` o nulos           |
+| `quietEnd`               | `time`        | Si   | Junto con `quietStart` o nulos         |
+| `timezone`               | `varchar(64)` | No   | Zona IANA para quiet hours y buckets   |
+| `updatedAt`              | `timestamptz` | No   |                                        |
+
+### 6.16 `notification_deliveries`
+
+Outbox idempotente de envíos. `dedupKey` (`v1:{kind}:{careTaskId}:{yyyy-mm-dd}:{userId}`) es único: un reintento o una ejecución concurrente resuelve al registro existente sin reenviar.
+
+| Columna            | Tipo                          | Null | Restricciones                                   |
+| ------------------ | ----------------------------- | ---- | ----------------------------------------------- |
+| `id`               | `uuid`                        | No   | PK                                              |
+| `dedupKey`         | `varchar(180)`                | No   | Único                                           |
+| `userId`           | `uuid`                        | No   | FK a `users.id`, `ON DELETE CASCADE`            |
+| `careTaskId`       | `uuid`                        | No   | FK a `care_tasks.id`, `ON DELETE RESTRICT`      |
+| `kind`             | `notification_kind`           | No   | `overdue`, `upcoming`                           |
+| `dueAtSnapshot`    | `timestamptz`                 | Si   | `dueAt` al momento del dispatch                 |
+| `status`           | `notification_delivery_status`| No   | Default `queued`: `sent`, `skipped`, `failed`   |
+| `providerReceiptId`| `varchar(160)`                | Si   |                                                 |
+| `attemptCount`     | `integer`                     | No   | Default `0`                                     |
+| `lastErrorCode`    | `varchar(64)`                 | Si   | Sin tokens ni contenido sensible                |
+| columnas comunes   |                               |      | `createdAt`, `updatedAt`, `deletedAt`            |
 
 ## 7. Diagrama entidad-relacion
 

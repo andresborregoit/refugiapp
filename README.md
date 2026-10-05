@@ -53,6 +53,7 @@ Implementado:
 - Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista con `npm run openapi:export`.
 - Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts` y especificacion en `docs/role-capabilities.md`.
 - Teardown resiliente de los tests de persistencia: no añade errores secundarios cuando Docker no esta disponible.
+- Notificaciones push (RFG-127): registro de dispositivos Expo por usuario, preferencias con quiet hours, dispatcher idempotente por cron externo (`npm run notifications:dispatch`) y adaptador Expo con `noop` para local/test. Detalle operativo en `docs/push-notifications.md`.
 
 Pendiente:
 
@@ -126,6 +127,7 @@ Modulos iniciales:
 - `expenses`: gastos asociados a animales y referencia a tickets.
 - `media`: metadata de archivos e imagenes en Cloudinary.
 - `audit-logs`: auditoria de operaciones sensibles con consulta protegida para `admin`.
+- `notifications`: suscripciones push por usuario, preferencias y scheduler desduplicado (`RFG-127`, Expo). Ver `docs/push-notifications.md`.
 
 ## Instalacion
 

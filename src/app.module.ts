@@ -14,6 +14,7 @@ import { ExpensesModule } from './modules/expenses/expenses.module';
 import { HealthModule } from './modules/health/health.module';
 import { MediaModule } from './modules/media/media.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { UsersModule } from './modules/users/users.module';
 import { VeterinariansModule } from './modules/veterinarians/veterinarians.module';
 import { appConfig } from './config/app.config';
@@ -23,6 +24,7 @@ import { healthConfig } from './config/health.config';
 import { jwtConfig } from './config/jwt.config';
 import { mediaConfig } from './config/media.config';
 import { passwordNotificationConfig } from './config/password-notification.config';
+import { pushConfig } from './config/push.config';
 import { createRateLimitOptions } from './config/rate-limit.config';
 import { securityConfig } from './config/security.config';
 import { createTypeOrmOptions } from './config/typeorm.config';
@@ -41,6 +43,7 @@ import { envValidationSchema } from './config/validation.schema';
         securityConfig,
         mediaConfig,
         passwordNotificationConfig,
+        pushConfig,
       ],
       validationSchema: envValidationSchema,
       validationOptions: {
@@ -64,6 +67,7 @@ import { envValidationSchema } from './config/validation.schema';
     VeterinariansModule,
     ExpensesModule,
     MediaModule,
+    NotificationsModule,
     AuditLogsModule,
     HealthModule,
   ],

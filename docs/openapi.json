@@ -882,7 +882,12 @@
                 "auth.password_reset_requested",
                 "auth.password_reset_completed",
                 "auth.password_reset_failed",
-                "access.denied"
+                "access.denied",
+                "push.device_register",
+                "push.device_remove",
+                "push.preferences_update",
+                "push.dispatch_completed",
+                "push.token_invalid"
               ]
             }
           },
@@ -898,7 +903,8 @@
                 "expense",
                 "care_task",
                 "auth_session",
-                "authorization"
+                "authorization",
+                "notification"
               ]
             }
           },
@@ -4412,6 +4418,390 @@
         ]
       }
     },
+    "/api/v1/notifications/devices": {
+      "post": {
+        "operationId": "DeviceSubscriptionsController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSubscriptionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Register or rotate the current device push token",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/devices/me": {
+      "get": {
+        "operationId": "DeviceSubscriptionsController_listMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceSubscriptionResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List my active push devices",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/devices/{id}": {
+      "delete": {
+        "operationId": "DeviceSubscriptionsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove one of my push devices (use on logout)",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/preferences/me": {
+      "get": {
+        "operationId": "NotificationPreferencesController_getMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferenceResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get my push notification preferences",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "operationId": "NotificationPreferencesController_updateMine",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferenceResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update my push notification preferences",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/deliveries": {
+      "get": {
+        "operationId": "NotificationDeliveriesController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "careTaskId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "sent",
+                "skipped",
+                "failed"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationDeliveryResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List push delivery outbox (diagnostics, no tokens)",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_liveness",
@@ -5190,7 +5580,12 @@
               "auth.password_reset_requested",
               "auth.password_reset_completed",
               "auth.password_reset_failed",
-              "access.denied"
+              "access.denied",
+              "push.device_register",
+              "push.device_remove",
+              "push.preferences_update",
+              "push.dispatch_completed",
+              "push.token_invalid"
             ]
           },
           "resourceType": {
@@ -5201,7 +5596,8 @@
               "expense",
               "care_task",
               "auth_session",
-              "authorization"
+              "authorization",
+              "notification"
             ]
           },
           "resourceId": {
@@ -6518,6 +6914,175 @@
         "required": [
           "totals",
           "recentAnimals"
+        ]
+      },
+      "RegisterDeviceDto": {
+        "type": "object",
+        "properties": {
+          "expoPushToken": {
+            "type": "string",
+            "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ios",
+              "android"
+            ]
+          },
+          "timezone": {
+            "type": "string",
+            "example": "America/Argentina/Buenos_Aires"
+          },
+          "appVersion": {
+            "type": "object",
+            "example": "1.4.0"
+          }
+        },
+        "required": [
+          "expoPushToken",
+          "platform",
+          "timezone"
+        ]
+      },
+      "DeviceSubscriptionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "object",
+            "nullable": true
+          },
+          "tokenSuffix": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lastSeenAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "platform",
+          "timezone",
+          "tokenSuffix",
+          "isActive",
+          "lastSeenAt"
+        ]
+      },
+      "NotificationPreferenceResponseDto": {
+        "type": "object",
+        "properties": {
+          "overdueEnabled": {
+            "type": "boolean"
+          },
+          "upcomingEnabled": {
+            "type": "boolean"
+          },
+          "upcomingWindowMinutes": {
+            "type": "number"
+          },
+          "quietStart": {
+            "type": "object",
+            "nullable": true
+          },
+          "quietEnd": {
+            "type": "object",
+            "nullable": true
+          },
+          "timezone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "overdueEnabled",
+          "upcomingEnabled",
+          "upcomingWindowMinutes",
+          "quietStart",
+          "quietEnd",
+          "timezone"
+        ]
+      },
+      "UpdatePreferencesDto": {
+        "type": "object",
+        "properties": {
+          "overdueEnabled": {
+            "type": "boolean"
+          },
+          "upcomingEnabled": {
+            "type": "boolean"
+          },
+          "upcomingWindowMinutes": {
+            "type": "number",
+            "minimum": 5,
+            "maximum": 1440
+          },
+          "quietStart": {
+            "type": "object",
+            "example": "22:00",
+            "nullable": true
+          },
+          "quietEnd": {
+            "type": "object",
+            "example": "07:00",
+            "nullable": true
+          },
+          "timezone": {
+            "type": "string",
+            "example": "America/Argentina/Buenos_Aires"
+          }
+        }
+      },
+      "NotificationDeliveryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "dedupKey": {
+            "type": "string"
+          },
+          "careTaskId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "lastErrorCode": {
+            "type": "object",
+            "nullable": true
+          },
+          "attemptCount": {
+            "type": "number"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "dedupKey",
+          "careTaskId",
+          "kind",
+          "status",
+          "lastErrorCode",
+          "attemptCount",
+          "createdAt"
         ]
       }
     }
