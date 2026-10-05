@@ -39,6 +39,7 @@ Implementado:
 - Subida de media (`POST /media/upload`) con validacion de propietario (o assets huerfanos), mimetype, tamano, autorizacion por roles y compensacion remota si falla la persistencia.
 - Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional.
 - Listado de assets por propietario (`GET /media`) con paginacion y baja logica con limpieza remota en Cloudinary.
+- Limpieza automatica de media huerfana (`npm run media:purge-orphans`) con retencion configurable por entorno, `--dry-run`, borrado condicional atomico (los assets vinculados nunca se purgan), logs JSON con `requestId` y exit code `1` ante fallos para alertar al cron externo.
 - Suite E2E de flujos criticos contra PostgreSQL efimero mediante Testcontainers, sin usar Neon ni datos de produccion.
 - Pipeline de CI con matriz Node 20+/22, lint, build, tests unitarios, validacion de migraciones y pruebas HTTP con persistencia real.
 - Health checks de liveness y readiness (`GET /health`, `GET /health/ready`) con chequeo real de PostgreSQL y estado `degraded`.
