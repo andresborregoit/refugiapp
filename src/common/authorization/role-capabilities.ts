@@ -7,6 +7,7 @@ export const CAPABILITIES = [
   'canManageExpenses',
   'canManageVets',
   'canReadAudit',
+  'canManageAdoptions',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -21,6 +22,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, RoleCapabilities> = {
     canManageExpenses: true,
     canManageVets: true,
     canReadAudit: true,
+    canManageAdoptions: true,
   },
   [UserRole.SHELTER_MANAGER]: {
     canEditAnimal: true,
@@ -29,6 +31,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, RoleCapabilities> = {
     canManageExpenses: true,
     canManageVets: true,
     canReadAudit: false,
+    canManageAdoptions: true,
   },
   [UserRole.VETERINARIAN]: {
     canEditAnimal: false,
@@ -37,6 +40,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, RoleCapabilities> = {
     canManageExpenses: false,
     canManageVets: false,
     canReadAudit: false,
+    canManageAdoptions: false,
   },
 };
 

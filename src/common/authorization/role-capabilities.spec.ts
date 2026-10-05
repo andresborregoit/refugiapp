@@ -16,6 +16,7 @@ describe('role capabilities', () => {
       'canManageExpenses',
       'canManageVets',
       'canReadAudit',
+      'canManageAdoptions',
     ]);
   });
 
@@ -44,6 +45,7 @@ describe('role capabilities', () => {
       canManageExpenses: true,
       canManageVets: true,
       canReadAudit: true,
+      canManageAdoptions: true,
     });
   });
 
@@ -55,6 +57,7 @@ describe('role capabilities', () => {
       canManageExpenses: true,
       canManageVets: true,
       canReadAudit: false,
+      canManageAdoptions: true,
     });
   });
 
@@ -66,6 +69,7 @@ describe('role capabilities', () => {
       canManageExpenses: false,
       canManageVets: false,
       canReadAudit: false,
+      canManageAdoptions: false,
     });
   });
 
@@ -81,6 +85,8 @@ describe('role capabilities', () => {
       [UserRole.VETERINARIAN, 'canReadClinicalRecords', true],
       [UserRole.SHELTER_MANAGER, 'canManageExpenses', true],
       [UserRole.SHELTER_MANAGER, 'canManageUsers', false],
+      [UserRole.SHELTER_MANAGER, 'canManageAdoptions', true],
+      [UserRole.VETERINARIAN, 'canManageAdoptions', false],
     ];
 
     for (const [role, capability, expected] of cases) {

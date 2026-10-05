@@ -6,4 +6,7 @@ export enum AuditResourceType {
   AUTH_SESSION = 'auth_session',
   AUTHORIZATION = 'authorization',
   NOTIFICATION = 'notification',
+  ADOPTER = 'adopter',
+  ADOPTION_APPLICATION = 'adoption_application',
+  ADOPTION = 'adoption',
 }

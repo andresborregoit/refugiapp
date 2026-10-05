@@ -16,6 +16,9 @@ import { VeterinarianOrmEntity } from '../../src/modules/veterinarians/infrastru
 import { DeviceSubscriptionOrmEntity } from '../../src/modules/notifications/infrastructure/persistence/typeorm/entities/device-subscription.orm-entity';
 import { NotificationDeliveryOrmEntity } from '../../src/modules/notifications/infrastructure/persistence/typeorm/entities/notification-delivery.orm-entity';
 import { NotificationPreferenceOrmEntity } from '../../src/modules/notifications/infrastructure/persistence/typeorm/entities/notification-preference.orm-entity';
+import { AdopterOrmEntity } from '../../src/modules/adoptions/infrastructure/persistence/typeorm/entities/adopter.orm-entity';
+import { AdoptionApplicationOrmEntity } from '../../src/modules/adoptions/infrastructure/persistence/typeorm/entities/adoption-application.orm-entity';
+import { AdoptionOrmEntity } from '../../src/modules/adoptions/infrastructure/persistence/typeorm/entities/adoption.orm-entity';
 
 export const TEST_DATABASE_NAME = 'refugiapp_test';
 
@@ -47,9 +50,15 @@ const ALL_ENTITIES = [
   DeviceSubscriptionOrmEntity,
   NotificationPreferenceOrmEntity,
   NotificationDeliveryOrmEntity,
+  AdopterOrmEntity,
+  AdoptionApplicationOrmEntity,
+  AdoptionOrmEntity,
 ];
 
 const ALL_TABLES = [
+  'adoptions',
+  'adoption_applications',
+  'adopters',
   'notification_deliveries',
   'device_subscriptions',
   'notification_preferences',

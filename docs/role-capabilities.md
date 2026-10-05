@@ -20,6 +20,7 @@ La autorizacion de cada endpoint se sigue resolviendo con `JwtAuthGuard` + `Role
 | `canManageExpenses` | Si | Si | No | Crear y dar de baja gastos asociados a animales |
 | `canManageVets` | Si | Si | No | Crear, editar, desactivar y reactivar perfiles de veterinarios |
 | `canReadAudit` | Si | No | No | Consultar el historial de auditoria (append-only) |
+| `canManageAdoptions` | Si | Si | No | Crear adoptantes, registrar solicitudes y aprobar adopciones |
 
 ## Derivacion desde los endpoints
 
@@ -84,6 +85,16 @@ Las lecturas (`GET /veterinarians`, `GET /veterinarians/:id`) estan disponibles 
 
 - `GET /audit-logs`
 - `GET /audit-logs/:id`
+
+### `canManageAdoptions` (`admin`, `shelter_manager`)
+
+- `POST /adopters`
+- `GET /adopters/:id`
+- `POST /animals/:animalId/adoption-applications`
+- `GET /animals/:animalId/adoption-applications`
+- `POST /adoption-applications/:id/approve`
+
+`GET /animals/:animalId/adoptions` esta disponible para los tres roles y no expone los datos de contacto del adoptante.
 
 ## Notas transversales
 

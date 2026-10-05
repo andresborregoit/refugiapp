@@ -51,9 +51,10 @@ Implementado:
 - Cambio y recuperacion de contraseña con tokens de un solo uso, respuesta anti-enumeracion, revocacion de sesiones y notificaciones por webhook de email.
 - Backup y recuperacion de PostgreSQL con retencion, checksum, restauracion aislada y prueba automatizada.
 - Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista con `npm run openapi:export`.
-- Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts` y especificacion en `docs/role-capabilities.md`.
+- Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canManageAdoptions`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts` y especificacion en `docs/role-capabilities.md`.
 - Teardown resiliente de los tests de persistencia: no añade errores secundarios cuando Docker no esta disponible.
 - Notificaciones push (RFG-127): registro de dispositivos Expo por usuario, preferencias con quiet hours, dispatcher idempotente por cron externo (`npm run notifications:dispatch`) y adaptador Expo con `noop` para local/test. Detalle operativo en `docs/push-notifications.md`.
+- Proceso de adopcion (RFG-95): perfiles de adoptantes, postulaciones, aprobacion transaccional, historial, evento automatico `status_change` y permisos por rol.
 
 Pendiente:
 
@@ -107,6 +108,8 @@ src/
     expenses/
     media/
     audit-logs/
+    notifications/
+    adoptions/
   app.controller.ts
   app.module.ts
   app.service.ts
@@ -128,6 +131,7 @@ Modulos iniciales:
 - `media`: metadata de archivos e imagenes en Cloudinary.
 - `audit-logs`: auditoria de operaciones sensibles con consulta protegida para `admin`.
 - `notifications`: suscripciones push por usuario, preferencias y scheduler desduplicado (`RFG-127`, Expo). Ver `docs/push-notifications.md`.
+- `adoptions`: datos de contacto de adoptantes, postulaciones y adopciones completadas con trazabilidad y cambio de estado transaccional.
 
 ## Instalacion
 
@@ -209,6 +213,8 @@ La migracion `1788897600000-AddBreedToAnimals.ts` agrega el campo opcional `bree
 La migracion `1789399460070-AddAuditLogs.ts` crea la tabla append-only `audit_logs` con sus enums, indices y foreign key a `users`.
 
 La migracion `1792000000000-AddPasswordRecovery.ts` crea `password_reset_tokens` y agrega las acciones de auditoria del ciclo de contraseñas.
+
+La migracion `1794000000000-AddAdoptionProcess.ts` crea `adopters`, `adoption_applications` y `adoptions`, junto con enums, indices, foreign keys y valores de auditoria del proceso.
 
 Para cambios nuevos de schema, modificar primero las entidades ORM, generar una migracion nueva con nombre descriptivo, revisar el SQL generado y versionar codigo y migracion juntos.
 
@@ -352,6 +358,7 @@ La matriz definitiva de capacidades por rol esta documentada en `docs/role-capab
 - `canManageUsers`: `admin`.
 - `canManageExpenses`: `admin`, `shelter_manager`.
 - `canManageVets`: `admin`, `shelter_manager`.
+- `canManageAdoptions`: `admin`, `shelter_manager`.
 - `canReadAudit`: `admin`.
 
 La fuente de verdad en codigo es `ROLE_CAPABILITIES` en `src/common/authorization/role-capabilities.ts`. Los guards (`JwtAuthGuard` + `RolesGuard`) siguen siendo el unico mecanismo de autorizacion.
