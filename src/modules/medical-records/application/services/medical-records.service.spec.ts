@@ -8,6 +8,7 @@ import { MedicalRecordType } from '../../domain/enums/medical-record-type.enum';
 import { MedicalRecordChangeType } from '../../domain/enums/medical-record-change-type.enum';
 import { MedicalRecord } from '../../domain/entities/medical-record.entity';
 import { MedicalRecordChange } from '../../domain/entities/medical-record-change.entity';
+import { ChangeActor } from '../../domain/entities/change-actor.entity';
 import { UpdateMedicalRecord } from '../../domain/entities/update-medical-record.entity';
 import { VeterinarianRepository } from '../../../veterinarians/domain/repositories/veterinarian.repository';
 import { MediaAssetRepository } from '../../../media/domain/repositories/media-asset.repository';
@@ -727,6 +728,33 @@ describe('MedicalRecordsService', () => {
       await service.listChanges('record-id', { page: 1, limit: 20 });
 
       expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('carries the human-readable changedBy through the use case', async () => {
+      medicalRecordRepository.findByIdWithDeleted.mockResolvedValue(record);
+      const enriched = new MedicalRecordChange(
+        'change-id',
+        'record-id',
+        'actor-id',
+        MedicalRecordChangeType.UPDATE,
+        { title: 'Old title' },
+        new Date('2026-03-11T10:00:00.000Z'),
+        new ChangeActor('actor-id', 'Sofia', 'Ramirez'),
+      );
+      medicalRecordRepository.findChanges.mockResolvedValue({
+        items: [enriched],
+        page: 1,
+        limit: 20,
+        total: 1,
+      });
+
+      const result = await service.listChanges('record-id', { page: 1, limit: 20 });
+
+      expect(result.items[0]!.changedBy).toEqual({
+        id: 'actor-id',
+        firstName: 'Sofia',
+        lastName: 'Ramirez',
+      });
     });
 
     it('throws BadRequestException when from is after to', async () => {

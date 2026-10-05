@@ -9,6 +9,7 @@ import {
   Repository,
 } from 'typeorm';
 import { AuditLog } from '../../../../domain/entities/audit-log.entity';
+import { AuditActor } from '../../../../domain/entities/audit-actor.entity';
 import { CreateAuditLog } from '../../../../domain/entities/create-audit-log.entity';
 import {
   AuditLogListQuery,
@@ -40,7 +41,10 @@ export class TypeOrmAuditLogRepository implements AuditLogRepository {
   }
 
   async findById(id: string): Promise<AuditLog | null> {
-    const entity = await this.repository.findOne({ where: { id } });
+    const entity = await this.repository.findOne({
+      where: { id },
+      relations: { actorUser: true },
+    });
 
     return entity ? this.toDomain(entity) : null;
   }
@@ -74,6 +78,7 @@ export class TypeOrmAuditLogRepository implements AuditLogRepository {
 
     const [entities, total] = await this.repository.findAndCount({
       where,
+      relations: { actorUser: true },
       order: { occurredAt: 'DESC', id: 'DESC' },
       skip: (query.page - 1) * query.limit,
       take: query.limit,
@@ -104,6 +109,14 @@ export class TypeOrmAuditLogRepository implements AuditLogRepository {
       entity.metadata ?? {},
       entity.createdAt,
       entity.updatedAt,
+      entity.actorUser && !entity.actorUser.deletedAt
+        ? new AuditActor(
+            entity.actorUser.id,
+            entity.actorUser.firstName,
+            entity.actorUser.lastName,
+            entity.actorUser.email,
+          )
+        : null,
     );
   }
 }

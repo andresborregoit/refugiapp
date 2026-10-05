@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MedicalRecordChangeType } from '../../domain/enums/medical-record-change-type.enum';
 
+export class ChangeActorDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  firstName!: string;
+
+  @ApiProperty()
+  lastName!: string;
+}
+
 export class MedicalRecordChangeResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -26,4 +37,12 @@ export class MedicalRecordChangeResponseDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   changedAt!: Date;
+
+  @ApiPropertyOptional({
+    type: ChangeActorDto,
+    nullable: true,
+    description:
+      'Human-readable actor of the change. Null for system events or when the actor user was deleted. Email is intentionally omitted to protect colleague contact data.',
+  })
+  changedBy?: ChangeActorDto | null;
 }

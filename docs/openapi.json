@@ -5129,6 +5129,31 @@
         "type": "object",
         "properties": {}
       },
+      "AuditActorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "email"
+        ]
+      },
       "AuditLogResponseDto": {
         "type": "object",
         "properties": {
@@ -5194,6 +5219,16 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "actor": {
+            "nullable": true,
+            "description": "Human-readable actor of the event. Null for system events or when the actor user was deleted.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuditActorDto"
+              }
+            ]
           }
         },
         "required": [
@@ -6111,6 +6146,26 @@
           "total"
         ]
       },
+      "ChangeActorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName"
+        ]
+      },
       "MedicalRecordChangeResponseDto": {
         "type": "object",
         "properties": {
@@ -6149,6 +6204,16 @@
           "changedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "changedBy": {
+            "nullable": true,
+            "description": "Human-readable actor of the change. Null for system events or when the actor user was deleted. Email is intentionally omitted to protect colleague contact data.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChangeActorDto"
+              }
+            ]
           }
         },
         "required": [

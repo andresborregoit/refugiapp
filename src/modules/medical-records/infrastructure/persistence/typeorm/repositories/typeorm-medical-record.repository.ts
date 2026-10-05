@@ -6,6 +6,7 @@ import { MediaAssetOrmEntity } from '../../../../../../modules/media/infrastruct
 import { CreateMedicalRecord } from '../../../../domain/entities/create-medical-record.entity';
 import { MedicalRecord } from '../../../../domain/entities/medical-record.entity';
 import { MedicalRecordChange } from '../../../../domain/entities/medical-record-change.entity';
+import { ChangeActor } from '../../../../domain/entities/change-actor.entity';
 import { UpdateMedicalRecord } from '../../../../domain/entities/update-medical-record.entity';
 import {
   MedicalRecordChangesQuery,
@@ -98,6 +99,7 @@ export class TypeOrmMedicalRecordRepository implements MedicalRecordRepository {
 
     const [entities, total] = await this.changeRepository.findAndCount({
       where,
+      relations: { changedByUser: true },
       order: { changedAt: 'DESC', id: 'DESC' },
       skip: (query.page - 1) * query.limit,
       take: query.limit,
@@ -286,6 +288,13 @@ export class TypeOrmMedicalRecordRepository implements MedicalRecordRepository {
       entity.changeType,
       entity.previousValues,
       entity.changedAt,
+      entity.changedByUser && !entity.changedByUser.deletedAt
+        ? new ChangeActor(
+            entity.changedByUser.id,
+            entity.changedByUser.firstName,
+            entity.changedByUser.lastName,
+          )
+        : null,
     );
   }
 }

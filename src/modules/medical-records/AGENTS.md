@@ -64,7 +64,9 @@
 ## Historial de cambios
 - `GET /medical-records/:id/changes` requiere JWT y admite solo `admin` y `veterinarian`.
 - La consulta valida que el registro exista con `findByIdWithDeleted` (404 si no existe); el historial permanece legible para registros soft-deleted.
-- Cada item expone: `id`, `medicalRecordId`, `changedByUserId` (nullable), `changeType`, `changedFields` (derivado de `Object.keys(previousValues)` ordenado) y `changedAt`.
+- Cada item expone: `id`, `medicalRecordId`, `changedByUserId` (nullable), `changedBy` (objeto `{id, firstName, lastName}` legible, nullable), `changeType`, `changedFields` (derivado de `Object.keys(previousValues)` ordenado) y `changedAt`.
+- El repositorio hace `leftJoin` de `changedByUser` en la misma query para evitar N+1; `changedBy` es `null` para eventos de sistema o usuarios eliminados (soft-delete con `deletedAt` o borrado fisico que nulea la FK), nunca responde `500`.
+- `changedBy` nunca incluye `email` ni `passwordHash`: el rol `veterinarian` no necesita datos de contacto de colegas.
 - `previousValues` guarda solo los valores anteriores: para `update` solo los campos enviados, para `soft_delete` un snapshot de todos los campos clinicos y para `restore` el `deletedAt` que se limpio.
 - Admite paginacion con `page` minimo 1, `limit` entre 1 y 100, default `page=1` y `limit=20`.
 - Admite filtros opcionales por `changeType`, `changedByUserId` y rango `from`/`to` sobre `changedAt`; `from` posterior a `to` responde `400 INVALID_DATE_RANGE`.

@@ -69,11 +69,14 @@ describe('MedicalRecords Swagger contract', () => {
     const previousValues = properties.previousValues as { type?: string } | undefined;
     const changeType = properties.changeType as { enum?: string[] } | undefined;
     const changedAt = properties.changedAt as { type?: string; format?: string } | undefined;
+    const changedBy = properties.changedBy as { nullable?: boolean } | undefined;
 
     expect(changedFields).toMatchObject({ type: 'array', items: { type: 'string' } });
     expect(changedByUserId).toMatchObject({ nullable: true, format: 'uuid' });
     expect(previousValues).toMatchObject({ type: 'object' });
     expect(changeType?.enum).toEqual(['update', 'soft_delete', 'restore']);
     expect(changedAt).toMatchObject({ type: 'string', format: 'date-time' });
+    expect(changedBy).toBeDefined();
+    expect(changedBy).toMatchObject({ nullable: true });
   });
 });
