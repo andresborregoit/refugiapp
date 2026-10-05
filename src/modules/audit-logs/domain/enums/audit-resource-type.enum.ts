@@ -5,4 +5,5 @@ export enum AuditResourceType {
   CARE_TASK = 'care_task',
   AUTH_SESSION = 'auth_session',
   AUTHORIZATION = 'authorization',
+  NOTIFICATION = 'notification',
 }
