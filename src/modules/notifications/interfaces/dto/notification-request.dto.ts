@@ -18,7 +18,7 @@ export class RegisterDeviceDto {
   @MaxLength(64)
   timezone!: string;
 
-  @ApiPropertyOptional({ example: '1.4.0' })
+  @ApiPropertyOptional({ type: String, example: '1.4.0' })
   @IsOptional()
   @IsString()
   @MaxLength(32)
@@ -38,12 +38,12 @@ export class UpdatePreferencesDto {
   @IsOptional()
   upcomingWindowMinutes?: number;
 
-  @ApiPropertyOptional({ example: '22:00', nullable: true })
+  @ApiPropertyOptional({ type: String, example: '22:00', nullable: true })
   @IsOptional()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'quietStart must use HH:mm 24h format.' })
   quietStart?: string | null;
 
-  @ApiPropertyOptional({ example: '07:00', nullable: true })
+  @ApiPropertyOptional({ type: String, example: '07:00', nullable: true })
   @IsOptional()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'quietEnd must use HH:mm 24h format.' })
   quietEnd?: string | null;

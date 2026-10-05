@@ -17,6 +17,7 @@
 - `GET/PUT /notifications/preferences/me` requieren JWT y admiten los tres roles.
 - `GET /notifications/deliveries` requiere JWT y admite solo `admin`; es diagnóstico sin tokens.
 - Token Expo inválido: `400 INVALID_PUSH_TOKEN`. Timezone inválida: `400 INVALID_TIMEZONE`. Ventana inválida: `400 INVALID_UPCOMING_WINDOW`. Quiet incompleto: `400 INVALID_QUIET_HOURS`.
+- En los DTOs, los campos `string | null` declaran `type: String` en `@ApiProperty`/`@ApiPropertyOptional` para que el OpenAPI emita `type: string` en lugar del artefacto `type: object` que produce la reflexión de la unión.
 
 ## Scheduler
 - Cron externo ejecuta `npm run notifications:dispatch` (`--dry-run`, `--limit=`, `--request-id=`). No hay scheduler in-process.

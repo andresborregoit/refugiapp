@@ -6935,7 +6935,7 @@
             "example": "America/Argentina/Buenos_Aires"
           },
           "appVersion": {
-            "type": "object",
+            "type": "string",
             "example": "1.4.0"
           }
         },
@@ -6958,7 +6958,7 @@
             "type": "string"
           },
           "appVersion": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "tokenSuffix": {
@@ -6994,11 +6994,11 @@
             "type": "number"
           },
           "quietStart": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "quietEnd": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "timezone": {
@@ -7029,12 +7029,12 @@
             "maximum": 1440
           },
           "quietStart": {
-            "type": "object",
+            "type": "string",
             "example": "22:00",
             "nullable": true
           },
           "quietEnd": {
-            "type": "object",
+            "type": "string",
             "example": "07:00",
             "nullable": true
           },
@@ -7063,7 +7063,7 @@
             "type": "string"
           },
           "lastErrorCode": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "attemptCount": {

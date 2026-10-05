@@ -13,7 +13,7 @@ export class DeviceSubscriptionResponseDto {
   @ApiProperty()
   timezone!: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({ type: String, nullable: true })
   appVersion!: string | null;
 
   @ApiProperty()
@@ -48,10 +48,10 @@ export class NotificationPreferenceResponseDto {
   @ApiProperty()
   upcomingWindowMinutes!: number;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   quietStart!: string | null;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   quietEnd!: string | null;
 
   @ApiProperty()
@@ -85,7 +85,7 @@ export class NotificationDeliveryResponseDto {
   @ApiProperty()
   status!: string;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   lastErrorCode!: string | null;
 
   @ApiProperty()
