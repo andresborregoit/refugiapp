@@ -13,6 +13,9 @@ import { RefreshTokenOrmEntity } from '../../src/modules/auth/infrastructure/per
 import { PasswordResetTokenOrmEntity } from '../../src/modules/auth/infrastructure/persistence/typeorm/entities/password-reset-token.orm-entity';
 import { UserOrmEntity } from '../../src/modules/users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 import { VeterinarianOrmEntity } from '../../src/modules/veterinarians/infrastructure/persistence/typeorm/entities/veterinarian.orm-entity';
+import { DeviceSubscriptionOrmEntity } from '../../src/modules/notifications/infrastructure/persistence/typeorm/entities/device-subscription.orm-entity';
+import { NotificationDeliveryOrmEntity } from '../../src/modules/notifications/infrastructure/persistence/typeorm/entities/notification-delivery.orm-entity';
+import { NotificationPreferenceOrmEntity } from '../../src/modules/notifications/infrastructure/persistence/typeorm/entities/notification-preference.orm-entity';
 
 export const TEST_DATABASE_NAME = 'refugiapp_test';
 
@@ -41,9 +44,15 @@ const ALL_ENTITIES = [
   PasswordResetTokenOrmEntity,
   UserOrmEntity,
   VeterinarianOrmEntity,
+  DeviceSubscriptionOrmEntity,
+  NotificationPreferenceOrmEntity,
+  NotificationDeliveryOrmEntity,
 ];
 
 const ALL_TABLES = [
+  'notification_deliveries',
+  'device_subscriptions',
+  'notification_preferences',
   'medical_record_changes',
   'medical_records',
   'expenses',

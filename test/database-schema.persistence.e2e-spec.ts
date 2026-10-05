@@ -150,6 +150,11 @@ describe('PostgreSQL schema contract (integration)', () => {
       'auth.password_reset_requested',
       'auth.password_reset_completed',
       'auth.password_reset_failed',
+      'push.device_register',
+      'push.device_remove',
+      'push.preferences_update',
+      'push.dispatch_completed',
+      'push.token_invalid',
     ]);
     expect(enums.audit_resource_type).toEqual([
       'user',
@@ -158,7 +163,11 @@ describe('PostgreSQL schema contract (integration)', () => {
       'auth_session',
       'authorization',
       'care_task',
+      'notification',
     ]);
+    expect(enums.device_platform).toEqual(['ios', 'android']);
+    expect(enums.notification_kind).toEqual(['overdue', 'upcoming']);
+    expect(enums.notification_delivery_status).toEqual(['queued', 'sent', 'skipped', 'failed']);
   });
 
   it('declares the documented foreign keys with the correct ON DELETE policy', async () => {
