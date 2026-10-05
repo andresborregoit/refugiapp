@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { AuditLog } from '../../domain/entities/audit-log.entity';
+import { AuditActor } from '../../domain/entities/audit-actor.entity';
 import { AuditAction } from '../../domain/enums/audit-action.enum';
 import { AuditResourceType } from '../../domain/enums/audit-resource-type.enum';
 import { AuditLogsService } from './audit-logs.service';
@@ -76,6 +77,39 @@ describe('AuditLogsService', () => {
       expect(auditLogRepository.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ page: 1, limit: 20, action: AuditAction.USER_CREATE }),
       );
+    });
+  });
+
+  describe('findById', () => {
+    it('returns the enriched entity with a human-readable actor', async () => {
+      const enriched = new AuditLog(
+        'audit-id',
+        'actor-id',
+        AuditAction.USER_CREATE,
+        AuditResourceType.USER,
+        'user-id',
+        now,
+        {},
+        now,
+        now,
+        new AuditActor('actor-id', 'Sofia', 'Ramirez', 'actor@refugiapp.local'),
+      );
+      auditLogRepository.findById.mockResolvedValue(enriched);
+
+      await expect(service.findById('audit-id')).resolves.toEqual(
+        expect.objectContaining({
+          actor: expect.objectContaining({
+            firstName: 'Sofia',
+            email: 'actor@refugiapp.local',
+          }),
+        }),
+      );
+    });
+
+    it('returns null when the entry does not exist', async () => {
+      auditLogRepository.findById.mockResolvedValue(null);
+
+      await expect(service.findById('missing-id')).resolves.toBeNull();
     });
   });
 

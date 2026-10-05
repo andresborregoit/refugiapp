@@ -30,3 +30,6 @@
 - Filtros opcionales: `action`, `resourceType`, `resourceId`, `actorUserId` y rango `from`/`to` sobre `occurredAt`.
 - Orden determinista: `occurredAt DESC, id DESC`.
 - `from` posterior a `to` responde 400 `INVALID_DATE_RANGE`.
+- Las respuestas incluyen `actorUserId` (id crudo, se conserva por compatibilidad) y el objeto legible `actor` (`id`, `firstName`, `lastName`, `email`); el repositorio hace `leftJoin` de `actorUser` en la misma query para evitar N+1.
+- `actor` es `null` cuando el evento es de sistema (`actorUserId` nulo) o cuando el usuario actor fue eliminado (soft-delete con `deletedAt` o borrado fisico que nulea la FK por `onDelete: SET NULL`); nunca responder `500` por actor inexistente.
+- `actor` expone `email` solo aqui porque `GET /audit-logs` y `GET /audit-logs/:id` son exclusivos de `admin`. Nunca mapear `passwordHash` ni `roles` en el objeto `actor`.

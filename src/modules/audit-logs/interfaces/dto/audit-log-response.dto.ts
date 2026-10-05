@@ -2,6 +2,20 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AuditAction } from '../../domain/enums/audit-action.enum';
 import { AuditResourceType } from '../../domain/enums/audit-resource-type.enum';
 
+export class AuditActorDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  firstName!: string;
+
+  @ApiProperty()
+  lastName!: string;
+
+  @ApiProperty({ format: 'email' })
+  email!: string;
+}
+
 export class AuditLogResponseDto {
   @ApiProperty()
   id!: string;
@@ -26,4 +40,12 @@ export class AuditLogResponseDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
+
+  @ApiPropertyOptional({
+    type: AuditActorDto,
+    nullable: true,
+    description:
+      'Human-readable actor of the event. Null for system events or when the actor user was deleted.',
+  })
+  actor?: AuditActorDto | null;
 }

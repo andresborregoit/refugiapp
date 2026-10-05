@@ -103,6 +103,73 @@ describe('AuditLogs (e2e)', () => {
     expect(res.body.items[0].action).toBe(AuditAction.USER_CREATE);
   });
 
+  it('exposes a human-readable actor with name and email for an admin', async () => {
+    auditLogsService.list.mockResolvedValue({
+      items: [
+        {
+          id: VALID_UUID,
+          actorUserId: adminPayload.id,
+          action: AuditAction.USER_CREATE,
+          resourceType: AuditResourceType.USER,
+          resourceId: 'user-id',
+          metadata: {},
+          occurredAt: new Date(),
+          createdAt: new Date(),
+          actor: {
+            id: adminPayload.id,
+            firstName: 'Sofia',
+            lastName: 'Ramirez',
+            email: 'sofia@refugiapp.local',
+          },
+        },
+      ],
+      page: 1,
+      limit: 20,
+      total: 1,
+    });
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/audit-logs')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(res.body.items[0].actor).toEqual({
+      id: adminPayload.id,
+      firstName: 'Sofia',
+      lastName: 'Ramirez',
+      email: 'sofia@refugiapp.local',
+    });
+    expect(res.body.items[0].actor).not.toHaveProperty('passwordHash');
+  });
+
+  it('returns a null actor for system events or deleted users', async () => {
+    auditLogsService.list.mockResolvedValue({
+      items: [
+        {
+          id: VALID_UUID,
+          actorUserId: null,
+          action: AuditAction.AUTH_LOGIN_FAILURE,
+          resourceType: AuditResourceType.AUTH_SESSION,
+          metadata: {},
+          occurredAt: new Date(),
+          createdAt: new Date(),
+          actor: null,
+        },
+      ],
+      page: 1,
+      limit: 20,
+      total: 1,
+    });
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/audit-logs')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+
+    expect(res.body.items[0].actor).toBeNull();
+    expect(res.body.items[0].actorUserId).toBeNull();
+  });
+
   it('rejects invalid query params with 400', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/audit-logs?limit=101')

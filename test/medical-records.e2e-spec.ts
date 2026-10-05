@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../src/modules/auth/infrastructure/guards/jwt-auth
 import { MedicalRecordsService } from '../src/modules/medical-records/application/services/medical-records.service';
 import { MedicalRecord } from '../src/modules/medical-records/domain/entities/medical-record.entity';
 import { MedicalRecordChange } from '../src/modules/medical-records/domain/entities/medical-record-change.entity';
+import { ChangeActor } from '../src/modules/medical-records/domain/entities/change-actor.entity';
 import { MedicalRecordChangeType } from '../src/modules/medical-records/domain/enums/medical-record-change-type.enum';
 import { MedicalRecordType } from '../src/modules/medical-records/domain/enums/medical-record-type.enum';
 import { AnimalMedicalRecordsController } from '../src/modules/medical-records/interfaces/controllers/animal-medical-records.controller';
@@ -730,6 +731,48 @@ describe('MedicalRecords (e2e)', () => {
       );
 
       await vetApp.close();
+    });
+
+    it('exposes changedBy with the actor name and without email for a veterinarian', async () => {
+      const vetApp = await createAppWithGuard(VeterinarianJwtAuthGuard);
+      medicalRecordsService.listChanges.mockResolvedValue({
+        items: [createChange({ changedBy: new ChangeActor('actor-id', 'Sofia', 'Ramirez') })],
+        page: 1,
+        limit: 20,
+        total: 1,
+      });
+
+      const res = await request(vetApp.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .set('Authorization', 'Bearer vet-token')
+        .expect(200);
+
+      expect(res.body.items[0].changedBy).toEqual({
+        id: 'actor-id',
+        firstName: 'Sofia',
+        lastName: 'Ramirez',
+      });
+      expect(res.body.items[0].changedBy).not.toHaveProperty('email');
+      expect(JSON.stringify(res.body)).not.toContain('@refugiapp.local');
+
+      await vetApp.close();
+    });
+
+    it('returns a null changedBy for system events or deleted users', async () => {
+      medicalRecordsService.listChanges.mockResolvedValue({
+        items: [createChange({ changedByUserId: null, changedBy: null })],
+        page: 1,
+        limit: 20,
+        total: 1,
+      });
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/medical-records/${recordId}/changes`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(200);
+
+      expect(res.body.items[0].changedBy).toBeNull();
+      expect(res.body.items[0].changedByUserId).toBeNull();
     });
 
     it('returns 403 when called by a shelter_manager', async () => {

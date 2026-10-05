@@ -1,5 +1,6 @@
 import { AuditAction } from '../enums/audit-action.enum';
 import { AuditResourceType } from '../enums/audit-resource-type.enum';
+import { AuditActor } from './audit-actor.entity';
 
 export class AuditLog {
   constructor(
@@ -12,5 +13,6 @@ export class AuditLog {
     public readonly metadata: Record<string, unknown>,
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
+    public readonly actor: AuditActor | null = null,
   ) {}
 }

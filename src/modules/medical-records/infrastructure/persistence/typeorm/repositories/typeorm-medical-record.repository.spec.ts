@@ -1,6 +1,7 @@
 import { In, Repository } from 'typeorm';
 import { MediaOwnerType } from '../../../../../../modules/media/domain/enums/media-owner-type.enum';
 import { MediaAssetOrmEntity } from '../../../../../../modules/media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
+import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 import { CreateMedicalRecord } from '../../../../domain/entities/create-medical-record.entity';
 import { UpdateMedicalRecord } from '../../../../domain/entities/update-medical-record.entity';
 import { MedicalRecordType } from '../../../../domain/enums/medical-record-type.enum';
@@ -368,6 +369,7 @@ describe('TypeOrmMedicalRecordRepository', () => {
         changedByUserId: 'actor-id',
       });
       expect(options.where.changedAt).toBeDefined();
+      expect(options.relations).toEqual({ changedByUser: true });
       expect(options.order).toEqual({ changedAt: 'DESC', id: 'DESC' });
       expect(options.skip).toBe(2);
       expect(options.take).toBe(2);
@@ -414,6 +416,90 @@ describe('TypeOrmMedicalRecordRepository', () => {
 
       expect(changeRepository.findAndCount.mock.calls[0]![0]!.where.changedAt).toBeDefined();
       expect(changeRepository.findAndCount.mock.calls[1]![0]!.where.changedAt).toBeDefined();
+    });
+
+    it('maps a human-readable changedBy without email when the user is loaded', async () => {
+      const user = Object.assign(new UserOrmEntity(), {
+        id: 'actor-id',
+        email: 'actor@refugiapp.local',
+        firstName: 'Sofia',
+        lastName: 'Ramirez',
+      });
+      const changeEntity = Object.assign(new MedicalRecordChangeOrmEntity(), {
+        id: 'change-id',
+        medicalRecordId: 'record-id',
+        changedByUserId: 'actor-id',
+        changeType: MedicalRecordChangeType.UPDATE,
+        previousValues: { title: 'Old title' },
+        changedAt: new Date('2026-03-11T10:00:00.000Z'),
+        changedByUser: user,
+      });
+      changeRepository.findAndCount.mockResolvedValue([[changeEntity], 1]);
+
+      const result = await medicalRecordRepository.findChanges({
+        medicalRecordId: 'record-id',
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.items[0]!.changedBy).toEqual({
+        id: 'actor-id',
+        firstName: 'Sofia',
+        lastName: 'Ramirez',
+      });
+      expect(result.items[0]!.changedBy).not.toHaveProperty('email');
+      expect(result.items[0]!.changedBy).not.toHaveProperty('passwordHash');
+      expect(result.items[0]!.changedBy).not.toHaveProperty('roles');
+    });
+
+    it('maps a null changedBy for system events or deleted users', async () => {
+      const changeEntity = Object.assign(new MedicalRecordChangeOrmEntity(), {
+        id: 'change-id',
+        medicalRecordId: 'record-id',
+        changedByUserId: null,
+        changeType: MedicalRecordChangeType.SOFT_DELETE,
+        previousValues: { title: 'Old title' },
+        changedAt: new Date('2026-03-11T10:00:00.000Z'),
+        changedByUser: null,
+      });
+      changeRepository.findAndCount.mockResolvedValue([[changeEntity], 1]);
+
+      const result = await medicalRecordRepository.findChanges({
+        medicalRecordId: 'record-id',
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.items[0]!.changedBy).toBeNull();
+    });
+
+    it('maps a null changedBy when the actor user is soft-deleted', async () => {
+      const user = Object.assign(new UserOrmEntity(), {
+        id: 'actor-id',
+        email: 'actor@refugiapp.local',
+        firstName: 'Sofia',
+        lastName: 'Ramirez',
+        deletedAt: new Date('2026-04-01T00:00:00.000Z'),
+      });
+      const changeEntity = Object.assign(new MedicalRecordChangeOrmEntity(), {
+        id: 'change-id',
+        medicalRecordId: 'record-id',
+        changedByUserId: 'actor-id',
+        changeType: MedicalRecordChangeType.UPDATE,
+        previousValues: { title: 'Old title' },
+        changedAt: new Date('2026-03-11T10:00:00.000Z'),
+        changedByUser: user,
+      });
+      changeRepository.findAndCount.mockResolvedValue([[changeEntity], 1]);
+
+      const result = await medicalRecordRepository.findChanges({
+        medicalRecordId: 'record-id',
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.items[0]!.changedBy).toBeNull();
+      expect(result.items[0]!.changedByUserId).toBe('actor-id');
     });
   });
 
