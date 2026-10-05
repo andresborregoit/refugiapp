@@ -115,6 +115,7 @@ src/
     media/
     audit-logs/
     notifications/
+    adoptions/
     health/
   app.controller.ts
   app.module.ts
@@ -239,6 +240,12 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `GET /notifications/preferences/me`      | Permitido | Permitido         | Permitido      |
 | `PUT /notifications/preferences/me`      | Permitido | Permitido         | Permitido      |
 | `GET /notifications/deliveries`          | Permitido | Rechazado         | Rechazado      |
+| `POST /adopters`                         | Permitido | Permitido         | Rechazado      |
+| `GET /adopters/:id`                      | Permitido | Permitido         | Rechazado      |
+| `POST /animals/:id/adoption-applications`| Permitido | Permitido         | Rechazado      |
+| `GET /animals/:id/adoption-applications` | Permitido | Permitido         | Rechazado      |
+| `POST /adoption-applications/:id/approve`| Permitido | Permitido         | Rechazado      |
+| `GET /animals/:id/adoptions`             | Permitido | Permitido         | Permitido      |
 
 En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset. Ademas, el usuario que subio un asset huerfano puede borrarlo con `DELETE /media/:id` aunque sea `veterinarian`, para cubrir el flujo subir -> cancelar antes de vincular.
 
@@ -255,6 +262,7 @@ La matriz de capacidades agrega los endpoints por habilidad de negocio y es la r
 | `canManageUsers`         | Si      | No                | No             | Crear, activar y desactivar usuarios internos                |
 | `canManageExpenses`      | Si      | Si                | No             | Crear y dar de baja gastos                                   |
 | `canManageVets`          | Si      | Si                | No             | Crear, editar y desactivar perfiles de veterinarios          |
+| `canManageAdoptions`     | Si      | Si                | No             | Adoptantes, postulaciones y aprobacion de adopciones          |
 | `canReadAudit`           | Si      | No                | No             | Consultar el historial de auditoria                          |
 
 ### Contrato OpenAPI versionado
@@ -434,6 +442,14 @@ La suscripción se realiza mediante `POST /notifications/devices` con el token E
 Las preferencias (`GET/PUT /notifications/preferences/me`) controlan `overdueEnabled`, `upcomingEnabled`, `upcomingWindowMinutes` (5..1440, default 60) y `quietStart/quietEnd` (juntos o nulos) en la zona horaria del usuario. `GET /notifications/deliveries` es solo para `admin` y expone el outbox sin tokens.
 
 El envío lo ejecuta un cron externo con `npm run notifications:dispatch` (no hay scheduler in-process). El dispatcher selecciona tareas `pending` con `dueAt` (`overdue` vencidas, `upcoming` dentro de la ventana), respeta preferencias y quiet hours, e inserta en `notification_deliveries` con clave de desduplicación `v1:{kind}:{careTaskId}:{yyyy-mm-dd}:{userId}` (`UNIQUE(dedupKey)`), por lo que reintentos y ejecuciones concurrentes no duplican. Los tokens rechazados con `DeviceNotRegistered` se desactivan sin bloquear el lote. Ver `docs/push-notifications.md` para la guía operativa.
+
+### `adoptions`
+
+Gestiona los datos de contacto de adoptantes, las postulaciones por animal y la adopcion efectiva. Los datos personales del adoptante solo pueden ser creados y consultados por `admin` y `shelter_manager`; el historial de adopciones, que no incluye esos datos de contacto, tambien puede ser consultado por `veterinarian`.
+
+La aprobacion de una postulacion se ejecuta en una unica transaccion con bloqueos pesimistas sobre la postulacion y el animal. Valida que la postulacion siga pendiente y que el animal este `available_for_adoption`, crea la adopcion con fecha y usuario responsable, aprueba la postulacion elegida, rechaza las demas postulaciones pendientes del animal, cambia su estado a `adopted` y agrega un evento `status_change` con metadata `{from, to, adoptionId, applicationId}`. De esta forma una carrera entre aprobaciones no puede generar dos adopciones para el mismo animal.
+
+Los endpoints de escritura son `POST /adopters`, `POST /animals/:animalId/adoption-applications` y `POST /adoption-applications/:id/approve`. La consulta de postulaciones vive en `GET /animals/:animalId/adoption-applications` y el historial en `GET /animals/:animalId/adoptions`.
 
 ### `health`
 
@@ -877,6 +893,50 @@ Outbox idempotente de envíos. `dedupKey` (`v1:{kind}:{careTaskId}:{yyyy-mm-dd}:
 | `lastErrorCode`    | `varchar(64)`                 | Si   | Sin tokens ni contenido sensible                |
 | columnas comunes   |                               |      | `createdAt`, `updatedAt`, `deletedAt`            |
 
+### 6.17 `adopters`
+
+Perfil de contacto del adoptante. El email se normaliza a minusculas y es unico.
+
+| Columna          | Tipo           | Null | Restricciones                          |
+| ---------------- | -------------- | ---- | -------------------------------------- |
+| `id`             | `uuid`         | No   | PK                                     |
+| `firstName`      | `varchar(100)` | No   |                                        |
+| `lastName`       | `varchar(100)` | No   |                                        |
+| `email`          | `varchar(320)` | No   | Unico                                  |
+| `phone`          | `varchar(32)`  | No   | Formato internacional validado por DTO |
+| `address`        | `varchar(255)` | Si   |                                        |
+| columnas comunes |                |      | `createdAt`, `updatedAt`, `deletedAt`  |
+
+### 6.18 `adoption_applications`
+
+Postulaciones de adoptantes para animales disponibles.
+
+| Columna           | Tipo                          | Null | Restricciones                            |
+| ----------------- | ----------------------------- | ---- | ---------------------------------------- |
+| `id`              | `uuid`                        | No   | PK                                       |
+| `animalId`        | `uuid`                        | No   | FK a `animals.id`, `ON DELETE RESTRICT`  |
+| `adopterId`       | `uuid`                        | No   | FK a `adopters.id`, `ON DELETE RESTRICT` |
+| `status`          | `adoption_application_status` | No   | `pending`, `approved`, `rejected`        |
+| `submittedAt`     | `timestamptz`                 | No   | No puede ser futura ni previa al ingreso |
+| `createdByUserId` | `uuid`                        | Si   | FK a `users.id`, `ON DELETE SET NULL`    |
+| `decidedAt`       | `timestamptz`                 | Si   |                                          |
+| `decidedByUserId` | `uuid`                        | Si   | FK a `users.id`, `ON DELETE SET NULL`    |
+| columnas comunes  |                               |      | `createdAt`, `updatedAt`, `deletedAt`    |
+
+### 6.19 `adoptions`
+
+Historial inmutable de adopciones completadas.
+
+| Columna             | Tipo          | Null | Restricciones                          |
+| ------------------- | ------------- | ---- | -------------------------------------- |
+| `id`                | `uuid`        | No   | PK                                     |
+| `animalId`          | `uuid`        | No   | FK a `animals.id`; unico               |
+| `adopterId`         | `uuid`        | No   | FK a `adopters.id`                     |
+| `applicationId`     | `uuid`        | No   | FK a `adoption_applications.id`; unico |
+| `adoptedAt`         | `timestamptz` | No   | Fecha efectiva                         |
+| `responsibleUserId` | `uuid`        | Si   | FK a `users.id`, `ON DELETE SET NULL`  |
+| columnas comunes    |               |      | `createdAt`, `updatedAt`, `deletedAt`  |
+
 ## 7. Diagrama entidad-relacion
 
 El siguiente DER representa las foreign keys reales de PostgreSQL. La relacion polimorfica de `media_assets` se muestra separadamente porque `ownerId` no puede tener una foreign key a varias tablas al mismo tiempo.
@@ -1096,6 +1156,14 @@ Las relaciones implementadas en la migracion inicial son:
 | `animals`                | `profilePhotoMediaId` | `media_assets.id`    | `SET NULL`  |
 | `media_assets`           | `uploadedByUserId`    | `users.id`           | `SET NULL`  |
 | `audit_logs`             | `actorUserId`         | `users.id`           | `SET NULL`  |
+| `adoption_applications`  | `animalId`            | `animals.id`         | `RESTRICT`  |
+| `adoption_applications`  | `adopterId`           | `adopters.id`        | `RESTRICT`  |
+| `adoption_applications`  | `createdByUserId`     | `users.id`           | `SET NULL`  |
+| `adoption_applications`  | `decidedByUserId`     | `users.id`           | `SET NULL`  |
+| `adoptions`              | `animalId`            | `animals.id`         | `RESTRICT`  |
+| `adoptions`              | `adopterId`           | `adopters.id`        | `RESTRICT`  |
+| `adoptions`              | `applicationId`       | `adoption_applications.id` | `RESTRICT` |
+| `adoptions`              | `responsibleUserId`   | `users.id`           | `SET NULL`  |
 
 La politica evita perder historial clinico, eventos o gastos por borrar accidentalmente un animal. La baja normal debe realizarse mediante `deletedAt`.
 
@@ -1130,6 +1198,10 @@ La migracion inicial crea:
 - Indice en `audit_logs.occurredAt`.
 - Indice en `audit_logs.actorUserId`.
 - Indice compuesto en `audit_logs.resourceType, resourceId`.
+- Indice unico en `adopters.email`.
+- Indices en `adoption_applications.animalId`, `adopterId` y `status`.
+- Indice unico parcial en `adoption_applications (animalId, adopterId) WHERE status = 'pending' AND deletedAt IS NULL`.
+- Indices unicos en `adoptions.animalId` y `adoptions.applicationId`, e indice en `adoptedAt`.
 
 Los indices nuevos deben justificarse por consultas reales o por una restriccion de integridad. No agregar indices indiscriminadamente.
 
@@ -1209,6 +1281,8 @@ La migracion `1791000000000-AddCareTasks.ts` agrega las acciones de auditoria de
 La migracion `1791000000001-AddRefreshTokens.ts` agrega las acciones de auditoria de renovacion de sesion (`auth.refresh_success`, `auth.refresh_failure`), la tabla `refresh_tokens` con su indice unico de `tokenHash`, indices de `familyId`/`userId`/`expiresAt` y las foreign keys a `users` y a la propia tabla.
 
 La migracion `1792000000000-AddPasswordRecovery.ts` agrega las acciones de auditoria de contraseñas y la tabla `password_reset_tokens`, con hash unico, expiracion, consumo de un solo uso y FK a `users`.
+
+La migracion `1794000000000-AddAdoptionProcess.ts` agrega las acciones y recursos de auditoria de adopciones, el enum `adoption_application_status` y las tablas `adopters`, `adoption_applications` y `adoptions`, con sus restricciones, indices y foreign keys.
 
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
 
@@ -1321,7 +1395,8 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Despliegue reproducible por ambientes con imagen Node fijada, migraciones explicitas, readiness y runbook de rollback.
 - Backup y recuperacion de PostgreSQL con retencion definida, prueba de restauracion aislada y procedimiento de incidente.
 - Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista y sin conexion a la base con `npm run openapi:export`; la configuracion del documento vive en `src/config/swagger.config.ts` y es compartida con `main.ts`. CI reexporta el documento y falla si el contrato cambio sin actualizarse.
-- Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts`, especificacion humana en `docs/role-capabilities.md` y tests unitarios que la congelan.
+- Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canManageAdoptions`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts`, especificacion humana en `docs/role-capabilities.md` y tests unitarios que la congelan.
+- Proceso de adopcion (RFG-95): perfiles de contacto de adoptantes, postulaciones por animal, aprobacion transaccional con responsable y fecha, rechazo de postulaciones competidoras, cambio del animal a `adopted`, evento `status_change`, auditoria y permisos por rol.
 - Teardown resiliente de las suites de persistencia: el helper `teardownPersistence` cierra base, app y contenedor sin añadir errores secundarios cuando el arranque falla por falta de Docker, y `startIsolatedPostgres` falla con un mensaje explicativo. Todo en `test/utils/persistence-test-setup.ts`.
 
 ### Pendiente

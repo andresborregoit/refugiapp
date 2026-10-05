@@ -36,6 +36,7 @@
 - Mismo estado y transiciones desde terminales se rechazan con `409`.
 - `PATCH /animals/:id/status` requiere JWT y admite solo `admin` y `shelter_manager`.
 - Cada cambio persiste un evento `status_change` en la misma transaccion, con `description` generada por `buildStatusChangeEventDescription`, `metadata {from, to}` y `createdByUserId` del actor.
+- La aprobacion mediante `POST /adoption-applications/:id/approve` pertenece a `adoptions` y realiza la transicion a `adopted` junto con su evento `status_change` en la misma transaccion.
 - La fecha del evento (`occurredAt`) es opcional; si no se envia, se usa now del servidor. Se rechazan fechas futuras (`OCCURRED_AT_IN_FUTURE`) y anteriores a `intakeDate` (`OCCURRED_AT_BEFORE_INTAKE`).
 - Las excepciones de dominio se mapean a `BadRequestException` en la capa de aplicacion.
 

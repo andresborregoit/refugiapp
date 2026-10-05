@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AnimalsModule } from './modules/animals/animals.module';
+import { AdoptionsModule } from './modules/adoptions/adoptions.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CareTasksModule } from './modules/care-tasks/care-tasks.module';
@@ -59,6 +60,7 @@ import { envValidationSchema } from './config/validation.schema';
       useFactory: createRateLimitOptions,
     }),
     AuthModule,
+    AdoptionsModule,
     UsersModule,
     AnimalsModule,
     CareTasksModule,

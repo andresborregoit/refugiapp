@@ -47,6 +47,9 @@ const DOMAIN_TABLES = [
   'password_reset_tokens',
   'refresh_tokens',
   'audit_logs',
+  'adopters',
+  'adoption_applications',
+  'adoptions',
 ];
 
 describe('PostgreSQL schema contract (integration)', () => {
@@ -155,6 +158,9 @@ describe('PostgreSQL schema contract (integration)', () => {
       'push.preferences_update',
       'push.dispatch_completed',
       'push.token_invalid',
+      'adopter.create',
+      'adoption_application.create',
+      'adoption.complete',
     ]);
     expect(enums.audit_resource_type).toEqual([
       'user',
@@ -164,10 +170,14 @@ describe('PostgreSQL schema contract (integration)', () => {
       'authorization',
       'care_task',
       'notification',
+      'adopter',
+      'adoption_application',
+      'adoption',
     ]);
     expect(enums.device_platform).toEqual(['ios', 'android']);
     expect(enums.notification_kind).toEqual(['overdue', 'upcoming']);
     expect(enums.notification_delivery_status).toEqual(['queued', 'sent', 'skipped', 'failed']);
+    expect(enums.adoption_application_status).toEqual(['pending', 'approved', 'rejected']);
   });
 
   it('declares the documented foreign keys with the correct ON DELETE policy', async () => {
@@ -223,6 +233,14 @@ describe('PostgreSQL schema contract (integration)', () => {
     expectFk('refresh_tokens', 'userId', 'users', 'RESTRICT');
     expectFk('refresh_tokens', 'replacedById', 'refresh_tokens', 'SET NULL');
     expectFk('password_reset_tokens', 'userId', 'users', 'CASCADE');
+    expectFk('adoption_applications', 'animalId', 'animals', 'RESTRICT');
+    expectFk('adoption_applications', 'adopterId', 'adopters', 'RESTRICT');
+    expectFk('adoption_applications', 'createdByUserId', 'users', 'SET NULL');
+    expectFk('adoption_applications', 'decidedByUserId', 'users', 'SET NULL');
+    expectFk('adoptions', 'animalId', 'animals', 'RESTRICT');
+    expectFk('adoptions', 'adopterId', 'adopters', 'RESTRICT');
+    expectFk('adoptions', 'applicationId', 'adoption_applications', 'RESTRICT');
+    expectFk('adoptions', 'responsibleUserId', 'users', 'SET NULL');
   });
 
   it('declares the documented indexes and unique constraints', async () => {
@@ -280,6 +298,14 @@ describe('PostgreSQL schema contract (integration)', () => {
     expectIndex('password_reset_tokens', ['tokenHash'], true);
     expectIndex('password_reset_tokens', ['userId']);
     expectIndex('password_reset_tokens', ['expiresAt']);
+    expectIndex('adopters', ['email'], true);
+    expectIndex('adoption_applications', ['animalId']);
+    expectIndex('adoption_applications', ['adopterId']);
+    expectIndex('adoption_applications', ['status']);
+    expectIndex('adoption_applications', ['animalId', 'adopterId'], true);
+    expectIndex('adoptions', ['animalId'], true);
+    expectIndex('adoptions', ['applicationId'], true);
+    expectIndex('adoptions', ['adoptedAt']);
   });
 
   it('declares the CHECK constraints for non-negative money and bytes', async () => {

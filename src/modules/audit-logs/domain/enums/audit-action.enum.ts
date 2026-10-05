@@ -27,4 +27,7 @@ export enum AuditAction {
   PUSH_PREFERENCES_UPDATE = 'push.preferences_update',
   PUSH_DISPATCH_COMPLETED = 'push.dispatch_completed',
   PUSH_TOKEN_INVALID = 'push.token_invalid',
+  ADOPTER_CREATE = 'adopter.create',
+  ADOPTION_APPLICATION_CREATE = 'adoption_application.create',
+  ADOPTION_COMPLETE = 'adoption.complete',
 }
