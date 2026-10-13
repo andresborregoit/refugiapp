@@ -147,6 +147,7 @@ describe('Veterinarians (e2e)', () => {
         lastName: 'Martinez',
         roles: [UserRole.VETERINARIAN],
         isActive: true,
+        profilePhotoMediaId: null,
       };
       veterinariansService.create.mockResolvedValue(
         createVeterinarian({ userId: USER_UUID, user: linkedUser }),
