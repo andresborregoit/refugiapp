@@ -601,6 +601,87 @@
         "tags": [
           "users"
         ]
+      },
+      "delete": {
+        "description": "Applies a soft delete (isActive=false + deletedAt) reusing the deactivation semantics. Only admins can delete users; deleting the last active admin returns 409 LAST_ADMIN_FORBIDDEN.",
+        "operationId": "UsersController_deleteUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User id (UUID).",
+            "schema": {
+              "format": "uuid",
+              "example": "11111111-1111-4111-8111-111111111111",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted successfully."
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cannot delete the last active admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The request rate limit was exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a user (soft-delete, admin only)",
+        "tags": [
+          "users"
+        ]
       }
     },
     "/api/v1/users/{id}/deactivate": {
@@ -865,6 +946,9 @@
                 "user.deactivate",
                 "user.activate",
                 "user.role_assign",
+                "user.delete",
+                "veterinarian.delete",
+                "animal.delete",
                 "medical_record.create",
                 "medical_record.update",
                 "medical_record.soft_delete",
@@ -903,6 +987,8 @@
               "type": "string",
               "enum": [
                 "user",
+                "veterinarian",
+                "animal",
                 "medical_record",
                 "expense",
                 "care_task",
@@ -1794,6 +1880,87 @@
         "tags": [
           "veterinarians"
         ]
+      },
+      "delete": {
+        "description": "Physically removes an active or inactive veterinarian profile. Requires the admin role; any other authenticated role receives 403. When the veterinarian has clinical records linked in medical_records, responds 409 VETERINARIAN_HAS_HISTORY and deletes nothing so the history stays intact. A missing or already deleted id responds 404.",
+        "operationId": "VeterinariansController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Veterinarian id (UUID).",
+            "schema": {
+              "format": "uuid",
+              "example": "11111111-1111-4111-8111-111111111111",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Veterinarian deleted successfully."
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Veterinarian has clinical history (VETERINARIAN_HAS_HISTORY).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The request rate limit was exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a veterinarian preserving clinical history (admin only)",
+        "tags": [
+          "veterinarians"
+        ]
       }
     },
     "/api/v1/veterinarians/{id}/deactivate": {
@@ -2317,6 +2484,87 @@
           }
         ],
         "summary": "Update an animal profile without changing its status",
+        "tags": [
+          "animals"
+        ]
+      },
+      "delete": {
+        "description": "Applies a soft delete (`deletedAt`) and detaches the profile photo so the orphan purge policy can reclaim it. Requires the admin role; any other authenticated role receives 403. The animal is not deleted when it is under treatment (409 ANIMAL_UNDER_TREATMENT), has pending care tasks (409 ANIMAL_HAS_PENDING_TASKS) or has clinical, expense or adoption history (409 ANIMAL_HAS_HISTORY); in those cases nothing is removed. A missing or already deleted id responds 404.",
+        "operationId": "AnimalsController_deleteAnimal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Animal id (UUID).",
+            "schema": {
+              "format": "uuid",
+              "example": "11111111-1111-4111-8111-111111111111",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Animal deleted successfully."
+          },
+          "401": {
+            "description": "Authentication is required or credentials are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The animal cannot be deleted: ANIMAL_UNDER_TREATMENT, ANIMAL_HAS_PENDING_TASKS or ANIMAL_HAS_HISTORY.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The request rate limit was exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete an animal with integrity rules (admin only)",
         "tags": [
           "animals"
         ]
@@ -6120,6 +6368,9 @@
               "user.deactivate",
               "user.activate",
               "user.role_assign",
+              "user.delete",
+              "veterinarian.delete",
+              "animal.delete",
               "medical_record.create",
               "medical_record.update",
               "medical_record.soft_delete",
@@ -6153,6 +6404,8 @@
             "type": "string",
             "enum": [
               "user",
+              "veterinarian",
+              "animal",
               "medical_record",
               "expense",
               "care_task",

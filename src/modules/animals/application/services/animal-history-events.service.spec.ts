@@ -34,6 +34,9 @@ describe('AnimalHistoryEventsService', () => {
     update: jest.fn(),
     findMany: jest.fn(),
     changeStatus: jest.fn(),
+    countPendingCareTasks: jest.fn(),
+    countHistoricalRecords: jest.fn(),
+    softDelete: jest.fn(),
   };
   let service: AnimalHistoryEventsService;
 

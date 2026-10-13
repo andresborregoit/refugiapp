@@ -6,6 +6,7 @@ import { ResourceNotFoundException } from '../../../../../../common/exceptions/r
 import { UserRole } from '../../../../../../common/enums/user-role.enum';
 import { User } from '../../../../../users/domain/entities/user.entity';
 import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
+import { MedicalRecordOrmEntity } from '../../../../../medical-records/infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { CreateVeterinarian } from '../../../../domain/entities/create-veterinarian.entity';
 import { UpdateVeterinarian } from '../../../../domain/entities/update-veterinarian.entity';
 import { Veterinarian } from '../../../../domain/entities/veterinarian.entity';
@@ -25,6 +26,8 @@ export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
   constructor(
     @InjectRepository(VeterinarianOrmEntity)
     private readonly repository: Repository<VeterinarianOrmEntity>,
+    @InjectRepository(MedicalRecordOrmEntity)
+    private readonly medicalRecordRepository: Repository<MedicalRecordOrmEntity>,
   ) {}
 
   async create(input: CreateVeterinarian): Promise<Veterinarian> {
@@ -236,6 +239,19 @@ export class TypeOrmVeterinarianRepository implements VeterinarianRepository {
     const saved = await this.repository.save(entity);
 
     return this.toDomain(saved);
+  }
+
+  async countMedicalRecords(veterinarianId: string): Promise<number> {
+    return this.medicalRecordRepository.count({
+      where: { veterinarianId },
+      withDeleted: true,
+    });
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const result = await this.repository.delete({ id });
+
+    return (result.affected ?? 0) > 0;
   }
 
   private toDomain(entity: VeterinarianOrmEntity): Veterinarian {

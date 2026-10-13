@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { UserRole } from '../../../../../../common/enums/user-role.enum';
+import { MedicalRecordOrmEntity } from '../../../../../medical-records/infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { UserOrmEntity } from '../../../../../users/infrastructure/persistence/typeorm/entities/user.orm-entity';
 import { CreateVeterinarian } from '../../../../domain/entities/create-veterinarian.entity';
 import { UpdateVeterinarian } from '../../../../domain/entities/update-veterinarian.entity';
@@ -12,9 +13,13 @@ describe('TypeOrmVeterinarianRepository', () => {
     save: jest.Mock;
     findOne: jest.Mock;
     findAndCount: jest.Mock;
+    delete: jest.Mock;
     manager: {
       transaction: jest.Mock;
     };
+  };
+  let medicalRecordRepository: {
+    count: jest.Mock;
   };
   let veterinarianRepository: TypeOrmVeterinarianRepository;
 
@@ -31,12 +36,17 @@ describe('TypeOrmVeterinarianRepository', () => {
       ),
       findOne: jest.fn(),
       findAndCount: jest.fn(),
+      delete: jest.fn(),
       manager: {
         transaction: jest.fn(),
       },
     };
+    medicalRecordRepository = {
+      count: jest.fn(),
+    };
     veterinarianRepository = new TypeOrmVeterinarianRepository(
       repository as unknown as Repository<VeterinarianOrmEntity>,
+      medicalRecordRepository as unknown as Repository<MedicalRecordOrmEntity>,
     );
   });
 
@@ -377,6 +387,31 @@ describe('TypeOrmVeterinarianRepository', () => {
 
     await expect(veterinarianRepository.reactivate('missing-id')).resolves.toBeNull();
     expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('counts linked clinical records including soft-deleted ones', async () => {
+    medicalRecordRepository.count.mockResolvedValue(2);
+
+    const result = await veterinarianRepository.countMedicalRecords('veterinarian-id');
+
+    expect(medicalRecordRepository.count).toHaveBeenCalledWith({
+      where: { veterinarianId: 'veterinarian-id' },
+      withDeleted: true,
+    });
+    expect(result).toBe(2);
+  });
+
+  it('reports true when the physical delete affects a row', async () => {
+    repository.delete.mockResolvedValue({ affected: 1 });
+
+    await expect(veterinarianRepository.delete('veterinarian-id')).resolves.toBe(true);
+    expect(repository.delete).toHaveBeenCalledWith({ id: 'veterinarian-id' });
+  });
+
+  it('reports false when the physical delete affects no row', async () => {
+    repository.delete.mockResolvedValue({ affected: 0 });
+
+    await expect(veterinarianRepository.delete('missing-id')).resolves.toBe(false);
   });
 
   function createEntity(overrides: Partial<VeterinarianOrmEntity> = {}): VeterinarianOrmEntity {

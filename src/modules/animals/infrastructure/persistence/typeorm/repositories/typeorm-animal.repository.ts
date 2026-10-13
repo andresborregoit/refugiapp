@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { AdoptionApplicationOrmEntity } from '../../../../../adoptions/infrastructure/persistence/typeorm/entities/adoption-application.orm-entity';
+import { AdoptionOrmEntity } from '../../../../../adoptions/infrastructure/persistence/typeorm/entities/adoption.orm-entity';
+import { CareTaskOrmEntity } from '../../../../../care-tasks/infrastructure/persistence/typeorm/entities/care-task.orm-entity';
+import { CareTaskStatus } from '../../../../../care-tasks/domain/enums/care-task-status.enum';
+import { ExpenseOrmEntity } from '../../../../../expenses/infrastructure/persistence/typeorm/entities/expense.orm-entity';
 import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
 import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
+import { MedicalRecordOrmEntity } from '../../../../../medical-records/infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { Animal } from '../../../../domain/entities/animal.entity';
 import {
   buildStatusChangeEventDescription,
@@ -26,6 +32,16 @@ export class TypeOrmAnimalRepository implements AnimalRepository {
   constructor(
     @InjectRepository(AnimalOrmEntity)
     private readonly repository: Repository<AnimalOrmEntity>,
+    @InjectRepository(CareTaskOrmEntity)
+    private readonly careTaskRepository: Repository<CareTaskOrmEntity>,
+    @InjectRepository(MedicalRecordOrmEntity)
+    private readonly medicalRecordRepository: Repository<MedicalRecordOrmEntity>,
+    @InjectRepository(ExpenseOrmEntity)
+    private readonly expenseRepository: Repository<ExpenseOrmEntity>,
+    @InjectRepository(AdoptionApplicationOrmEntity)
+    private readonly adoptionApplicationRepository: Repository<AdoptionApplicationOrmEntity>,
+    @InjectRepository(AdoptionOrmEntity)
+    private readonly adoptionRepository: Repository<AdoptionOrmEntity>,
   ) {}
 
   async create(input: CreateAnimal): Promise<Animal> {
@@ -186,6 +202,45 @@ export class TypeOrmAnimalRepository implements AnimalRepository {
       });
 
       return this.toDomain(updated);
+    });
+  }
+
+  async countPendingCareTasks(animalId: string): Promise<number> {
+    return this.careTaskRepository.count({
+      where: { animalId, status: CareTaskStatus.PENDING },
+    });
+  }
+
+  async countHistoricalRecords(animalId: string): Promise<number> {
+    const [medicalRecords, expenses, adoptionApplications, adoptions] = await Promise.all([
+      this.medicalRecordRepository.count({ where: { animalId }, withDeleted: true }),
+      this.expenseRepository.count({ where: { animalId }, withDeleted: true }),
+      this.adoptionApplicationRepository.count({ where: { animalId }, withDeleted: true }),
+      this.adoptionRepository.count({ where: { animalId }, withDeleted: true }),
+    ]);
+
+    return medicalRecords + expenses + adoptionApplications + adoptions;
+  }
+
+  async softDelete(id: string): Promise<boolean> {
+    return this.repository.manager.transaction(async (manager) => {
+      const animal = await manager.findOne(AnimalOrmEntity, { where: { id } });
+
+      if (!animal) {
+        return false;
+      }
+
+      if (animal.profilePhotoMediaId) {
+        await manager.update(
+          MediaAssetOrmEntity,
+          { id: animal.profilePhotoMediaId },
+          { ownerType: null, ownerId: null },
+        );
+      }
+
+      const result = await manager.softDelete(AnimalOrmEntity, { id });
+
+      return (result.affected ?? 0) > 0;
     });
   }
 

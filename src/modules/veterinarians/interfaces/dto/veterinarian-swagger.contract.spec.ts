@@ -60,6 +60,7 @@ describe('Veterinarians Swagger contract', () => {
             update: jest.fn(),
             deactivate: jest.fn(),
             reactivate: jest.fn(),
+            deleteVeterinarian: jest.fn(),
           },
         },
       ],
@@ -189,6 +190,30 @@ describe('Veterinarians Swagger contract', () => {
 
     it('documents the conflict for an already active veterinarian', () => {
       expect(operation().responses?.['409']?.description).toContain('already active');
+    });
+
+    it('documents the id path parameter as a uuid', () => {
+      expect(operation().parameters?.[0]?.schema?.format).toBe('uuid');
+    });
+  });
+
+  describe('DELETE /veterinarians/{id}', () => {
+    const operation = () => operationOf('delete', '/veterinarians/{id}');
+
+    it('documents a 204 response', () => {
+      expect(operation().responses?.['204']).toBeDefined();
+    });
+
+    it('documents 401/403/404/409/429 with the error schema', () => {
+      for (const status of ['401', '403', '404', '409', '429']) {
+        expect(operation().responses?.[status]?.content?.['application/json']?.schema?.$ref).toBe(
+          ERROR_SCHEMA_REF,
+        );
+      }
+    });
+
+    it('documents the conflict for veterinarians with clinical history', () => {
+      expect(operation().responses?.['409']?.description).toContain('clinical history');
     });
 
     it('documents the id path parameter as a uuid', () => {

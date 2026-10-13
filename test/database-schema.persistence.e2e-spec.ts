@@ -161,6 +161,9 @@ describe('PostgreSQL schema contract (integration)', () => {
       'adopter.create',
       'adoption_application.create',
       'adoption.complete',
+      'user.delete',
+      'veterinarian.delete',
+      'animal.delete',
     ]);
     expect(enums.audit_resource_type).toEqual([
       'user',
@@ -173,6 +176,8 @@ describe('PostgreSQL schema contract (integration)', () => {
       'adopter',
       'adoption_application',
       'adoption',
+      'veterinarian',
+      'animal',
     ]);
     expect(enums.device_platform).toEqual(['ios', 'android']);
     expect(enums.notification_kind).toEqual(['overdue', 'upcoming']);

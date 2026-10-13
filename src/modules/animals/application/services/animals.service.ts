@@ -2,6 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DomainException } from '../../../../common/exceptions/domain.exception';
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
+import { AuditAction } from '../../../audit-logs/domain/enums/audit-action.enum';
+import { AuditResourceType } from '../../../audit-logs/domain/enums/audit-resource-type.enum';
+import { AuditLogsService } from '../../../audit-logs/application/services/audit-logs.service';
 import { assertMediaLinkable } from '../../../media/application/services/media-linker';
 import { MediaService } from '../../../media/application/services/media.service';
 import { MediaLinkingContext } from '../../../media/domain/services/media-owner-policy';
@@ -29,6 +32,7 @@ export class AnimalsService {
     @Inject(ANIMAL_REPOSITORY)
     private readonly animalRepository: AnimalRepository,
     private readonly mediaService: MediaService,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async create(dto: CreateAnimalDto, createdByUserId: string): Promise<Animal> {
@@ -174,5 +178,56 @@ export class AnimalsService {
     );
 
     return this.animalRepository.changeStatus(input);
+  }
+
+  async deleteAnimal(id: string, actorId: string): Promise<void> {
+    const animal = await this.animalRepository.findById(id);
+
+    if (!animal) {
+      throw new ResourceNotFoundException('Animal', id);
+    }
+
+    if (animal.status === AnimalStatus.UNDER_TREATMENT) {
+      throw new ResourceConflictException(
+        'Animal is under treatment and cannot be deleted.',
+        'ANIMAL_UNDER_TREATMENT',
+      );
+    }
+
+    const pendingCareTasks = await this.animalRepository.countPendingCareTasks(id);
+
+    if (pendingCareTasks > 0) {
+      throw new ResourceConflictException(
+        'Animal has pending care tasks and cannot be deleted.',
+        'ANIMAL_HAS_PENDING_TASKS',
+      );
+    }
+
+    const historicalRecords = await this.animalRepository.countHistoricalRecords(id);
+
+    if (historicalRecords > 0) {
+      throw new ResourceConflictException(
+        'Animal has clinical, expense or adoption history and cannot be deleted.',
+        'ANIMAL_HAS_HISTORY',
+      );
+    }
+
+    const deleted = await this.animalRepository.softDelete(id);
+
+    if (!deleted) {
+      throw new ResourceNotFoundException('Animal', id);
+    }
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.ANIMAL_DELETE,
+      resourceType: AuditResourceType.ANIMAL,
+      resourceId: id,
+      metadata: {
+        name: animal.name,
+        species: animal.species,
+        status: animal.status,
+      },
+    });
   }
 }

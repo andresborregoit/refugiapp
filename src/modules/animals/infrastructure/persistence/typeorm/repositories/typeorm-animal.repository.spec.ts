@@ -1,4 +1,5 @@
 import { Repository } from 'typeorm';
+import { CareTaskStatus } from '../../../../../care-tasks/domain/enums/care-task-status.enum';
 import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
 import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { AnimalSex } from '../../../../domain/enums/animal-sex.enum';
@@ -22,7 +23,13 @@ describe('TypeOrmAnimalRepository', () => {
     update: jest.fn(),
     findOne: jest.fn(),
     findOneOrFail: jest.fn(),
+    softDelete: jest.fn(),
   };
+  const careTaskRepository = { count: jest.fn() };
+  const medicalRecordRepository = { count: jest.fn() };
+  const expenseRepository = { count: jest.fn() };
+  const adoptionApplicationRepository = { count: jest.fn() };
+  const adoptionRepository = { count: jest.fn() };
   let repository: {
     findAndCount: jest.Mock;
     findOne: jest.Mock;
@@ -69,6 +76,11 @@ describe('TypeOrmAnimalRepository', () => {
     };
     animalRepository = new TypeOrmAnimalRepository(
       repository as unknown as Repository<AnimalOrmEntity>,
+      careTaskRepository as never,
+      medicalRecordRepository as never,
+      expenseRepository as never,
+      adoptionApplicationRepository as never,
+      adoptionRepository as never,
     );
   });
 
@@ -336,6 +348,83 @@ describe('TypeOrmAnimalRepository', () => {
       expect(transactionManager.findOneOrFail).toHaveBeenCalledWith(AnimalOrmEntity, {
         where: { id: 'animal-id' },
       });
+    });
+  });
+
+  describe('countPendingCareTasks', () => {
+    it('counts only pending care tasks for the animal', async () => {
+      careTaskRepository.count.mockResolvedValue(2);
+
+      await expect(animalRepository.countPendingCareTasks('animal-id')).resolves.toBe(2);
+
+      expect(careTaskRepository.count).toHaveBeenCalledWith({
+        where: { animalId: 'animal-id', status: CareTaskStatus.PENDING },
+      });
+    });
+  });
+
+  describe('countHistoricalRecords', () => {
+    it('sums clinical records, expenses and adoptions including soft-deleted rows', async () => {
+      medicalRecordRepository.count.mockResolvedValue(1);
+      expenseRepository.count.mockResolvedValue(2);
+      adoptionApplicationRepository.count.mockResolvedValue(3);
+      adoptionRepository.count.mockResolvedValue(4);
+
+      await expect(animalRepository.countHistoricalRecords('animal-id')).resolves.toBe(10);
+
+      for (const childRepository of [
+        medicalRecordRepository,
+        expenseRepository,
+        adoptionApplicationRepository,
+        adoptionRepository,
+      ]) {
+        expect(childRepository.count).toHaveBeenCalledWith({
+          where: { animalId: 'animal-id' },
+          withDeleted: true,
+        });
+      }
+    });
+  });
+
+  describe('softDelete', () => {
+    it('detaches the profile photo and soft deletes the animal in one transaction', async () => {
+      transactionManager.findOne.mockResolvedValue(
+        Object.assign(new AnimalOrmEntity(), {
+          id: 'animal-id',
+          profilePhotoMediaId: 'media-id',
+        }),
+      );
+      transactionManager.softDelete.mockResolvedValue({ affected: 1 });
+
+      await expect(animalRepository.softDelete('animal-id')).resolves.toBe(true);
+
+      expect(transactionManager.update).toHaveBeenCalledWith(
+        MediaAssetOrmEntity,
+        { id: 'media-id' },
+        { ownerType: null, ownerId: null },
+      );
+      expect(transactionManager.softDelete).toHaveBeenCalledWith(AnimalOrmEntity, {
+        id: 'animal-id',
+      });
+    });
+
+    it('soft deletes the animal without touching media when there is no profile photo', async () => {
+      transactionManager.findOne.mockResolvedValue(
+        Object.assign(new AnimalOrmEntity(), { id: 'animal-id', profilePhotoMediaId: null }),
+      );
+      transactionManager.softDelete.mockResolvedValue({ affected: 1 });
+
+      await expect(animalRepository.softDelete('animal-id')).resolves.toBe(true);
+
+      expect(transactionManager.update).not.toHaveBeenCalled();
+    });
+
+    it('returns false and does not delete when the animal is missing', async () => {
+      transactionManager.findOne.mockResolvedValue(null);
+
+      await expect(animalRepository.softDelete('missing-id')).resolves.toBe(false);
+
+      expect(transactionManager.softDelete).not.toHaveBeenCalled();
     });
   });
 });

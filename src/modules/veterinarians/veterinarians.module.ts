@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { MedicalRecordOrmEntity } from '../medical-records/infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { UsersModule } from '../users/users.module';
 import { VeterinariansService } from './application/services/veterinarians.service';
 import { VETERINARIAN_REPOSITORY } from './domain/repositories/veterinarian.repository';
@@ -9,7 +10,11 @@ import { TypeOrmVeterinarianRepository } from './infrastructure/persistence/type
 import { VeterinariansController } from './interfaces/controllers/veterinarians.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([VeterinarianOrmEntity]), UsersModule, AuditLogsModule],
+  imports: [
+    TypeOrmModule.forFeature([VeterinarianOrmEntity, MedicalRecordOrmEntity]),
+    UsersModule,
+    AuditLogsModule,
+  ],
   controllers: [VeterinariansController],
   providers: [
     VeterinariansService,

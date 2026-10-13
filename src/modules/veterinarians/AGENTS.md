@@ -21,8 +21,10 @@
 - `userId` no puede apuntar a un usuario ya vinculado (`409 USER_ALREADY_LINKED_TO_VETERINARIAN`).
 - `isActive` permite desactivar y reactivar sin borrar historial.
 - Reactivar un veterinario ya activo responde `409 VETERINARIAN_ALREADY_ACTIVE`; reactivar uno inexistente responde `404 RESOURCE_NOT_FOUND`.
+- `DELETE /veterinarians/:id` borra fisicamente solo cuando no hay historial clinico: si el veterinario tiene filas en `medical_records` (incluidas soft-deleted) responde `409 VETERINARIAN_HAS_HISTORY` sin borrar nada; un id inexistente responde `404 RESOURCE_NOT_FOUND`.
 
 ## Seguridad
 - Escritura (`POST`, `PATCH`, `POST /:id/deactivate`, `POST /:id/reactivate`) solo para `admin` y `shelter_manager`; lectura para los tres roles.
+- `DELETE /:id` solo para `admin` (`JwtAuthGuard` + `RolesGuard` + `@Roles(UserRole.ADMIN)`); cualquier otro rol recibe `403`.
 - El usuario auto-creado siempre recibe el rol `veterinarian`, nunca `admin` ni `shelter_manager`.
-- Los eventos de auditoria registrados desde el servicio son `user.create` (usuario nuevo), `user.role_assign` (rol agregado a usuario reutilizado) y `user.activate` (reactivacion de un veterinario desactivado); `metadata` solo lleva `email`, `roles` y `licenseNumber`, nunca passwords ni hashes. `user.activate` reutiliza el enum de auditoria de `users` para evitar migraciones, con `resourceId` apuntando al veterinario y `metadata {email, licenseNumber}`.
+- Los eventos de auditoria registrados desde el servicio son `user.create` (usuario nuevo), `user.role_assign` (rol agregado a usuario reutilizado), `user.activate` (reactivacion de un veterinario desactivado) y `veterinarian.delete` (baja fisica sin historial); `metadata` solo lleva `email`, `roles` y `licenseNumber`, nunca passwords ni hashes. `user.activate` reutiliza el enum de auditoria de `users` para evitar migraciones, con `resourceId` apuntando al veterinario y `metadata {email, licenseNumber}`. `veterinarian.delete` usa `resourceType=veterinarian` y `metadata {email, licenseNumber}`.

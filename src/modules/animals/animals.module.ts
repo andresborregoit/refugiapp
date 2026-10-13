@@ -1,5 +1,11 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdoptionApplicationOrmEntity } from '../adoptions/infrastructure/persistence/typeorm/entities/adoption-application.orm-entity';
+import { AdoptionOrmEntity } from '../adoptions/infrastructure/persistence/typeorm/entities/adoption.orm-entity';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { CareTaskOrmEntity } from '../care-tasks/infrastructure/persistence/typeorm/entities/care-task.orm-entity';
+import { ExpenseOrmEntity } from '../expenses/infrastructure/persistence/typeorm/entities/expense.orm-entity';
+import { MedicalRecordOrmEntity } from '../medical-records/infrastructure/persistence/typeorm/entities/medical-record.orm-entity';
 import { MediaModule } from '../media/media.module';
 import { AnimalHistoryEventsService } from './application/services/animal-history-events.service';
 import { AnimalsService } from './application/services/animals.service';
@@ -14,8 +20,17 @@ import { AnimalsController } from './interfaces/controllers/animals.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AnimalOrmEntity, AnimalHistoryEventOrmEntity]),
+    TypeOrmModule.forFeature([
+      AnimalOrmEntity,
+      AnimalHistoryEventOrmEntity,
+      CareTaskOrmEntity,
+      MedicalRecordOrmEntity,
+      ExpenseOrmEntity,
+      AdoptionApplicationOrmEntity,
+      AdoptionOrmEntity,
+    ]),
     forwardRef(() => MediaModule),
+    AuditLogsModule,
   ],
   controllers: [AnimalsController, AnimalHistoryEventsController],
   providers: [

@@ -47,3 +47,11 @@
 - El listado usa paginacion (page minimo 1, limit 1..100, default 20), filtro opcional por `eventType` y orden `occurredAt DESC, id DESC`.
 - `AnimalHistoryEvent` en dominio incluye `createdByUserId` y `metadata`; el repositorio de eventos es un contrato separado de `AnimalRepository`.
 - Los datos clinicos pertenecen a `medical-records`, no a eventos generales.
+
+## Baja
+- `DELETE /animals/:id` requiere JWT y admite solo `admin`; cualquier otro rol autenticado recibe `403` y un id inexistente o ya eliminado `404`.
+- La baja es logica (`deletedAt`) por las FKs `RESTRICT` hacia `animals`; ver el ADR en `architecture.md`. Nunca se borra fisicamente desde HTTP.
+- Antes de borrar, el caso de uso bloquea con `409` y sin efectos colaterales si el animal esta `under_treatment` (`ANIMAL_UNDER_TREATMENT`), tiene `care-tasks` `pending` (`ANIMAL_HAS_PENDING_TASKS`) o conserva historia —registros clinicos, gastos y postulaciones/adopciones, incluidas las soft-deleted— (`ANIMAL_HAS_HISTORY`). Los eventos generales de sistema no cuentan como historial bloqueante.
+- El repositorio implementa `countPendingCareTasks`, `countHistoricalRecords` y `softDelete`. `softDelete` corre en una transaccion: libera la foto de perfil a huerfana (`ownerType`/`ownerId` nulos) y aplica `deletedAt`.
+- La baja registra `animal.delete` en `audit_logs` con `resourceType=animal` y `metadata {name, species, status}`, sin secretos.
+- Los listados y consultas siguen excluyendo los animales con `deletedAt` por el comportamiento por defecto de TypeORM; no usar `withDeleted` en consultas normales.

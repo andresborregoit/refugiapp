@@ -4,6 +4,8 @@ import { ResourceNotFoundException } from '../../../../common/exceptions/resourc
 import { hashPassword } from '../../../../common/security/password-hasher';
 import { UserRole } from '../../../../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
+import { AuditAction } from '../../../audit-logs/domain/enums/audit-action.enum';
+import { AuditResourceType } from '../../../audit-logs/domain/enums/audit-resource-type.enum';
 import { MediaAsset } from '../../../media/domain/entities/media-asset.entity';
 import { MediaOwnerType } from '../../../media/domain/enums/media-owner-type.enum';
 import { MediaResourceType } from '../../../media/domain/enums/media-resource-type.enum';
@@ -598,6 +600,109 @@ describe('UsersService', () => {
       await expect(service.getProfile('non-existent-id')).rejects.toThrow(
         ResourceNotFoundException,
       );
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('throws ResourceNotFoundException when the user does not exist', async () => {
+      mockRepository.findById.mockResolvedValue(null);
+
+      await expect(service.deleteUser('missing-id', 'actor-id')).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(mockRepository.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('soft deletes the user and audits user.delete without secrets', async () => {
+      const user = new User(
+        'user-id',
+        'user@refugiapp.local',
+        'Test',
+        'User',
+        [UserRole.SHELTER_MANAGER],
+        true,
+      );
+      mockRepository.findById.mockResolvedValue(user);
+      mockRepository.softDelete.mockResolvedValue(undefined);
+
+      await service.deleteUser('user-id', 'actor-id');
+
+      expect(mockRepository.softDelete).toHaveBeenCalledWith('user-id');
+      expect(mockAuditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: 'actor-id',
+          action: AuditAction.USER_DELETE,
+          resourceType: AuditResourceType.USER,
+          resourceId: 'user-id',
+          metadata: expect.objectContaining({
+            email: 'user@refugiapp.local',
+            roles: [UserRole.SHELTER_MANAGER],
+            previousIsActive: true,
+          }),
+        }),
+      );
+      const auditPayload = mockAuditLogsService.record.mock.calls[0][0];
+      expect(auditPayload.metadata).not.toHaveProperty('passwordHash');
+      expect(mockRepository.countActiveAdmins).not.toHaveBeenCalled();
+    });
+
+    it('blocks deleting the last active admin with LAST_ADMIN_FORBIDDEN', async () => {
+      const lastAdmin = new User(
+        'admin-id',
+        'admin@refugiapp.local',
+        'Admin',
+        'One',
+        [UserRole.ADMIN],
+        true,
+      );
+      mockRepository.findById.mockResolvedValue(lastAdmin);
+      mockRepository.countActiveAdmins.mockResolvedValue(0);
+
+      await expect(service.deleteUser('admin-id', 'actor-id')).rejects.toThrow(
+        ResourceConflictException,
+      );
+      expect(mockRepository.countActiveAdmins).toHaveBeenCalledWith('admin-id');
+      expect(mockRepository.softDelete).not.toHaveBeenCalled();
+      expect(mockAuditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('allows deleting an admin when other active admins remain', async () => {
+      const admin = new User(
+        'admin-id',
+        'admin@refugiapp.local',
+        'Admin',
+        'One',
+        [UserRole.ADMIN],
+        true,
+      );
+      mockRepository.findById.mockResolvedValue(admin);
+      mockRepository.countActiveAdmins.mockResolvedValue(1);
+      mockRepository.softDelete.mockResolvedValue(undefined);
+
+      await service.deleteUser('admin-id', 'actor-id');
+
+      expect(mockRepository.softDelete).toHaveBeenCalledWith('admin-id');
+      expect(mockAuditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: AuditAction.USER_DELETE, resourceId: 'admin-id' }),
+      );
+    });
+
+    it('does not count active admins when deleting an inactive admin', async () => {
+      const inactiveAdmin = new User(
+        'admin-id',
+        'admin@refugiapp.local',
+        'Admin',
+        'One',
+        [UserRole.ADMIN],
+        false,
+      );
+      mockRepository.findById.mockResolvedValue(inactiveAdmin);
+      mockRepository.softDelete.mockResolvedValue(undefined);
+
+      await service.deleteUser('admin-id', 'actor-id');
+
+      expect(mockRepository.countActiveAdmins).not.toHaveBeenCalled();
+      expect(mockRepository.softDelete).toHaveBeenCalledWith('admin-id');
     });
   });
 
