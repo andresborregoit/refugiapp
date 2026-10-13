@@ -226,6 +226,7 @@ describe('PostgreSQL schema contract (integration)', () => {
     expectFk('expenses', 'ticketMediaId', 'media_assets', 'SET NULL');
     expectFk('expenses', 'createdByUserId', 'users', 'SET NULL');
     expectFk('animals', 'profilePhotoMediaId', 'media_assets', 'SET NULL');
+    expectFk('users', 'profilePhotoMediaId', 'media_assets', 'SET NULL');
     expectFk('media_assets', 'uploadedByUserId', 'users', 'SET NULL');
     expectFk('audit_logs', 'actorUserId', 'users', 'SET NULL');
     expectFk('care_tasks', 'animalId', 'animals', 'RESTRICT');
@@ -272,6 +273,7 @@ describe('PostgreSQL schema contract (integration)', () => {
     };
 
     expectIndex('users', ['email'], true);
+    expectIndex('users', ['profilePhotoMediaId']);
     expectIndex('veterinarians', ['licenseNumber'], true);
     expectIndex('veterinarians', ['userId'], true);
     expectIndex('animals', ['status']);

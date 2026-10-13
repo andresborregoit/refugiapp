@@ -16,12 +16,14 @@
 ## Escritura
 - `POST /media/upload` requiere JWT y admite `admin`, `shelter_manager` y `veterinarian`.
 - Si se informa `ownerType`/`ownerId`, el propietario debe existir (404). Si se omiten, el asset se guarda como huerfano.
-- `admin` y `shelter_manager` pueden subir para cualquier owner type u huerfano. `veterinarian` solo puede subir assets de `medical_record` u huerfanos (403 en otro caso).
+- `admin` y `shelter_manager` pueden subir para cualquier owner type u huerfano. `veterinarian` solo puede subir assets de `medical_record`, huerfanos o assets `ownerType=user` propios (403 en otro caso).
+- Los assets `ownerType=user` solo pueden subirse por el propio usuario o por `admin`; un usuario no-admin no puede subir un avatar ajeno.
 - La subida valida mimetype (jpeg, png, webp, pdf, mp4) y tamano maximo de 10MB.
 - Si falla la persistencia en PostgreSQL despues de subir a Cloudinary, el caso de uso compensa borrando el recurso remoto. Si la compensacion tambien falla, se loguea y se propaga el error original de persistencia.
 
 ## Vinculacion
-- `expenses` vincula `ticketMediaId` con `ownerType=expense_ticket`, `animals` vincula `profilePhotoMediaId` con `ownerType=animal` y `medical-records` vincula `attachmentMediaIds` con `ownerType=medical_record`.
+- `expenses` vincula `ticketMediaId` con `ownerType=expense_ticket`, `animals` vincula `profilePhotoMediaId` con `ownerType=animal`, `medical-records` vincula `attachmentMediaIds` con `ownerType=medical_record` y `users` vincula `profilePhotoMediaId` con `ownerType=user`.
+- Los avatares de usuario (`ownerType=user`) se vinculan desde `PATCH /users/:id`; el asset debe ser huerfano para poder vincularse y el anterior se libera a huerfano en la misma transaccion.
 - Cada vinculo valida la compatibilidad en el servicio de aplicacion (409) y re-asigna el asset en la misma transaccion que crea la entidad.
 - Un asset ya vinculado a otra entidad no puede re-vincularse.
 
@@ -29,11 +31,11 @@
 - `GET /media?ownerType=&ownerId=&page=&limit=` lista assets por propietario; requiere JWT y admite los tres roles autenticados.
 - La consulta valida que el propietario exista (404) antes de listar.
 - Paginacion con `page` minimo 1, `limit` entre 1 y 100, default `page=1` y `limit=20`. Orden `createdAt DESC, id DESC`. Excluye soft-deleted.
-- `GET /media/:id` requiere JWT y admite los tres roles; responde 404 si el asset no existe.
+- `GET /media/:id` requiere JWT y admite los tres roles; responde 404 si el asset no existe. Un asset `ownerType=user` solo puede leerse por su propietario o por `admin` (403 en otro caso).
 
 ## Baja logica
 - `DELETE /media/:id` requiere JWT y admite los tres roles autenticados.
-- `admin` y `shelter_manager` pueden borrar cualquier asset.
+- `admin` y `shelter_manager` pueden borrar cualquier asset. Excepcion: un avatar de usuario (`ownerType=user`) solo puede borrarlo su propietario o `admin`; borrar un avatar ajeno responde 403.
 - Un asset huerfano (`ownerType`/`ownerId` nulos) puede ser borrado por el usuario que lo subio (`uploadedByUserId`), sin importar su rol. Esto cubre el flujo subir -> cancelar.
 - Un `veterinarian` que no es el uploader solo puede borrar assets de `medical_record`; un huerfano ajeno o un asset vinculado a otra entidad responde `403`.
 - Aplica soft-delete mediante `deletedAt` y luego intenta eliminar el archivo remoto en Cloudinary. Si la limpieza remota falla, se loguea el error y el registro permanece oculto por `deletedAt`.

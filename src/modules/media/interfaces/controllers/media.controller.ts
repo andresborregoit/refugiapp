@@ -20,7 +20,6 @@ import { ApiErrorResponses } from '../../../../common/decorators/api-error-respo
 import { CurrentUser } from '../../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../../common/decorators/roles.decorator';
 import { UserRole } from '../../../../common/enums/user-role.enum';
-import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
 import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
@@ -45,10 +44,10 @@ export class MediaController {
     summary: 'Upload a file to Cloudinary and persist metadata',
     description:
       'Uploads a file and persists its metadata. Omitting ownerType and ownerId creates an ' +
-      'orphan asset that can be linked later to an animal, expense or medical record. Orphan ' +
-      'assets are removed by the cleanup job after MEDIA_ORPHAN_RETENTION_HOURS (default 48h) ' +
-      'unless they are linked; the uploader can delete their own orphan asset with ' +
-      'DELETE /media/:id before it is linked.',
+      'orphan asset that can be linked later to an animal, expense, medical record or user. ' +
+      'Orphan assets are removed by the cleanup job after MEDIA_ORPHAN_RETENTION_HOURS ' +
+      '(default 48h) unless they are linked; the uploader can delete their own orphan asset ' +
+      'with DELETE /media/:id before it is linked.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiOkResponse({ type: MediaAssetResponseDto, description: 'File uploaded successfully.' })
@@ -114,12 +113,11 @@ export class MediaController {
   @ApiOperation({ summary: 'Get media asset metadata by id' })
   @ApiOkResponse({ type: MediaAssetResponseDto })
   @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
-  async findById(@Param('id', ParseUUIDPipe) id: string): Promise<MediaAssetResponseDto> {
-    const asset = await this.mediaService.findById(id);
-
-    if (!asset) {
-      throw new ResourceNotFoundException('MediaAsset', id);
-    }
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MediaAssetResponseDto> {
+    const asset = await this.mediaService.getAssetForUser(id, user);
 
     return this.toResponseDto(asset);
   }
@@ -133,7 +131,8 @@ export class MediaController {
     summary: 'Soft-delete a media asset and remove its remote file',
     description:
       'Deletes a media asset (soft-delete on media_assets) and removes its Cloudinary file. ' +
-      'admin and shelter_manager can delete any asset. veterinarian can delete clinical ' +
+      'admin and shelter_manager can delete any asset except another user avatar; user avatars ' +
+      'can only be deleted by their owner or an admin. veterinarian can delete clinical ' +
       'attachments (ownerType=medical_record) and orphan assets uploaded by the same user; ' +
       'deleting a foreign orphan or a linked asset owned by another entity returns 403.',
   })

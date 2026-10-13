@@ -49,6 +49,16 @@ export class UserResponseDto {
 
   @ApiProperty({
     type: String,
+    format: 'uuid',
+    nullable: true,
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    description:
+      'UUID del asset de media que actua como foto de perfil; null explicito cuando el usuario no tiene foto.',
+  })
+  profilePhotoMediaId!: string | null;
+
+  @ApiProperty({
+    type: String,
     format: 'date-time',
     example: '2026-09-07T12:00:00.000Z',
     description: 'Creation timestamp.',

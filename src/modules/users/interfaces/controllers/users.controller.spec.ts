@@ -90,7 +90,7 @@ describe('UsersController', () => {
       expect(mockUsersService.updateUser).toHaveBeenCalledWith(
         'target-id',
         { firstName: 'Updated' },
-        'actor-id',
+        { id: 'actor-id', email: 'admin@refugiapp.local', roles: [UserRole.ADMIN] },
       );
       expect(result).toEqual(updated);
       expect(result).not.toHaveProperty('passwordHash');

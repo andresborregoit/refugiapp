@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserRole } from '../../../../../../common/enums/user-role.enum';
+import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
+import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { CreateUserCredentials } from '../../../../domain/entities/create-user-credentials.entity';
 import { UserCredentials } from '../../../../domain/entities/user-credentials.entity';
 import { User } from '../../../../domain/entities/user.entity';
@@ -76,34 +78,63 @@ export class TypeOrmUserRepository implements UserRepository {
   }
 
   async update(id: string, input: UpdateUserData): Promise<User | null> {
-    const entity = await this.repository.findOne({
-      where: { id },
-      withDeleted: true,
+    return this.repository.manager.transaction(async (manager) => {
+      const entity = await manager.findOne(UserOrmEntity, {
+        where: { id },
+        withDeleted: true,
+      });
+
+      if (!entity || entity.deletedAt) {
+        return null;
+      }
+
+      const previousProfilePhotoMediaId = entity.profilePhotoMediaId ?? null;
+
+      if (input.firstName !== undefined) {
+        entity.firstName = input.firstName;
+      }
+
+      if (input.lastName !== undefined) {
+        entity.lastName = input.lastName;
+      }
+
+      if (input.email !== undefined) {
+        entity.email = input.email;
+      }
+
+      if (input.roles !== undefined) {
+        entity.roles = input.roles;
+      }
+
+      if (input.profilePhotoMediaId !== undefined) {
+        entity.profilePhotoMediaId = input.profilePhotoMediaId;
+      }
+
+      const saved = await manager.save(entity);
+
+      if (
+        input.profilePhotoMediaId !== undefined &&
+        input.profilePhotoMediaId !== previousProfilePhotoMediaId
+      ) {
+        if (previousProfilePhotoMediaId) {
+          await manager.update(
+            MediaAssetOrmEntity,
+            { id: previousProfilePhotoMediaId },
+            { ownerType: null, ownerId: null },
+          );
+        }
+
+        if (input.profilePhotoMediaId) {
+          await manager.update(
+            MediaAssetOrmEntity,
+            { id: input.profilePhotoMediaId },
+            { ownerType: MediaOwnerType.USER, ownerId: id },
+          );
+        }
+      }
+
+      return this.toDomain(saved);
     });
-
-    if (!entity || entity.deletedAt) {
-      return null;
-    }
-
-    if (input.firstName !== undefined) {
-      entity.firstName = input.firstName;
-    }
-
-    if (input.lastName !== undefined) {
-      entity.lastName = input.lastName;
-    }
-
-    if (input.email !== undefined) {
-      entity.email = input.email;
-    }
-
-    if (input.roles !== undefined) {
-      entity.roles = input.roles;
-    }
-
-    const saved = await this.repository.save(entity);
-
-    return this.toDomain(saved);
   }
 
   async countActiveAdmins(excludeId?: string): Promise<number> {
@@ -159,6 +190,7 @@ export class TypeOrmUserRepository implements UserRepository {
       entity.isActive,
       entity.createdAt,
       entity.updatedAt,
+      entity.profilePhotoMediaId ?? null,
     );
   }
 

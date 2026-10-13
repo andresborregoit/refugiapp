@@ -67,6 +67,18 @@ export class MediaService {
     return this.mediaAssetRepository.findById(id);
   }
 
+  async getAssetForUser(id: string, user: AuthenticatedUser): Promise<MediaAsset> {
+    const asset = await this.mediaAssetRepository.findById(id);
+
+    if (!asset) {
+      throw new ResourceNotFoundException('MediaAsset', id);
+    }
+
+    this.assertCanRead(user, asset);
+
+    return asset;
+  }
+
   async upload(
     fileBuffer: Buffer,
     filename: string,
@@ -90,7 +102,7 @@ export class MediaService {
       }
     }
 
-    this.assertCanUpload(user, ownerType);
+    this.assertCanUpload(user, ownerType, ownerId);
 
     this.validateMimetype(mimetype);
     this.validateFileSize(fileBuffer.length);
@@ -302,19 +314,54 @@ export class MediaService {
   private assertCanUpload(
     user: AuthenticatedUser,
     ownerType: MediaOwnerType | null,
+    ownerId: string | null,
   ): void {
+    if (ownerType === MediaOwnerType.USER) {
+      if (user.roles.includes(UserRole.ADMIN) || ownerId === user.id) {
+        return;
+      }
+
+      throw new ForbiddenException(
+        'Only the owner or an admin can upload a user profile asset.',
+      );
+    }
+
     if (this.isPrivileged(user)) {
       return;
     }
 
     if (ownerType !== null && ownerType !== MediaOwnerType.MEDICAL_RECORD) {
       throw new ForbiddenException(
-        'Veterinarians can only upload clinical attachments.',
+        'Veterinarians can only upload clinical attachments or their own user profile assets.',
       );
     }
   }
 
+  private assertCanRead(user: AuthenticatedUser, asset: MediaAsset): void {
+    if (asset.ownerType !== MediaOwnerType.USER) {
+      return;
+    }
+
+    if (user.roles.includes(UserRole.ADMIN) || asset.ownerId === user.id) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'Only the owner or an admin can read a user profile asset.',
+    );
+  }
+
   private assertCanDelete(user: AuthenticatedUser, asset: MediaAsset): void {
+    if (asset.ownerType === MediaOwnerType.USER) {
+      if (user.roles.includes(UserRole.ADMIN) || asset.ownerId === user.id) {
+        return;
+      }
+
+      throw new ForbiddenException(
+        'Only the owner or an admin can delete a user profile asset.',
+      );
+    }
+
     if (this.isPrivileged(user)) {
       return;
     }

@@ -24,10 +24,9 @@ import { MediaController } from './interfaces/controllers/media.controller';
         fileSize: 10 * 1024 * 1024, // 10MB
       },
     }),
-    UsersModule,
+    forwardRef(() => UsersModule),
     VeterinariansModule,
-    forwardRef(() => AnimalsModule),
-    forwardRef(() => ExpensesModule),
+    forwardRef(() => AnimalsModule),    forwardRef(() => ExpensesModule),
     forwardRef(() => MedicalRecordsModule),
   ],
   controllers: [MediaController],

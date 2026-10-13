@@ -37,7 +37,7 @@ Implementado:
 - Creacion y listado de eventos generales por animal con paginacion y filtros.
 - Creacion de registros medicos (`POST /medical-records`) con validacion de animal, veterinario opcional, fecha con limites, adjuntos via media y proteccion por roles.
 - Subida de media (`POST /media/upload`) con validacion de propietario (o assets huerfanos), mimetype, tamano, autorizacion por roles y compensacion remota si falla la persistencia.
-- Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional.
+- Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales, adjuntos clinicos solo a registros medicos y avatares de usuario solo a usuarios, con re-asignacion transaccional.
 - Listado de assets por propietario (`GET /media`) con paginacion y baja logica con limpieza remota en Cloudinary.
 - Limpieza automatica de media huerfana (`npm run media:purge-orphans`) con retencion configurable por entorno, `--dry-run`, borrado condicional atomico (los assets vinculados nunca se purgan), logs JSON con `requestId` y exit code `1` ante fallos para alertar al cron externo.
 - Suite E2E de flujos criticos contra PostgreSQL efimero mediante Testcontainers, sin usar Neon ni datos de produccion.
@@ -55,6 +55,7 @@ Implementado:
 - Teardown resiliente de los tests de persistencia: no añade errores secundarios cuando Docker no esta disponible.
 - Notificaciones push (RFG-127): registro de dispositivos Expo por usuario, preferencias con quiet hours, dispatcher idempotente por cron externo (`npm run notifications:dispatch`) y adaptador Expo con `noop` para local/test. Detalle operativo en `docs/push-notifications.md`.
 - Proceso de adopcion (RFG-95): perfiles de adoptantes, postulaciones, aprobacion transaccional, historial, evento automatico `status_change` y permisos por rol.
+- Foto de perfil de usuario (RFG-182): `profilePhotoMediaId` en `users` con FK `SET NULL` e indice, contrato `UserResponseDto`/`UpdateUserDto`, `PATCH /users/:id` para tutelar el propio avatar o `admin`, reemplazo transaccional que orfana el asset anterior y lectura/borrado de avatares restringidos al propietario o `admin`.
 
 Pendiente:
 

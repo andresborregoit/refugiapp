@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, INestApplication, NotFoundException, UnauthorizedException, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, INestApplication, NotFoundException, UnauthorizedException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -12,7 +12,8 @@ import { UsersService } from '../src/modules/users/application/services/users.se
 import { User } from '../src/modules/users/domain/entities/user.entity';
 
 const adminPayload = { sub: 'admin-id', id: 'admin-id', email: 'admin@refugiapp.local', roles: [UserRole.ADMIN] };
-const managerPayload = { sub: 'manager-id', id: 'manager-id', email: 'manager@refugiapp.local', roles: [UserRole.SHELTER_MANAGER] };
+const MANAGER_UUID = '22222222-2222-2222-2222-222222222222';
+const managerPayload = { sub: MANAGER_UUID, id: MANAGER_UUID, email: 'manager@refugiapp.local', roles: [UserRole.SHELTER_MANAGER] };
 const veterinarianPayload = {
   sub: 'veterinarian-id',
   id: 'veterinarian-id',
@@ -20,6 +21,7 @@ const veterinarianPayload = {
   roles: [UserRole.VETERINARIAN],
 };
 const VALID_UUID = '11111111-1111-1111-1111-111111111111';
+const PHOTO_UUID = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
 
 describe('Users (e2e)', () => {
   const mockUsersService = {
@@ -281,7 +283,7 @@ describe('Users (e2e)', () => {
       expect(mockUsersService.updateUser).toHaveBeenCalledWith(
         VALID_UUID,
         { firstName: 'Updated', email: 'updated@refugiapp.local' },
-        'admin-id',
+        adminPayload,
       );
     });
 
@@ -363,16 +365,84 @@ describe('Users (e2e)', () => {
         .expect(400);
     });
 
-    it('returns 403 when called by a manager', async () => {
+    it('returns 403 when a non-admin updates another user', async () => {
+      mockUsersService.updateUser.mockRejectedValue(
+        new ForbiddenException({
+          code: 'FORBIDDEN_RESOURCE',
+          message: 'Only admins can update other users.',
+        }),
+      );
+
       const managerApp = await createApp(ManagerJwtAuthGuard);
 
-      await request(managerApp.getHttpServer())
+      const response = await request(managerApp.getHttpServer())
         .patch(`/api/v1/users/${VALID_UUID}`)
         .set('Authorization', 'Bearer manager-token')
-        .send({ firstName: 'Hacker' })
+        .send({ profilePhotoMediaId: PHOTO_UUID })
         .expect(403);
 
+      expect(response.body).toMatchObject({ statusCode: 403, code: 'FORBIDDEN_RESOURCE' });
+
       await managerApp.close();
+    });
+
+    it('allows a non-admin to update their own profile photo', async () => {
+      const updated = new User(
+        MANAGER_UUID,
+        'manager@refugiapp.local',
+        'Shelter',
+        'Manager',
+        [UserRole.SHELTER_MANAGER],
+        true,
+        undefined,
+        undefined,
+        PHOTO_UUID,
+      );
+      mockUsersService.updateUser.mockResolvedValue(updated);
+
+      const managerApp = await createApp(ManagerJwtAuthGuard);
+
+      const response = await request(managerApp.getHttpServer())
+        .patch(`/api/v1/users/${MANAGER_UUID}`)
+        .set('Authorization', 'Bearer manager-token')
+        .send({ profilePhotoMediaId: PHOTO_UUID })
+        .expect(200);
+
+      expect(response.body).toMatchObject({ profilePhotoMediaId: PHOTO_UUID });
+      expect(response.body).not.toHaveProperty('passwordHash');
+      expect(mockUsersService.updateUser).toHaveBeenCalledWith(
+        MANAGER_UUID,
+        { profilePhotoMediaId: PHOTO_UUID },
+        managerPayload,
+      );
+
+      await managerApp.close();
+    });
+
+    it('returns 409 when the profile photo asset is already owned', async () => {
+      mockUsersService.updateUser.mockRejectedValue(
+        new ConflictException({
+          code: 'MEDIA_ALREADY_OWNED',
+          message: 'Media asset is already owned.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ profilePhotoMediaId: PHOTO_UUID })
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.code).toBe('MEDIA_ALREADY_OWNED');
+        });
+    });
+
+    it('returns 400 for an invalid profilePhotoMediaId', async () => {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .send({ profilePhotoMediaId: 'not-a-uuid' })
+        .expect(400);
     });
 
     it('returns 401 when no token is provided', async () => {

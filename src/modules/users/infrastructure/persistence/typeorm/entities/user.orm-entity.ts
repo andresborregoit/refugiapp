@@ -1,6 +1,7 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseOrmEntity } from '../../../../../../common/entities/base-orm.entity';
 import { UserRole } from '../../../../../../common/enums/user-role.enum';
+import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 
 @Entity({ name: 'users' })
 @Index(['email'], { unique: true })
@@ -28,4 +29,11 @@ export class UserOrmEntity extends BaseOrmEntity {
 
   @Column({ type: 'boolean', default: true })
   isActive!: boolean;
+
+  @Column({ type: 'uuid', nullable: true })
+  profilePhotoMediaId?: string | null;
+
+  @ManyToOne(() => MediaAssetOrmEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'profilePhotoMediaId' })
+  profilePhotoMedia?: MediaAssetOrmEntity | null;
 }
