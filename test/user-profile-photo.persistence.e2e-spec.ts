@@ -308,7 +308,7 @@ describe('User profile photo with PostgreSQL persistence (e2e)', () => {
   });
 
   it('allows a user to upload a user-owned asset only for themselves', async () => {
-    await seedUser(ADMIN_EMAIL, [UserRole.ADMIN]);
+    const admin = await seedUser(ADMIN_EMAIL, [UserRole.ADMIN]);
     const adminToken = await login(ADMIN_EMAIL);
     const vet = await createUser(adminToken, VET_EMAIL, [UserRole.VETERINARIAN]);
     const vetToken = await login(VET_EMAIL);
@@ -330,7 +330,7 @@ describe('User profile photo with PostgreSQL persistence (e2e)', () => {
       .post(`${API_PREFIX}/media/upload`)
       .set('Authorization', `Bearer ${vetToken}`)
       .field('ownerType', MediaOwnerType.USER)
-      .field('ownerId', randomUUID())
+      .field('ownerId', admin.id)
       .attach('file', Buffer.from('avatar-png'), {
         filename: 'avatar.png',
         contentType: 'image/png',
