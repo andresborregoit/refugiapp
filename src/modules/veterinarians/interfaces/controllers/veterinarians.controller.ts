@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -133,5 +134,38 @@ export class VeterinariansController {
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<VeterinarianResponseDto> {
     return this.veterinariansService.reactivate(id, actor.id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete a veterinarian preserving clinical history (admin only)',
+    description:
+      'Physically removes an active or inactive veterinarian profile. Requires the admin role; ' +
+      'any other authenticated role receives 403. When the veterinarian has clinical records linked ' +
+      'in medical_records, responds 409 VETERINARIAN_HAS_HISTORY and deletes nothing so the history stays ' +
+      'intact. A missing or already deleted id responds 404.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+    description: 'Veterinarian id (UUID).',
+  })
+  @ApiNoContentResponse({ description: 'Veterinarian deleted successfully.' })
+  @ApiConflictResponse({
+    type: ErrorResponseDto,
+    description: 'Veterinarian has clinical history (VETERINARIAN_HAS_HISTORY).',
+  })
+  @ApiErrorResponses(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.TOO_MANY_REQUESTS)
+  delete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<void> {
+    return this.veterinariansService.deleteVeterinarian(id, actor.id);
   }
 }

@@ -53,6 +53,8 @@ describe('VeterinariansService', () => {
     update: jest.fn(),
     deactivate: jest.fn(),
     reactivate: jest.fn(),
+    countMedicalRecords: jest.fn(),
+    delete: jest.fn(),
   };
   const usersService = {
     findById: jest.fn(),
@@ -464,6 +466,71 @@ describe('VeterinariansService', () => {
       veterinarianRepository.reactivate.mockResolvedValue(null);
 
       await expect(service.reactivate('veterinarian-id', actorId)).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteVeterinarian', () => {
+    it('deletes a veterinarian without clinical history and audits the action', async () => {
+      veterinarianRepository.findById.mockResolvedValue(veterinarian);
+      veterinarianRepository.countMedicalRecords.mockResolvedValue(0);
+      veterinarianRepository.delete.mockResolvedValue(true);
+
+      await service.deleteVeterinarian('veterinarian-id', actorId);
+
+      expect(veterinarianRepository.countMedicalRecords).toHaveBeenCalledWith('veterinarian-id');
+      expect(veterinarianRepository.delete).toHaveBeenCalledWith('veterinarian-id');
+      expect(auditLogsService.record).toHaveBeenCalledWith({
+        actorUserId: actorId,
+        action: AuditAction.VETERINARIAN_DELETE,
+        resourceType: AuditResourceType.VETERINARIAN,
+        resourceId: 'veterinarian-id',
+        metadata: {
+          email: veterinarian.email,
+          licenseNumber: veterinarian.licenseNumber,
+        },
+      });
+    });
+
+    it('throws ResourceConflictException and keeps history when the veterinarian has clinical records', async () => {
+      veterinarianRepository.findById.mockResolvedValue(veterinarian);
+      veterinarianRepository.countMedicalRecords.mockResolvedValue(3);
+
+      await expect(service.deleteVeterinarian('veterinarian-id', actorId)).rejects.toThrow(
+        ResourceConflictException,
+      );
+      expect(veterinarianRepository.delete).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws ResourceConflictException with the VETERINARIAN_HAS_HISTORY code', async () => {
+      veterinarianRepository.findById.mockResolvedValue(veterinarian);
+      veterinarianRepository.countMedicalRecords.mockResolvedValue(1);
+
+      await expect(service.deleteVeterinarian('veterinarian-id', actorId)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'VETERINARIAN_HAS_HISTORY' }),
+      });
+    });
+
+    it('throws ResourceNotFoundException when the veterinarian does not exist', async () => {
+      veterinarianRepository.findById.mockResolvedValue(null);
+
+      await expect(service.deleteVeterinarian('missing-id', actorId)).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(veterinarianRepository.countMedicalRecords).not.toHaveBeenCalled();
+      expect(veterinarianRepository.delete).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws ResourceNotFoundException and does not audit when the delete affects no rows', async () => {
+      veterinarianRepository.findById.mockResolvedValue(veterinarian);
+      veterinarianRepository.countMedicalRecords.mockResolvedValue(0);
+      veterinarianRepository.delete.mockResolvedValue(false);
+
+      await expect(service.deleteVeterinarian('veterinarian-id', actorId)).rejects.toThrow(
         ResourceNotFoundException,
       );
       expect(auditLogsService.record).not.toHaveBeenCalled();

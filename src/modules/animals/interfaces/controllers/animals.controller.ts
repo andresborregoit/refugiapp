@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -13,9 +14,12 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
 import { ApiErrorResponses } from '../../../../common/decorators/api-error-responses.decorator';
@@ -23,6 +27,7 @@ import { CurrentUser } from '../../../../common/decorators/current-user.decorato
 import { Roles } from '../../../../common/decorators/roles.decorator';
 import { UserRole } from '../../../../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
+import { ErrorResponseDto } from '../../../../common/interfaces/error-response.dto';
 import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 import { AnimalsService } from '../../application/services/animals.service';
@@ -119,5 +124,45 @@ export class AnimalsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<AnimalResponseDto> {
     return this.animalsService.changeStatus(id, dto.status, user.id, dto.occurredAt);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete an animal with integrity rules (admin only)',
+    description:
+      'Applies a soft delete (`deletedAt`) and detaches the profile photo so the orphan purge policy can ' +
+      'reclaim it. Requires the admin role; any other authenticated role receives 403. The animal is not ' +
+      'deleted when it is under treatment (409 ANIMAL_UNDER_TREATMENT), has pending care tasks ' +
+      '(409 ANIMAL_HAS_PENDING_TASKS) or has clinical, expense or adoption history (409 ANIMAL_HAS_HISTORY); ' +
+      'in those cases nothing is removed. A missing or already deleted id responds 404.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+    description: 'Animal id (UUID).',
+  })
+  @ApiNoContentResponse({ description: 'Animal deleted successfully.' })
+  @ApiConflictResponse({
+    type: ErrorResponseDto,
+    description:
+      'The animal cannot be deleted: ANIMAL_UNDER_TREATMENT, ANIMAL_HAS_PENDING_TASKS or ANIMAL_HAS_HISTORY.',
+  })
+  @ApiErrorResponses(
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
+  deleteAnimal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.animalsService.deleteAnimal(id, user.id);
   }
 }

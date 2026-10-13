@@ -9,6 +9,7 @@ describe('UsersController', () => {
     listUsers: jest.fn(),
     updateUser: jest.fn(),
     deactivateUser: jest.fn(),
+    deleteUser: jest.fn(),
     activateUser: jest.fn(),
     getProfile: jest.fn(),
   };
@@ -105,6 +106,22 @@ describe('UsersController', () => {
 
       await expect(controller.listUsers(query as any)).resolves.toEqual(result);
       expect(mockUsersService.listUsers).toHaveBeenCalledWith(query);
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('delegates to the service with the id and the authenticated actor id', async () => {
+      mockUsersService.deleteUser.mockResolvedValue(undefined);
+
+      await expect(
+        controller.deleteUser('target-id', {
+          id: 'actor-id',
+          email: 'admin@refugiapp.local',
+          roles: [UserRole.ADMIN],
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(mockUsersService.deleteUser).toHaveBeenCalledWith('target-id', 'actor-id');
     });
   });
 });

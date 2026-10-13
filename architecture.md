@@ -186,6 +186,8 @@ Responsabilidades:
 
 `profilePhotoMediaId` referencia el asset de media que actua como foto de perfil (`media_assets.id`, `ON DELETE SET NULL`). La foto se gestiona mediante `PATCH /users/:id` y se expone en `GET /users/me` y en todas las respuestas de `UserResponseDto`: el campo siempre esta presente y se serializa `null` explicito cuando el usuario no tiene foto. Solo el propio usuario o un `admin` puede modificarla; al reemplazarla, el nuevo asset se vincula en la misma transaccion (`ownerType=user`) y el anterior vuelve a ser huerfano para la politica de purga, con el mismo patron que `PATCH /animals/:id`. Un usuario no-admin solo puede actualizar su propia `profilePhotoMediaId`; cualquier otro campo o usuario responde `403`.
 
+La eliminacion se realiza mediante `DELETE /users/:id`. Aplica baja logica reutilizando el mismo `softDelete` que `POST /users/:id/deactivate` (`isActive=false` + `deletedAt`) y responde `204`. Requiere `admin`; cualquier otro rol autenticado recibe `403` y un id inexistente o ya eliminado `404`. Si el usuario es el ultimo `admin` activo responde `409 LAST_ADMIN_FORBIDDEN`, con la misma regla que `PATCH /users/:id`. Cada baja registra `user.delete` en `audit_logs` con `metadata {email, roles, previousIsActive}`, sin secretos. Un usuario eliminado ya no puede iniciar sesion ni renovar tokens porque las consultas por defecto excluyen los registros con `deletedAt`.
+
 ### 5.1 Matriz de autorizacion por roles
 
 Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@UseGuards`. Los permisos declarativos se indican con `@Roles`; no deben implementarse comprobaciones de roles dentro de los controllers.
@@ -198,6 +200,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `PATCH /users/:id` (perfil y roles)      | Permitido | Rechazado         | Rechazado      |
 | `POST /users/:id/deactivate`             | Permitido | Rechazado         | Rechazado      |
 | `POST /users/:id/activate`               | Permitido | Rechazado         | Rechazado      |
+| `DELETE /users/:id`                      | Permitido | Rechazado         | Rechazado      |
 | `GET /users/me`                          | Permitido | Permitido         | Permitido      |
 | `POST /auth/change-password`             | Permitido | Permitido         | Permitido      |
 | `POST /animals`                          | Permitido | Permitido         | Rechazado      |
@@ -205,6 +208,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `GET /animals/:id`                       | Permitido | Permitido         | Permitido      |
 | `PATCH /animals/:id`                     | Permitido | Permitido         | Rechazado      |
 | `PATCH /animals/:id/status`              | Permitido | Permitido         | Rechazado      |
+| `DELETE /animals/:id`                    | Permitido | Rechazado         | Rechazado      |
 | `POST /animals/:animalId/events`         | Permitido | Permitido         | Rechazado      |
 | `GET /animals/:animalId/events`          | Permitido | Permitido         | Permitido      |
 | `POST /care-tasks`                       | Permitido | Permitido         | Rechazado      |
@@ -220,6 +224,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `PATCH /veterinarians/:id`               | Permitido | Permitido         | Rechazado      |
 | `POST /veterinarians/:id/deactivate`     | Permitido | Permitido         | Rechazado      |
 | `POST /veterinarians/:id/reactivate`     | Permitido | Permitido         | Rechazado      |
+| `DELETE /veterinarians/:id`              | Permitido | Rechazado         | Rechazado      |
 | `POST /medical-records`                  | Permitido | Rechazado         | Permitido      |
 | `PATCH /medical-records/:id`             | Permitido | Rechazado         | Permitido      |
 | `DELETE /medical-records/:id`            | Permitido | Rechazado         | Permitido      |
@@ -264,9 +269,9 @@ La matriz de capacidades agrega los endpoints por habilidad de negocio y es la r
 | ------------------------ | ------- | ----------------- | -------------- | ------------------------------------------------------------ |
 | `canEditAnimal`          | Si      | Si                | No             | Ficha de animal, eventos generales y tareas de cuidado       |
 | `canReadClinicalRecords` | Si      | No                | Si             | Registros clinicos (consulta, creacion, actualizacion, baja) |
-| `canManageUsers`         | Si      | No                | No             | Crear, activar y desactivar usuarios internos                |
+| `canManageUsers`         | Si      | No                | No             | Crear, activar, desactivar y eliminar usuarios internos      |
 | `canManageExpenses`      | Si      | Si                | No             | Crear y dar de baja gastos                                   |
-| `canManageVets`          | Si      | Si                | No             | Crear, editar y desactivar perfiles de veterinarios          |
+| `canManageVets`          | Si      | Si                | No             | Crear, editar, desactivar y reactivar perfiles de veterinarios; la baja (`DELETE`) es exclusiva de `admin` |
 | `canManageAdoptions`     | Si      | Si                | No             | Adoptantes, postulaciones y aprobacion de adopciones          |
 | `canReadAudit`           | Si      | No                | No             | Consultar el historial de auditoria                          |
 
@@ -301,6 +306,16 @@ deceased           → (terminal)
 ```
 
 Los eventos generales se gestionan mediante `POST /animals/:animalId/events` y `GET /animals/:animalId/events`. Los tipos creables manualmente son `general_note`, `behavior_note` y `transfer`. Los tipos `intake`, `status_change` y `adoption` estan reservados al sistema. La fecha del evento (`occurredAt`) es opcional y defaultea al momento del request; se rechazan fechas futuras y anteriores a `intakeDate`. El listado usa paginacion (1..100, default 20), filtro por `eventType` y orden `occurredAt DESC, id DESC`.
+
+La baja se realiza mediante `DELETE /animals/:id` y admite solo `admin`; cualquier otro rol autenticado recibe `403` y un id inexistente o ya eliminado responde `404`. Antes de aplicar la baja, el caso de uso bloquea con `409` y sin borrar nada cuando el animal esta `under_treatment` (`ANIMAL_UNDER_TREATMENT`), tiene `care-tasks` en estado `pending` (`ANIMAL_HAS_PENDING_TASKS`) o conserva historia que debe preservarse —registros clinicos, gastos y postulaciones/adopciones, incluidas las soft-deleted— (`ANIMAL_HAS_HISTORY`). Cuando no hay bloqueos aplica baja logica (`deletedAt`) en una transaccion, libera la foto de perfil a huerfana para la politica de purga y registra `animal.delete` en `audit_logs` con `resourceType=animal` y `metadata {name, species, status}`, sin secretos. Los listados y consultas excluyen los animales con `deletedAt` por el comportamiento por defecto de TypeORM y un segundo `DELETE` sobre un animal ya eliminado responde `404`.
+
+#### ADR: baja de Animal con soft delete
+
+*Contexto:* todas las foreign keys hacia `animals` (`medical_records`, `expenses`, `care_tasks`, `animal_history_events`, `adoption_applications` y `adoptions`) usan `ON DELETE RESTRICT`. Un borrado fisico fallaria por integridad referencial y, si se forzara, perderia historia clinica, financiera y de adopciones.
+
+*Decision:* `DELETE /animals/:id` aplica baja logica (`deletedAt`) en lugar de borrado fisico, consistente con `users` y `expenses`. La integridad se refuerza con bloqueos `409` por tratamiento en curso, tareas de cuidado pendientes o historia conservable, de modo que nunca se borra por error informacion relevante.
+
+*Consecuencias:* el animal deja de aparecer en listados y consultas y no puede recibir nuevas operaciones, pero la historia permanece intacta y legible con `withDeleted`. La foto de perfil se libera a huerfana para que la alcance la politica de purga de media. Las FKs `RESTRICT` dejan de ser un impedimento porque la fila nunca se elimina fisicamente.
 
 Los datos clinicos (diagnosticos, tratamientos, vacunas) pertenecen exclusivamente a `medical-records` y no deben registrarse en eventos generales.
 
@@ -359,6 +374,8 @@ La creacion es atomica: el caso de uso delega en `VeterinarianRepository.createW
 La desactivacion no borra ni aplica soft delete. Solo actualiza `isActive=false` para conservar la vinculacion historica desde `medical_records`.
 
 La reactivacion se realiza mediante `POST /veterinarians/:id/reactivate`. El caso de uso valida la existencia (404) y que el veterinario este desactivado (`409 VETERINARIAN_ALREADY_ACTIVE` si ya esta activo), vuelve `isActive=true` sin tocar `deletedAt` (los veterinarios no usan soft delete) y registra `user.activate` en `audit_logs` con `resourceId` del veterinario y `metadata {email, licenseNumber}`. Reutiliza el enum `user.activate` de `users` para evitar una migracion de enum en `audit_logs`.
+
+La baja se realiza mediante `DELETE /veterinarians/:id` y admite solo `admin`; cualquier otro rol autenticado recibe `403` y un id inexistente `404`. Antes de borrar, el caso de uso cuenta las filas de `medical_records` vinculadas, incluidas las soft-deleted, porque el historial clinico debe preservarse: si existe al menos una responde `409 VETERINARIAN_HAS_HISTORY` sin borrar nada y la relacion `medical_records.veterinarianId` (`ON DELETE SET NULL`) queda intacta. Cuando no hay historial elimina la fila fisicamente (los veterinarios no usan soft delete) y registra `veterinarian.delete` en `audit_logs` con `resourceType=veterinarian` y `metadata {email, licenseNumber}`, sin secretos.
 
 Todas las respuestas (`VeterinarianResponseDto`) incluyen el objeto `user` vinculado (subconjunto de `UserResponseDto`, sin `passwordHash`) o `null`; el repositorio hace `leftJoin` de `veterinarians.user` para evitar consultas N+1. El usuario auto-creado siempre recibe el rol `veterinarian`; el servicio registra `user.create` (usuario nuevo) o `user.role_assign` (rol agregado a un usuario reutilizado) en `audit_logs`, con `metadata` limitado a `email` y `roles`.
 
@@ -420,7 +437,9 @@ La escritura se realiza internamente mediante `AuditLogsService.record` desde lo
 Acciones registradas:
 
 ```text
-user.create, user.deactivate, user.activate, user.role_assign
+user.create, user.deactivate, user.activate, user.role_assign, user.delete
+veterinarian.delete
+animal.delete
 medical_record.create, medical_record.update, medical_record.soft_delete, medical_record.restore
 expense.create, expense.soft_delete
 care_task.create, care_task.update, care_task.complete, care_task.cancel
@@ -788,6 +807,9 @@ user.create
 user.deactivate
 user.activate
 user.role_assign
+user.delete
+veterinarian.delete
+animal.delete
 medical_record.create
 medical_record.update
 medical_record.soft_delete
@@ -802,11 +824,18 @@ auth.login_success
 auth.login_failure
 auth.refresh_success
 auth.refresh_failure
+auth.password_change
+auth.password_reset_requested
+auth.password_reset_completed
+auth.password_reset_failed
 push.device_register
 push.device_remove
 push.preferences_update
 push.dispatch_completed
 push.token_invalid
+adopter.create
+adoption_application.create
+adoption.complete
 access.denied
 ```
 
@@ -814,12 +843,17 @@ Enum `audit_resource_type`:
 
 ```text
 user
+veterinarian
+animal
 medical_record
 expense
 care_task
 auth_session
 authorization
 notification
+adopter
+adoption_application
+adoption
 ```
 
 ### 6.12 `refresh_tokens`
@@ -1295,6 +1329,8 @@ La migracion `1792000000000-AddPasswordRecovery.ts` agrega las acciones de audit
 
 La migracion `1794000000000-AddAdoptionProcess.ts` agrega las acciones y recursos de auditoria de adopciones, el enum `adoption_application_status` y las tablas `adopters`, `adoption_applications` y `adoptions`, con sus restricciones, indices y foreign keys.
 
+La migracion `1798000000000-AddAnimalDeleteAuditAction.ts` agrega la accion `animal.delete` al enum `audit_action` y el recurso `animal` al enum `audit_resource_type`, para la baja de animales.
+
 No se deben editar migraciones que ya fueron ejecutadas en un entorno compartido. Los cambios posteriores deben agregarse en una nueva migracion.
 
 ## 12. Seguridad de datos
@@ -1409,6 +1445,7 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Contrato OpenAPI congelado y versionado en `docs/openapi.json`, exportado de forma determinista y sin conexion a la base con `npm run openapi:export`; la configuracion del documento vive en `src/config/swagger.config.ts` y es compartida con `main.ts`. CI reexporta el documento y falla si el contrato cambio sin actualizarse.
 - Matriz de capacidades por rol (`canEditAnimal`, `canReadClinicalRecords`, `canManageUsers`, `canManageExpenses`, `canManageVets`, `canManageAdoptions`, `canReadAudit`) con fuente de verdad en `src/common/authorization/role-capabilities.ts`, especificacion humana en `docs/role-capabilities.md` y tests unitarios que la congelan.
 - Proceso de adopcion (RFG-95): perfiles de contacto de adoptantes, postulaciones por animal, aprobacion transaccional con responsable y fecha, rechazo de postulaciones competidoras, cambio del animal a `adopted`, evento `status_change`, auditoria y permisos por rol.
+- Baja segura de animales (RFG-188): `DELETE /animals/:id` solo para `admin` con baja logica (`deletedAt`), liberacion de la foto de perfil a huerfana, bloqueos `409 ANIMAL_UNDER_TREATMENT` / `ANIMAL_HAS_PENDING_TASKS` / `ANIMAL_HAS_HISTORY`, auditoria `animal.delete` (`resourceType=animal`, metadata sin secretos) y contrato publicado en `docs/openapi.json`.
 - Teardown resiliente de las suites de persistencia: el helper `teardownPersistence` cierra base, app y contenedor sin añadir errores secundarios cuando el arranque falla por falta de Docker, y `startIsolatedPostgres` falla con un mensaje explicativo. Todo en `test/utils/persistence-test-setup.ts`.
 
 ### Pendiente

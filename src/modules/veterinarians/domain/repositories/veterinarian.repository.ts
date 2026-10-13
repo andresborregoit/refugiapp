@@ -44,4 +44,16 @@ export interface VeterinarianRepository {
   update(id: string, input: UpdateVeterinarian): Promise<Veterinarian | null>;
   deactivate(id: string): Promise<Veterinarian | null>;
   reactivate(id: string): Promise<Veterinarian | null>;
+  /**
+   * Counts every clinical record linked to the veterinarian, including
+   * soft-deleted ones: the clinical history must survive a professional's
+   * removal, so the count is never filtered by `deletedAt`.
+   */
+  countMedicalRecords(veterinarianId: string): Promise<number>;
+  /**
+   * Physically removes the veterinarian row. Veterinarians do not use soft
+   * delete to keep their linkage intact; callers must guarantee there is no
+   * clinical history before invoking it.
+   */
+  delete(id: string): Promise<boolean>;
 }

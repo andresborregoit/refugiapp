@@ -1,5 +1,7 @@
 export enum AuditResourceType {
   USER = 'user',
+  VETERINARIAN = 'veterinarian',
+  ANIMAL = 'animal',
   MEDICAL_RECORD = 'medical_record',
   EXPENSE = 'expense',
   CARE_TASK = 'care_task',

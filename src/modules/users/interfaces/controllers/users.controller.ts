@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -169,6 +170,42 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<UserResponseDto> {
     return this.usersService.activateUser(id, user.id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Delete a user (soft-delete, admin only)',
+    description:
+      'Applies a soft delete (isActive=false + deletedAt) reusing the deactivation semantics. ' +
+      'Only admins can delete users; deleting the last active admin returns 409 LAST_ADMIN_FORBIDDEN.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+    description: 'User id (UUID).',
+  })
+  @ApiNoContentResponse({ description: 'User deleted successfully.' })
+  @ApiConflictResponse({
+    type: ErrorResponseDto,
+    description: 'Cannot delete the last active admin.',
+  })
+  @ApiErrorResponses(
+    HttpStatus.UNAUTHORIZED,
+    HttpStatus.FORBIDDEN,
+    HttpStatus.NOT_FOUND,
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
+  deleteUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.usersService.deleteUser(id, user.id);
   }
 
   @Get('me')

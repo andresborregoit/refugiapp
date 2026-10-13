@@ -1,5 +1,8 @@
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
+import { AuditAction } from '../../../audit-logs/domain/enums/audit-action.enum';
+import { AuditResourceType } from '../../../audit-logs/domain/enums/audit-resource-type.enum';
+import { AuditLogsService } from '../../../audit-logs/application/services/audit-logs.service';
 import { MediaService } from '../../../media/application/services/media.service';
 import { AnimalSex } from '../../domain/enums/animal-sex.enum';
 import { AnimalStatus } from '../../domain/enums/animal-status.enum';
@@ -25,15 +28,25 @@ describe('AnimalsService', () => {
     findById: jest.fn(),
     findMany: jest.fn(),
     changeStatus: jest.fn(),
+    countPendingCareTasks: jest.fn(),
+    countHistoricalRecords: jest.fn(),
+    softDelete: jest.fn(),
   };
   const mediaService = {
     findById: jest.fn(),
+  };
+  const auditLogsService = {
+    record: jest.fn(),
   };
   let service: AnimalsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AnimalsService(animalRepository, mediaService as unknown as MediaService);
+    service = new AnimalsService(
+      animalRepository,
+      mediaService as unknown as MediaService,
+      auditLogsService as unknown as AuditLogsService,
+    );
   });
 
   describe('create', () => {
@@ -308,6 +321,99 @@ describe('AnimalsService', () => {
       });
       expect(input.occurredAt).toBeInstanceOf(Date);
       expect(result).toBe(updatedAnimal);
+    });
+  });
+
+  describe('deleteAnimal', () => {
+    const underTreatmentAnimal = new Animal(
+      'animal-id',
+      'Toby',
+      'dog',
+      'mixed',
+      AnimalSex.MALE,
+      AnimalStatus.UNDER_TREATMENT,
+      new Date('2026-01-01'),
+    );
+
+    it('throws ResourceNotFoundException when the animal does not exist', async () => {
+      animalRepository.findById.mockResolvedValue(null);
+
+      await expect(service.deleteAnimal('missing-id', 'actor-id')).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(animalRepository.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 ANIMAL_UNDER_TREATMENT without deleting anything', async () => {
+      animalRepository.findById.mockResolvedValue(underTreatmentAnimal);
+
+      await expect(service.deleteAnimal('animal-id', 'actor-id')).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'ANIMAL_UNDER_TREATMENT' }),
+      });
+      expect(animalRepository.countPendingCareTasks).not.toHaveBeenCalled();
+      expect(animalRepository.softDelete).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 ANIMAL_HAS_PENDING_TASKS without deleting anything', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      animalRepository.countPendingCareTasks.mockResolvedValue(1);
+
+      await expect(service.deleteAnimal('animal-id', 'actor-id')).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'ANIMAL_HAS_PENDING_TASKS' }),
+      });
+      expect(animalRepository.countHistoricalRecords).not.toHaveBeenCalled();
+      expect(animalRepository.softDelete).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 ANIMAL_HAS_HISTORY without deleting anything', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      animalRepository.countPendingCareTasks.mockResolvedValue(0);
+      animalRepository.countHistoricalRecords.mockResolvedValue(2);
+
+      await expect(service.deleteAnimal('animal-id', 'actor-id')).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'ANIMAL_HAS_HISTORY' }),
+      });
+      expect(animalRepository.softDelete).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('soft deletes the animal and audits animal.delete without secrets', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      animalRepository.countPendingCareTasks.mockResolvedValue(0);
+      animalRepository.countHistoricalRecords.mockResolvedValue(0);
+      animalRepository.softDelete.mockResolvedValue(true);
+
+      await expect(service.deleteAnimal('animal-id', 'actor-id')).resolves.toBeUndefined();
+
+      expect(animalRepository.softDelete).toHaveBeenCalledWith('animal-id');
+      expect(auditLogsService.record).toHaveBeenCalledWith({
+        actorUserId: 'actor-id',
+        action: AuditAction.ANIMAL_DELETE,
+        resourceType: AuditResourceType.ANIMAL,
+        resourceId: 'animal-id',
+        metadata: {
+          name: 'Luna',
+          species: 'dog',
+          status: AnimalStatus.ADMITTED,
+        },
+      });
+      expect(JSON.stringify(auditLogsService.record.mock.calls[0]![0])).not.toMatch(
+        /password|token|secret/i,
+      );
+    });
+
+    it('throws ResourceNotFoundException and does not audit when the delete affects no rows', async () => {
+      animalRepository.findById.mockResolvedValue(animal);
+      animalRepository.countPendingCareTasks.mockResolvedValue(0);
+      animalRepository.countHistoricalRecords.mockResolvedValue(0);
+      animalRepository.softDelete.mockResolvedValue(false);
+
+      await expect(service.deleteAnimal('animal-id', 'actor-id')).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+      expect(auditLogsService.record).not.toHaveBeenCalled();
     });
   });
 });

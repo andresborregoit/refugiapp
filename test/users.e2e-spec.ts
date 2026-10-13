@@ -29,6 +29,7 @@ describe('Users (e2e)', () => {
     createUser: jest.fn(),
     updateUser: jest.fn(),
     deactivateUser: jest.fn(),
+    deleteUser: jest.fn(),
     activateUser: jest.fn(),
     getProfile: jest.fn(),
   };
@@ -536,6 +537,90 @@ describe('Users (e2e)', () => {
         .post('/api/v1/users/22222222-2222-2222-2222-222222222222/activate')
         .set('Authorization', 'Bearer admin-token')
         .expect(404);
+    });
+  });
+
+  describe('DELETE /api/v1/users/:id', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      app = await createApp(AlwaysActiveJwtAuthGuard);
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    it('deletes a user when called by an admin', async () => {
+      mockUsersService.deleteUser.mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(204);
+    });
+
+    it('returns 404 when the user does not exist', async () => {
+      mockUsersService.deleteUser.mockRejectedValue(
+        new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'User with id was not found.' }),
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404)
+        .expect(({ body }) => {
+          expect(body.code).toBe('RESOURCE_NOT_FOUND');
+        });
+    });
+
+    it('returns 409 LAST_ADMIN_FORBIDDEN when deleting the last active admin', async () => {
+      mockUsersService.deleteUser.mockRejectedValue(
+        new ConflictException({
+          code: 'LAST_ADMIN_FORBIDDEN',
+          message: 'Cannot delete the last active admin.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.code).toBe('LAST_ADMIN_FORBIDDEN');
+        });
+    });
+
+    it('returns 400 for an invalid uuid', async () => {
+      await request(app.getHttpServer())
+        .delete('/api/v1/users/not-a-uuid')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(400);
+    });
+
+    it('returns 403 when called by a non-admin role', async () => {
+      const managerApp = await createApp(ManagerJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .delete(`/api/v1/users/${VALID_UUID}`)
+        .set('Authorization', 'Bearer manager-token')
+        .expect(403);
+
+      await managerApp.close();
+    });
+
+    it('returns 401 when no token is provided', async () => {
+      const noTokenApp = await createApp(NoTokenJwtAuthGuard);
+
+      await request(noTokenApp.getHttpServer())
+        .delete(`/api/v1/users/${VALID_UUID}`)
+        .expect(401);
+
+      await noTokenApp.close();
     });
   });
 

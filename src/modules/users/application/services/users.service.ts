@@ -285,6 +285,45 @@ export class UsersService {
     }
   }
 
+  async deleteUser(id: string, actorId: string): Promise<void> {
+    const user = await this.userRepository.findById(id);
+
+    if (!user) {
+      throw new ResourceNotFoundException('User', id);
+    }
+
+    await this.assertLastActiveAdminRetained(user);
+
+    await this.userRepository.softDelete(id);
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.USER_DELETE,
+      resourceType: AuditResourceType.USER,
+      resourceId: id,
+      metadata: {
+        email: user.email,
+        roles: user.roles,
+        previousIsActive: user.isActive,
+      },
+    });
+  }
+
+  private async assertLastActiveAdminRetained(user: User): Promise<void> {
+    if (!user.isActive || !user.roles.includes(UserRole.ADMIN)) {
+      return;
+    }
+
+    const remainingAdmins = await this.userRepository.countActiveAdmins(user.id);
+
+    if (remainingAdmins === 0) {
+      throw new ResourceConflictException(
+        'Cannot delete the last active admin.',
+        'LAST_ADMIN_FORBIDDEN',
+      );
+    }
+  }
+
   async deactivateUser(id: string, actorId: string): Promise<void> {
     const user = await this.userRepository.findById(id);
 

@@ -41,6 +41,7 @@ describe('Animals (e2e)', () => {
     list: jest.fn(),
     findById: jest.fn(),
     changeStatus: jest.fn(),
+    deleteAnimal: jest.fn(),
   };
   const eventsService = {
     create: jest.fn(),
@@ -702,6 +703,88 @@ describe('Animals (e2e)', () => {
         .expect(401);
 
       await noTokenApp.close();
+    });
+  });
+
+  describe('DELETE /api/v1/animals/:id', () => {
+    it('returns 204 when called by an admin', async () => {
+      animalsService.deleteAnimal.mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(204);
+
+      expect(animalsService.deleteAnimal).toHaveBeenCalledWith(VALID_UUID, 'admin-id');
+    });
+
+    it('returns 400 when the id is not a uuid', async () => {
+      await request(app.getHttpServer())
+        .delete('/api/v1/animals/not-a-uuid')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(400);
+
+      expect(animalsService.deleteAnimal).not.toHaveBeenCalled();
+    });
+
+    it('returns 403 when called by a shelter manager or a veterinarian', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+      const veterinarianApp = await createAppWithGuard(VeterinarianJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .delete(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer manager-token')
+        .expect(403);
+
+      await request(veterinarianApp.getHttpServer())
+        .delete(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer veterinarian-token')
+        .expect(403);
+
+      expect(animalsService.deleteAnimal).not.toHaveBeenCalled();
+
+      await managerApp.close();
+      await veterinarianApp.close();
+    });
+
+    it('returns 401 when no token is provided', async () => {
+      const noTokenApp = await createAppWithGuard(NoTokenJwtAuthGuard);
+
+      await request(noTokenApp.getHttpServer())
+        .delete(`/api/v1/animals/${VALID_UUID}`)
+        .expect(401);
+
+      await noTokenApp.close();
+    });
+
+    it('returns 404 when the animal does not exist', async () => {
+      animalsService.deleteAnimal.mockRejectedValue(
+        new ResourceNotFoundException('Animal', VALID_UUID),
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404)
+        .expect(({ body }) => {
+          expect(body.code).toBe('RESOURCE_NOT_FOUND');
+        });
+    });
+
+    it.each([
+      ['ANIMAL_UNDER_TREATMENT', 'Animal is under treatment.'],
+      ['ANIMAL_HAS_PENDING_TASKS', 'Animal has pending care tasks.'],
+      ['ANIMAL_HAS_HISTORY', 'Animal has history.'],
+    ])('returns 409 with %s', async (code, message) => {
+      animalsService.deleteAnimal.mockRejectedValue(new ResourceConflictException(message, code));
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/animals/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.code).toBe(code);
+        });
     });
   });
 });

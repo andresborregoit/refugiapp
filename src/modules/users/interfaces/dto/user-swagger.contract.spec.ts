@@ -49,6 +49,7 @@ const USER_PATHS: Record<string, Record<string, string[]>> = {
   },
   '/users/{id}': {
     patch: ['400', '401', '403', '404', '409', '429'],
+    delete: ['401', '403', '404', '409', '429'],
   },
   '/users/me': {
     get: ['401', '403', '404', '429'],
@@ -75,6 +76,7 @@ describe('Users Swagger contract', () => {
             listUsers: jest.fn(),
             updateUser: jest.fn(),
             deactivateUser: jest.fn(),
+            deleteUser: jest.fn(),
             activateUser: jest.fn(),
             getProfile: jest.fn(),
           },
@@ -292,10 +294,30 @@ describe('Users Swagger contract', () => {
     });
   });
 
+  describe('DELETE /users/{id}', () => {
+    it('documents the no-content delete response', () => {
+      const operation = operationOf('delete', '/users/{id}');
+      expect(operation.responses?.['204']).toBeDefined();
+    });
+
+    it('documents 409 for last active admin protection', () => {
+      const operation = operationOf('delete', '/users/{id}');
+      const conflict = operation.responses?.['409'];
+      expect(conflict?.description).toContain('last active admin');
+      expect(conflict?.content?.['application/json']?.schema?.$ref).toBe(ERROR_SCHEMA_REF);
+    });
+  });
+
   describe('Path parameters', () => {
-    it('documents the id path param as a uuid for update, deactivate and activate', () => {
-      for (const path of ['/users/{id}', '/users/{id}/deactivate', '/users/{id}/activate']) {
-        const method = path === '/users/{id}' ? 'patch' : 'post';
+    it('documents the id path param as a uuid for update, delete, deactivate and activate', () => {
+      const operations: [string, string][] = [
+        ['patch', '/users/{id}'],
+        ['delete', '/users/{id}'],
+        ['post', '/users/{id}/deactivate'],
+        ['post', '/users/{id}/activate'],
+      ];
+
+      for (const [method, path] of operations) {
         const parameters = operationOf(method, path).parameters ?? [];
         const idParam = parameters.find((parameter) => parameter.name === 'id');
         expect(idParam).toBeDefined();

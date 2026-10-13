@@ -16,9 +16,9 @@ La autorizacion de cada endpoint se sigue resolviendo con `JwtAuthGuard` + `Role
 | --- | --- | --- | --- | --- |
 | `canEditAnimal` | Si | Si | No | Crear animales, cambiar su estado, registrar eventos generales y gestionar tareas de cuidado |
 | `canReadClinicalRecords` | Si | No | Si | Leer y gestionar registros clinicos (consultas, vacunas, tratamientos, cirugias) |
-| `canManageUsers` | Si | No | No | Crear, activar y desactivar usuarios internos y asignar roles |
+| `canManageUsers` | Si | No | No | Crear, activar, desactivar y eliminar usuarios internos y asignar roles |
 | `canManageExpenses` | Si | Si | No | Crear y dar de baja gastos asociados a animales |
-| `canManageVets` | Si | Si | No | Crear, editar, desactivar y reactivar perfiles de veterinarios |
+| `canManageVets` | Si | Si | No | Crear, editar, desactivar y reactivar perfiles de veterinarios; la baja (`DELETE /veterinarians/:id`) solo `admin` |
 | `canReadAudit` | Si | No | No | Consultar el historial de auditoria (append-only) |
 | `canManageAdoptions` | Si | Si | No | Crear adoptantes, registrar solicitudes y aprobar adopciones |
 
@@ -36,7 +36,7 @@ Agrupa las escrituras sobre la ficha del animal, su historial general y las tare
 - `POST /care-tasks/:id/complete`
 - `POST /care-tasks/:id/cancel`
 
-Las lecturas (`GET /animals`, `GET /animals/:id`, `GET /animals/:animalId/events`, `GET /care-tasks`, `GET /care-tasks/:id`) estan disponibles para los tres roles autenticados.
+Las lecturas (`GET /animals`, `GET /animals/:id`, `GET /animals/:animalId/events`, `GET /care-tasks`, `GET /care-tasks/:id`) estan disponibles para los tres roles autenticados. La baja (`DELETE /animals/:id`) es exclusiva de `admin` y responde `409 ANIMAL_UNDER_TREATMENT`, `409 ANIMAL_HAS_PENDING_TASKS` o `409 ANIMAL_HAS_HISTORY` cuando el animal no puede eliminarse; el frontend debe usar el rol `admin`, no la capacidad, para decidir si muestra la accion.
 
 ### `canReadClinicalRecords` (`admin`, `veterinarian`)
 
@@ -58,6 +58,7 @@ Solo `admin` gestiona usuarios internos y roles:
 - `PATCH /users/:id` (perfil y roles)
 - `POST /users/:id/deactivate`
 - `POST /users/:id/activate`
+- `DELETE /users/:id` (baja logica; el ultimo `admin` activo responde `409 LAST_ADMIN_FORBIDDEN`)
 
 `GET /users/me` esta disponible para los tres roles. `PATCH /users/:id` tambien permite a cualquier rol autenticado modificar unicamente su propia `profilePhotoMediaId` (foto de perfil); editar otro usuario o campos de perfil sin `admin` responde `403 FORBIDDEN_RESOURCE`. `profilePhotoMediaId` se serializa siempre, con `null` explicito cuando no hay foto.
 
@@ -79,7 +80,7 @@ Escrituras sobre perfiles de veterinarios:
 - `POST /veterinarians/:id/deactivate`
 - `POST /veterinarians/:id/reactivate`
 
-Las lecturas (`GET /veterinarians`, `GET /veterinarians/:id`) estan disponibles para los tres roles.
+Las lecturas (`GET /veterinarians`, `GET /veterinarians/:id`) estan disponibles para los tres roles. La baja (`DELETE /veterinarians/:id`) es exclusiva de `admin` y responde `409 VETERINARIAN_HAS_HISTORY` cuando el veterinario tiene historial clinico (el frontend debe usar el rol `admin`, no la capacidad, para decidir si mostrarla).
 
 ### `canReadAudit` (`admin`)
 

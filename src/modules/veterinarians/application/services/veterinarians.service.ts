@@ -165,6 +165,40 @@ export class VeterinariansService {
     return reactivated;
   }
 
+  async deleteVeterinarian(id: string, actorId: string): Promise<void> {
+    const veterinarian = await this.veterinarianRepository.findById(id);
+
+    if (!veterinarian) {
+      throw new ResourceNotFoundException('Veterinarian', id);
+    }
+
+    const clinicalRecords = await this.veterinarianRepository.countMedicalRecords(id);
+
+    if (clinicalRecords > 0) {
+      throw new ResourceConflictException(
+        'Veterinarian has clinical history and cannot be deleted.',
+        'VETERINARIAN_HAS_HISTORY',
+      );
+    }
+
+    const deleted = await this.veterinarianRepository.delete(id);
+
+    if (!deleted) {
+      throw new ResourceNotFoundException('Veterinarian', id);
+    }
+
+    await this.auditLogsService.record({
+      actorUserId: actorId,
+      action: AuditAction.VETERINARIAN_DELETE,
+      resourceType: AuditResourceType.VETERINARIAN,
+      resourceId: id,
+      metadata: {
+        email: veterinarian.email,
+        licenseNumber: veterinarian.licenseNumber,
+      },
+    });
+  }
+
   private async createWithLinkedUser(userId: string, veterinarian: CreateVeterinarian): Promise<Veterinarian> {
     await this.ensureUserExists(userId);
     await this.ensureUserIsNotLinked(userId);

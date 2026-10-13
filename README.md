@@ -56,6 +56,8 @@ Implementado:
 - Notificaciones push (RFG-127): registro de dispositivos Expo por usuario, preferencias con quiet hours, dispatcher idempotente por cron externo (`npm run notifications:dispatch`) y adaptador Expo con `noop` para local/test. Detalle operativo en `docs/push-notifications.md`.
 - Proceso de adopcion (RFG-95): perfiles de adoptantes, postulaciones, aprobacion transaccional, historial, evento automatico `status_change` y permisos por rol.
 - Foto de perfil de usuario (RFG-182): `profilePhotoMediaId` en `users` con FK `SET NULL` e indice, contrato `UserResponseDto`/`UpdateUserDto`, `PATCH /users/:id` para tutelar el propio avatar o `admin`, reemplazo transaccional que orfana el asset anterior y lectura/borrado de avatares restringidos al propietario o `admin`.
+- Baja de usuarios (RFG-186): `DELETE /users/:id` solo para `admin` con baja logica reutilizando la semantica de desactivacion (`isActive=false` + `deletedAt`), proteccion del ultimo `admin` activo (`409 LAST_ADMIN_FORBIDDEN`), auditoria `user.delete` y contrato publicado en `docs/openapi.json`.
+- Baja segura de animales (RFG-188): `DELETE /animals/:id` solo para `admin` con baja logica (`deletedAt`), reglas de integridad `409 ANIMAL_UNDER_TREATMENT` / `ANIMAL_HAS_PENDING_TASKS` / `ANIMAL_HAS_HISTORY` (incluye historia clinica, gastos y adopciones), liberacion de la foto de perfil a huerfana, auditoria `animal.delete` y contrato publicado en `docs/openapi.json`.
 
 Pendiente:
 

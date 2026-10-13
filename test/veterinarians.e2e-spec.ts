@@ -40,6 +40,7 @@ describe('Veterinarians (e2e)', () => {
     update: jest.fn(),
     deactivate: jest.fn(),
     reactivate: jest.fn(),
+    deleteVeterinarian: jest.fn(),
   };
 
   class AdminJwtAuthGuard {
@@ -460,6 +461,101 @@ describe('Veterinarians (e2e)', () => {
 
       await request(noTokenApp.getHttpServer())
         .post(`/api/v1/veterinarians/${VALID_UUID}/reactivate`)
+        .expect(401);
+
+      await noTokenApp.close();
+    });
+  });
+
+  describe('DELETE /api/v1/veterinarians/:id', () => {
+    it('deletes a veterinarian when called by an admin', async () => {
+      veterinariansService.deleteVeterinarian.mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/veterinarians/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(204);
+
+      expect(veterinariansService.deleteVeterinarian).toHaveBeenCalledWith(
+        VALID_UUID,
+        adminPayload.id,
+      );
+    });
+
+    it('returns 404 when the veterinarian does not exist', async () => {
+      veterinariansService.deleteVeterinarian.mockRejectedValue(
+        new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'Veterinarian with id missing-id was not found.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/veterinarians/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(404)
+        .expect(({ body }) => {
+          expect(body.code).toBe('RESOURCE_NOT_FOUND');
+        });
+    });
+
+    it('returns 409 VETERINARIAN_HAS_HISTORY when the veterinarian has clinical history', async () => {
+      veterinariansService.deleteVeterinarian.mockRejectedValue(
+        new ConflictException({
+          code: 'VETERINARIAN_HAS_HISTORY',
+          message: 'Veterinarian has clinical history and cannot be deleted.',
+        }),
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/veterinarians/${VALID_UUID}`)
+        .set('Authorization', 'Bearer admin-token')
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.code).toBe('VETERINARIAN_HAS_HISTORY');
+        });
+    });
+
+    it('returns 400 for an invalid uuid', async () => {
+      await request(app.getHttpServer())
+        .delete('/api/v1/veterinarians/not-a-uuid')
+        .set('Authorization', 'Bearer admin-token')
+        .expect(400);
+
+      expect(veterinariansService.deleteVeterinarian).not.toHaveBeenCalled();
+    });
+
+    it('returns 403 when called by a shelter manager', async () => {
+      const managerApp = await createAppWithGuard(ManagerJwtAuthGuard);
+
+      await request(managerApp.getHttpServer())
+        .delete(`/api/v1/veterinarians/${VALID_UUID}`)
+        .set('Authorization', 'Bearer manager-token')
+        .expect(403);
+
+      expect(veterinariansService.deleteVeterinarian).not.toHaveBeenCalled();
+
+      await managerApp.close();
+    });
+
+    it('returns 403 when called by a veterinarian', async () => {
+      const veterinarianApp = await createAppWithGuard(VeterinarianJwtAuthGuard);
+
+      await request(veterinarianApp.getHttpServer())
+        .delete(`/api/v1/veterinarians/${VALID_UUID}`)
+        .set('Authorization', 'Bearer veterinarian-token')
+        .expect(403);
+
+      expect(veterinariansService.deleteVeterinarian).not.toHaveBeenCalled();
+
+      await veterinarianApp.close();
+    });
+
+    it('returns 401 when no token is provided', async () => {
+      const noTokenApp = await createAppWithGuard(NoTokenJwtAuthGuard);
+
+      await request(noTokenApp.getHttpServer())
+        .delete(`/api/v1/veterinarians/${VALID_UUID}`)
         .expect(401);
 
       await noTokenApp.close();
