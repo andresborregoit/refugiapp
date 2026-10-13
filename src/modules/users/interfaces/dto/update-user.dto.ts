@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -61,4 +62,17 @@ export class UpdateUserDto {
   @ArrayNotEmpty()
   @IsEnum(UserRole, { each: true })
   roles?: UserRole[];
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    description:
+      'UUID del asset de media que actua como foto de perfil. Enviar null para quitar la foto. ' +
+      'Solo el propio usuario o un admin puede modificarla.',
+  })
+  @IsOptional()
+  @IsUUID()
+  profilePhotoMediaId?: string | null;
 }

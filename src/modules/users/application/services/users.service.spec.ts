@@ -1,7 +1,12 @@
+import { ForbiddenException } from '@nestjs/common';
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { hashPassword } from '../../../../common/security/password-hasher';
 import { UserRole } from '../../../../common/enums/user-role.enum';
+import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
+import { MediaAsset } from '../../../media/domain/entities/media-asset.entity';
+import { MediaOwnerType } from '../../../media/domain/enums/media-owner-type.enum';
+import { MediaResourceType } from '../../../media/domain/enums/media-resource-type.enum';
 import { User } from '../../domain/entities/user.entity';
 import { CreateUserDto } from '../../interfaces/dto/create-user.dto';
 import { UsersService } from './users.service';
@@ -9,6 +14,20 @@ import { UsersService } from './users.service';
 jest.mock('../../../../common/security/password-hasher');
 
 const mockedHashPassword = hashPassword as jest.MockedFunction<typeof hashPassword>;
+
+const MEDIA_UUID = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+
+function mediaAsset(ownerType: MediaOwnerType | null): MediaAsset {
+  return new MediaAsset(
+    MEDIA_UUID,
+    ownerType,
+    ownerType === null ? null : 'owner-id',
+    MediaResourceType.IMAGE,
+    'public-id',
+    'https://cloudinary.com/avatar.jpg',
+    1024,
+  );
+}
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -23,12 +42,19 @@ describe('UsersService', () => {
     softDelete: jest.fn(),
     activate: jest.fn(),
   };
+  const mockMediaService = {
+    findById: jest.fn(),
+  };
   const mockAuditLogsService = {
     record: jest.fn(),
   };
 
   beforeEach(() => {
-    service = new UsersService(mockRepository as any, mockAuditLogsService as any);
+    service = new UsersService(
+      mockRepository as any,
+      mockMediaService as any,
+      mockAuditLogsService as any,
+    );
     jest.clearAllMocks();
   });
 
@@ -208,6 +234,18 @@ describe('UsersService', () => {
       true,
     );
 
+    const adminActor = (id = 'actor-id'): AuthenticatedUser => ({
+      id,
+      email: `${id}@refugiapp.local`,
+      roles: [UserRole.ADMIN],
+    });
+
+    const roleActor = (id: string, roles: UserRole[]): AuthenticatedUser => ({
+      id,
+      email: `${id}@refugiapp.local`,
+      roles,
+    });
+
     it('updates only the provided fields without nulling the rest', async () => {
       mockRepository.findById.mockResolvedValue(target);
       mockRepository.update.mockImplementation(async (_id: string, input: Record<string, unknown>) => new User(
@@ -219,7 +257,7 @@ describe('UsersService', () => {
         true,
       ));
 
-      const result = await service.updateUser('target-id', { firstName: '  Updated  ' }, 'actor-id');
+      const result = await service.updateUser('target-id', { firstName: '  Updated  ' }, adminActor());
 
       expect(mockRepository.update).toHaveBeenCalledWith('target-id', { firstName: 'Updated' });
       expect(result.firstName).toBe('Updated');
@@ -238,7 +276,7 @@ describe('UsersService', () => {
         true,
       ));
 
-      await service.updateUser('target-id', { email: '  New@refugiapp.local  ' }, 'actor-id');
+      await service.updateUser('target-id', { email: '  New@refugiapp.local  ' }, adminActor());
 
       expect(mockRepository.findByEmail).toHaveBeenCalledWith('new@refugiapp.local');
       expect(mockRepository.update).toHaveBeenCalledWith('target-id', { email: 'new@refugiapp.local' });
@@ -248,7 +286,7 @@ describe('UsersService', () => {
       mockRepository.findById.mockResolvedValue(target);
       mockRepository.update.mockResolvedValue(target);
 
-      await service.updateUser('target-id', { email: 'TARGET@refugiapp.local', firstName: 'T' }, 'actor-id');
+      await service.updateUser('target-id', { email: 'TARGET@refugiapp.local', firstName: 'T' }, adminActor());
 
       expect(mockRepository.findByEmail).not.toHaveBeenCalled();
     });
@@ -265,7 +303,7 @@ describe('UsersService', () => {
       ));
 
       await expect(
-        service.updateUser('target-id', { email: 'taken@refugiapp.local' }, 'actor-id'),
+        service.updateUser('target-id', { email: 'taken@refugiapp.local' }, adminActor()),
       ).rejects.toThrow(ResourceConflictException);
       expect(mockRepository.update).not.toHaveBeenCalled();
     });
@@ -274,14 +312,14 @@ describe('UsersService', () => {
       mockRepository.findById.mockResolvedValue(null);
 
       await expect(
-        service.updateUser('missing-id', { firstName: 'Nope' }, 'actor-id'),
+        service.updateUser('missing-id', { firstName: 'Nope' }, adminActor()),
       ).rejects.toThrow(ResourceNotFoundException);
     });
 
     it('rejects an empty update payload', async () => {
       mockRepository.findById.mockResolvedValue(target);
 
-      await expect(service.updateUser('target-id', {}, 'actor-id')).rejects.toThrow(
+      await expect(service.updateUser('target-id', {}, adminActor())).rejects.toThrow(
         expect.objectContaining({ status: 400 }),
       );
       expect(mockRepository.update).not.toHaveBeenCalled();
@@ -307,7 +345,7 @@ describe('UsersService', () => {
       mockRepository.findById.mockResolvedValue(adminTarget);
       mockRepository.update.mockResolvedValue(promoted);
 
-      await service.updateUser('target-id', { roles: [UserRole.ADMIN] }, 'actor-id');
+      await service.updateUser('target-id', { roles: [UserRole.ADMIN] }, adminActor());
 
       expect(mockAuditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -327,7 +365,7 @@ describe('UsersService', () => {
       mockRepository.findById.mockResolvedValue(target);
       mockRepository.update.mockResolvedValue(target);
 
-      await service.updateUser('target-id', { firstName: 'Updated' }, 'actor-id');
+      await service.updateUser('target-id', { firstName: 'Updated' }, adminActor());
 
       expect(mockAuditLogsService.record).not.toHaveBeenCalled();
     });
@@ -337,7 +375,7 @@ describe('UsersService', () => {
       mockRepository.update.mockRejectedValue(new Error('should not persist a no-op role update'));
 
       await expect(
-        service.updateUser('target-id', { roles: [UserRole.SHELTER_MANAGER] }, 'actor-id'),
+        service.updateUser('target-id', { roles: [UserRole.SHELTER_MANAGER] }, adminActor()),
       ).rejects.toThrow(expect.objectContaining({ status: 400 }));
       expect(mockAuditLogsService.record).not.toHaveBeenCalled();
     });
@@ -355,7 +393,7 @@ describe('UsersService', () => {
       mockRepository.countActiveAdmins.mockResolvedValue(0);
 
       await expect(
-        service.updateUser('admin-id', { roles: [UserRole.SHELTER_MANAGER] }, 'other-actor-id'),
+        service.updateUser('admin-id', { roles: [UserRole.SHELTER_MANAGER] }, adminActor('other-actor-id')),
       ).rejects.toThrow(ResourceConflictException);
       expect(mockRepository.countActiveAdmins).toHaveBeenCalledWith('admin-id');
       expect(mockRepository.update).not.toHaveBeenCalled();
@@ -385,7 +423,7 @@ describe('UsersService', () => {
       const result = await service.updateUser(
         'admin-id',
         { roles: [UserRole.SHELTER_MANAGER] },
-        'other-actor-id',
+        adminActor('other-actor-id'),
       );
 
       expect(result.roles).toEqual([UserRole.SHELTER_MANAGER]);
@@ -405,9 +443,134 @@ describe('UsersService', () => {
       mockRepository.countActiveAdmins.mockResolvedValue(3);
 
       await expect(
-        service.updateUser('self-id', { roles: [UserRole.SHELTER_MANAGER] }, 'self-id'),
+        service.updateUser('self-id', { roles: [UserRole.SHELTER_MANAGER] }, adminActor('self-id')),
       ).rejects.toThrow(ResourceConflictException);
       expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('links a new profile photo through the media policy for an admin', async () => {
+      mockRepository.findById.mockResolvedValue(target);
+      mockMediaService.findById.mockResolvedValue(mediaAsset(null));
+      mockRepository.update.mockResolvedValue(
+        new User(
+          'target-id',
+          'target@refugiapp.local',
+          'Target',
+          'User',
+          [UserRole.SHELTER_MANAGER],
+          true,
+          undefined,
+          undefined,
+          MEDIA_UUID,
+        ),
+      );
+
+      const result = await service.updateUser(
+        'target-id',
+        { profilePhotoMediaId: MEDIA_UUID },
+        adminActor(),
+      );
+
+      expect(mockMediaService.findById).toHaveBeenCalledWith(MEDIA_UUID);
+      expect(mockRepository.update).toHaveBeenCalledWith('target-id', {
+        profilePhotoMediaId: MEDIA_UUID,
+      });
+      expect(result.profilePhotoMediaId).toBe(MEDIA_UUID);
+    });
+
+    it('throws ResourceNotFoundException when the profile photo asset does not exist', async () => {
+      mockRepository.findById.mockResolvedValue(target);
+      mockMediaService.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateUser('target-id', { profilePhotoMediaId: MEDIA_UUID }, adminActor()),
+      ).rejects.toThrow(ResourceNotFoundException);
+      expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a profile photo asset with an incompatible owner type', async () => {
+      mockRepository.findById.mockResolvedValue(target);
+      mockMediaService.findById.mockResolvedValue(mediaAsset(MediaOwnerType.ANIMAL));
+
+      await expect(
+        service.updateUser('target-id', { profilePhotoMediaId: MEDIA_UUID }, adminActor()),
+      ).rejects.toThrow(ResourceConflictException);
+      expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('clears the profile photo when null is provided without hitting media', async () => {
+      const withPhoto = new User(
+        'target-id',
+        'target@refugiapp.local',
+        'Target',
+        'User',
+        [UserRole.SHELTER_MANAGER],
+        true,
+        undefined,
+        undefined,
+        MEDIA_UUID,
+      );
+      mockRepository.findById.mockResolvedValue(withPhoto);
+      mockRepository.update.mockResolvedValue(target);
+
+      await service.updateUser('target-id', { profilePhotoMediaId: null }, adminActor());
+
+      expect(mockMediaService.findById).not.toHaveBeenCalled();
+      expect(mockRepository.update).toHaveBeenCalledWith('target-id', {
+        profilePhotoMediaId: null,
+      });
+    });
+
+    it('forbids a non-admin from updating another user', async () => {
+      mockRepository.findById.mockResolvedValue(target);
+
+      await expect(
+        service.updateUser(
+          'target-id',
+          { profilePhotoMediaId: null },
+          roleActor('other-id', [UserRole.SHELTER_MANAGER]),
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('forbids a non-admin from editing their own profile fields', async () => {
+      mockRepository.findById.mockResolvedValue(target);
+
+      await expect(
+        service.updateUser(
+          'target-id',
+          { firstName: 'Nope' },
+          roleActor('target-id', [UserRole.VETERINARIAN]),
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('allows a non-admin to update only their own profile photo', async () => {
+      mockRepository.findById.mockResolvedValue(target);
+      mockMediaService.findById.mockResolvedValue(mediaAsset(null));
+      mockRepository.update.mockResolvedValue(
+        new User(
+          'target-id',
+          'target@refugiapp.local',
+          'Target',
+          'User',
+          [UserRole.SHELTER_MANAGER],
+          true,
+          undefined,
+          undefined,
+          MEDIA_UUID,
+        ),
+      );
+
+      const result = await service.updateUser(
+        'target-id',
+        { profilePhotoMediaId: MEDIA_UUID },
+        roleActor('target-id', [UserRole.SHELTER_MANAGER]),
+      );
+
+      expect(result.profilePhotoMediaId).toBe(MEDIA_UUID);
     });
   });
 

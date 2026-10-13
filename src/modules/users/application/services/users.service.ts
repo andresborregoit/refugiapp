@@ -1,11 +1,15 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { ResourceConflictException } from '../../../../common/exceptions/resource-conflict.exception';
 import { ResourceNotFoundException } from '../../../../common/exceptions/resource-not-found.exception';
 import { hashPassword } from '../../../../common/security/password-hasher';
 import { UserRole } from '../../../../common/enums/user-role.enum';
+import { AuthenticatedUser } from '../../../../common/interfaces/authenticated-user.interface';
 import { AuditLogsService } from '../../../audit-logs/application/services/audit-logs.service';
 import { AuditAction } from '../../../audit-logs/domain/enums/audit-action.enum';
 import { AuditResourceType } from '../../../audit-logs/domain/enums/audit-resource-type.enum';
+import { assertMediaLinkable } from '../../../media/application/services/media-linker';
+import { MediaService } from '../../../media/application/services/media.service';
+import { MediaLinkingContext } from '../../../media/domain/services/media-owner-policy';
 import { CreateUserCredentials } from '../../domain/entities/create-user-credentials.entity';
 import { User } from '../../domain/entities/user.entity';
 import { USER_REPOSITORY, UpdateUserData, UserRepository } from '../../domain/repositories/user.repository';
@@ -18,6 +22,7 @@ export class UsersService {
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly userRepository: UserRepository,
+    private readonly mediaService: MediaService,
     private readonly auditLogsService: AuditLogsService,
   ) {}
 
@@ -99,12 +104,14 @@ export class UsersService {
     return created;
   }
 
-  async updateUser(id: string, dto: UpdateUserDto, actorId: string): Promise<User> {
+  async updateUser(id: string, dto: UpdateUserDto, actor: AuthenticatedUser): Promise<User> {
     const user = await this.userRepository.findById(id);
 
     if (!user) {
       throw new ResourceNotFoundException('User', id);
     }
+
+    this.assertCanUpdateUser(id, dto, actor);
 
     const input: UpdateUserData = {};
 
@@ -166,15 +173,33 @@ export class UsersService {
       rolesChanged = !sameRoles(user.roles, roles);
 
       if (rolesChanged) {
-        await this.assertAdminDowngradeAllowed(user, roles, actorId);
+        await this.assertAdminDowngradeAllowed(user, roles, actor.id);
         input.roles = roles;
       }
+    }
+
+    if (dto.profilePhotoMediaId !== undefined) {
+      if (
+        dto.profilePhotoMediaId !== null &&
+        dto.profilePhotoMediaId !== user.profilePhotoMediaId
+      ) {
+        const mediaAsset = await this.mediaService.findById(dto.profilePhotoMediaId);
+
+        if (!mediaAsset) {
+          throw new ResourceNotFoundException('MediaAsset', dto.profilePhotoMediaId);
+        }
+
+        assertMediaLinkable(mediaAsset, MediaLinkingContext.USER_PROFILE_PHOTO);
+      }
+
+      input.profilePhotoMediaId = dto.profilePhotoMediaId;
     }
 
     if (Object.keys(input).length === 0) {
       throw new BadRequestException({
         code: 'EMPTY_UPDATE_PAYLOAD',
-        message: 'Provide at least one field to update: firstName, lastName, email or roles.',
+        message:
+          'Provide at least one field to update: firstName, lastName, email, roles or profilePhotoMediaId.',
       });
     }
 
@@ -186,7 +211,7 @@ export class UsersService {
 
     if (rolesChanged) {
       await this.auditLogsService.record({
-        actorUserId: actorId,
+        actorUserId: actor.id,
         action: AuditAction.USER_ROLE_ASSIGN,
         resourceType: AuditResourceType.USER,
         resourceId: id,
@@ -199,6 +224,36 @@ export class UsersService {
     }
 
     return updated;
+  }
+
+  private assertCanUpdateUser(
+    targetId: string,
+    dto: UpdateUserDto,
+    actor: AuthenticatedUser,
+  ): void {
+    if (actor.roles.includes(UserRole.ADMIN)) {
+      return;
+    }
+
+    if (actor.id !== targetId) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN_RESOURCE',
+        message: 'Only admins can update other users.',
+      });
+    }
+
+    const changesProfileFields =
+      dto.firstName !== undefined ||
+      dto.lastName !== undefined ||
+      dto.email !== undefined ||
+      dto.roles !== undefined;
+
+    if (changesProfileFields) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN_RESOURCE',
+        message: 'Only admins can update profile fields; you can only update your own profile photo.',
+      });
+    }
   }
 
   private async assertAdminDowngradeAllowed(

@@ -81,8 +81,14 @@ export class UsersController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Update a user profile and roles (admin only)' })
+  @Roles(UserRole.ADMIN, UserRole.SHELTER_MANAGER, UserRole.VETERINARIAN)
+  @ApiOperation({
+    summary: 'Update a user profile, roles or profile photo',
+    description:
+      'Admins can update firstName, lastName, email and roles of any user. Any authenticated ' +
+      'user can update only their own profilePhotoMediaId; editing another user or any profile ' +
+      'field without admin rights returns 403.',
+  })
   @ApiParam({
     name: 'id',
     type: String,
@@ -91,7 +97,11 @@ export class UsersController {
     description: 'User id (UUID).',
   })
   @ApiOkResponse({ type: UserResponseDto, description: 'User updated successfully.' })
-  @ApiConflictResponse({ type: ErrorResponseDto, description: 'Email already registered or last admin protection.' })
+  @ApiConflictResponse({
+    type: ErrorResponseDto,
+    description:
+      'Email already registered, last admin protection, incompatible media owner type or media already owned.',
+  })
   @ApiErrorResponses(
     HttpStatus.BAD_REQUEST,
     HttpStatus.UNAUTHORIZED,
@@ -104,7 +114,7 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<UserResponseDto> {
-    return this.usersService.updateUser(id, dto, user.id);
+    return this.usersService.updateUser(id, dto, user);
   }
 
   @Post(':id/deactivate')

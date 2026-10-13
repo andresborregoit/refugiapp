@@ -20,12 +20,16 @@ describe('media-owner-policy', () => {
       expect(() =>
         assertCanLinkToContext(null, MediaLinkingContext.MEDICAL_RECORD_ATTACHMENT),
       ).not.toThrow();
+      expect(() =>
+        assertCanLinkToContext(null, MediaLinkingContext.USER_PROFILE_PHOTO),
+      ).not.toThrow();
     });
 
     it.each([
       [MediaLinkingContext.ANIMAL_PROFILE_PHOTO, MediaOwnerType.ANIMAL],
       [MediaLinkingContext.EXPENSE_TICKET, MediaOwnerType.EXPENSE_TICKET],
       [MediaLinkingContext.MEDICAL_RECORD_ATTACHMENT, MediaOwnerType.MEDICAL_RECORD],
+      [MediaLinkingContext.USER_PROFILE_PHOTO, MediaOwnerType.USER],
     ])(
       'rejects an asset already owned when it is owned by the expected type for %s',
       (context, ownerType) => {
@@ -61,6 +65,13 @@ describe('media-owner-policy', () => {
         MediaOwnerType.USER,
         MediaOwnerType.VETERINARIAN,
       ],
+      [
+        MediaLinkingContext.USER_PROFILE_PHOTO,
+        MediaOwnerType.ANIMAL,
+        MediaOwnerType.EXPENSE_TICKET,
+        MediaOwnerType.MEDICAL_RECORD,
+        MediaOwnerType.VETERINARIAN,
+      ],
     ])(
       'rejects an incompatible owner type for %s',
       (context, ...incompatibleTypes) => {
@@ -87,6 +98,9 @@ describe('media-owner-policy', () => {
       ]);
       expect(EXPECTED_OWNER_TYPES[MediaLinkingContext.MEDICAL_RECORD_ATTACHMENT]).toEqual([
         MediaOwnerType.MEDICAL_RECORD,
+      ]);
+      expect(EXPECTED_OWNER_TYPES[MediaLinkingContext.USER_PROFILE_PHOTO]).toEqual([
+        MediaOwnerType.USER,
       ]);
     });
   });

@@ -27,6 +27,16 @@ describe('MediaService', () => {
     email: 'vet@refugiapp.test',
     roles: [UserRole.VETERINARIAN],
   };
+  const shelterManagerUser: AuthenticatedUser = {
+    id: 'manager-user-id',
+    email: 'manager@refugiapp.test',
+    roles: [UserRole.SHELTER_MANAGER],
+  };
+  const otherVeterinarianUser: AuthenticatedUser = {
+    id: 'other-vet-user-id',
+    email: 'other-vet@refugiapp.test',
+    roles: [UserRole.VETERINARIAN],
+  };
 
   beforeEach(async () => {
     mediaAssetRepository = {
@@ -190,6 +200,38 @@ describe('MediaService', () => {
       );
 
       expect(result.ownerType).toBe(MediaOwnerType.MEDICAL_RECORD);
+    });
+
+    it('should allow a veterinarian uploading a user profile asset for themselves', async () => {
+      ownerExistsChecker.exists.mockResolvedValue(true);
+      mediaAssetRepository.create.mockImplementation(async (asset: MediaAsset) => asset);
+
+      const result = await service.upload(
+        Buffer.from('test'),
+        'avatar.jpg',
+        'image/jpeg',
+        MediaOwnerType.USER,
+        veterinarianUser.id,
+        veterinarianUser,
+      );
+
+      expect(result.ownerType).toBe(MediaOwnerType.USER);
+      expect(result.ownerId).toBe(veterinarianUser.id);
+    });
+
+    it('should reject uploading a user profile asset for another user', async () => {
+      ownerExistsChecker.exists.mockResolvedValue(true);
+
+      await expect(
+        service.upload(
+          Buffer.from('test'),
+          'avatar.jpg',
+          'image/jpeg',
+          MediaOwnerType.USER,
+          'someone-else',
+          veterinarianUser,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should delete Cloudinary asset if PostgreSQL persistence fails', async () => {
@@ -527,4 +569,102 @@ describe('MediaService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('getAssetForUser', () => {
+    it('returns a non-user asset to any authenticated role', async () => {
+      const asset = new MediaAsset(
+        'id',
+        MediaOwnerType.ANIMAL,
+        'animal-id',
+        MediaResourceType.IMAGE,
+        'public-id',
+        'https://cloudinary.com/test.jpg',
+        1024,
+      );
+      mediaAssetRepository.findById.mockResolvedValue(asset);
+
+      await expect(service.getAssetForUser('id', veterinarianUser)).resolves.toBe(asset);
+    });
+
+    it('returns a user avatar to its owner', async () => {
+      const avatar = userAvatar(veterinarianUser.id);
+      mediaAssetRepository.findById.mockResolvedValue(avatar);
+
+      await expect(service.getAssetForUser('id', veterinarianUser)).resolves.toBe(avatar);
+    });
+
+    it('returns a user avatar to an admin', async () => {
+      const avatar = userAvatar('someone-else');
+      mediaAssetRepository.findById.mockResolvedValue(avatar);
+
+      await expect(service.getAssetForUser('id', adminUser)).resolves.toBe(avatar);
+    });
+
+    it('forbids a non-admin from reading a foreign user avatar', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(userAvatar('someone-else'));
+
+      await expect(service.getAssetForUser('id', otherVeterinarianUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('throws ResourceNotFoundException when the asset does not exist', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(null);
+
+      await expect(service.getAssetForUser('missing', adminUser)).rejects.toThrow(
+        ResourceNotFoundException,
+      );
+    });
+  });
+
+  describe('delete user avatar', () => {
+    it('allows the owner to delete their own avatar', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(userAvatar(veterinarianUser.id));
+      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+
+      await service.delete('id', veterinarianUser);
+
+      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('id');
+      expect(cloudinaryStorageService.delete).toHaveBeenCalledWith('public-id');
+    });
+
+    it('allows an admin to delete any avatar', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(userAvatar('someone-else'));
+      mediaAssetRepository.softDeleteById.mockResolvedValue(undefined);
+
+      await service.delete('id', adminUser);
+
+      expect(mediaAssetRepository.softDeleteById).toHaveBeenCalledWith('id');
+    });
+
+    it('forbids a shelter_manager from deleting a foreign avatar', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(userAvatar('someone-else'));
+
+      await expect(service.delete('id', shelterManagerUser)).rejects.toThrow(ForbiddenException);
+      expect(mediaAssetRepository.softDeleteById).not.toHaveBeenCalled();
+    });
+
+    it('forbids a veterinarian from deleting a foreign avatar', async () => {
+      mediaAssetRepository.findById.mockResolvedValue(userAvatar('someone-else'));
+
+      await expect(service.delete('id', otherVeterinarianUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mediaAssetRepository.softDeleteById).not.toHaveBeenCalled();
+    });
+  });
+
+  function userAvatar(ownerId: string): MediaAsset {
+    return new MediaAsset(
+      'id',
+      MediaOwnerType.USER,
+      ownerId,
+      MediaResourceType.IMAGE,
+      'public-id',
+      'https://cloudinary.com/test.jpg',
+      1024,
+      'jpg',
+      ownerId,
+    );
+  }
 });

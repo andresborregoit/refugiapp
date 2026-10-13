@@ -20,6 +20,7 @@ export interface UpdateUserData {
   lastName?: string;
   email?: string;
   roles?: UserRole[];
+  profilePhotoMediaId?: string | null;
 }
 
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');

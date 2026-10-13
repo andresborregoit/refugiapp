@@ -11,6 +11,7 @@ interface JsonSchema {
   example?: unknown;
   enum?: string[];
   writeOnly?: boolean;
+  nullable?: boolean;
   required?: string[];
   oneOf?: unknown[];
   items?: { type?: string; enum?: string[] };
@@ -119,6 +120,7 @@ describe('Users Swagger contract', () => {
         'lastName',
         'roles',
         'isActive',
+        'profilePhotoMediaId',
         'createdAt',
         'updatedAt',
       ];
@@ -128,6 +130,15 @@ describe('Users Swagger contract', () => {
         expect(property.type).toBeDefined();
         expect(property.example).toBeDefined();
       }
+    });
+
+    it('documents profilePhotoMediaId as a nullable uuid field with an example', () => {
+      const property = propertyOf('UserResponseDto', 'profilePhotoMediaId');
+      expect(property.format).toBe('uuid');
+      expect(property.nullable).toBe(true);
+      expect(property.example).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
     });
 
     it('documents id as a uuid', () => {
@@ -221,6 +232,12 @@ describe('Users Swagger contract', () => {
 
     it('never exposes passwordHash', () => {
       expect(schemaOf('UpdateUserDto').properties).not.toHaveProperty('passwordHash');
+    });
+
+    it('documents profilePhotoMediaId as a nullable uuid field', () => {
+      const property = propertyOf('UpdateUserDto', 'profilePhotoMediaId');
+      expect(property.format).toBe('uuid');
+      expect(property.nullable).toBe(true);
     });
   });
 

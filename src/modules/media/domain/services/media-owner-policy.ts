@@ -8,6 +8,7 @@ export enum MediaLinkingContext {
   ANIMAL_PROFILE_PHOTO = 'animal_profile_photo',
   EXPENSE_TICKET = 'expense_ticket',
   MEDICAL_RECORD_ATTACHMENT = 'medical_record_attachment',
+  USER_PROFILE_PHOTO = 'user_profile_photo',
 }
 
 export const EXPECTED_OWNER_TYPES: Record<
@@ -17,6 +18,7 @@ export const EXPECTED_OWNER_TYPES: Record<
   [MediaLinkingContext.ANIMAL_PROFILE_PHOTO]: [MediaOwnerType.ANIMAL],
   [MediaLinkingContext.EXPENSE_TICKET]: [MediaOwnerType.EXPENSE_TICKET],
   [MediaLinkingContext.MEDICAL_RECORD_ATTACHMENT]: [MediaOwnerType.MEDICAL_RECORD],
+  [MediaLinkingContext.USER_PROFILE_PHOTO]: [MediaOwnerType.USER],
 };
 
 export function assertCanLinkToContext(

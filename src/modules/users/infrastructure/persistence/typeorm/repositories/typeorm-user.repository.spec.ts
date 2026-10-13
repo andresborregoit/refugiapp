@@ -1,6 +1,35 @@
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
+import { MediaOwnerType } from '../../../../../media/domain/enums/media-owner-type.enum';
+import { MediaAssetOrmEntity } from '../../../../../media/infrastructure/persistence/typeorm/entities/media-asset.orm-entity';
 import { UserOrmEntity } from '../entities/user.orm-entity';
 import { TypeOrmUserRepository } from './typeorm-user.repository';
+
+interface TransactionManagerMock {
+  findOne: jest.Mock;
+  save: jest.Mock;
+  update: jest.Mock;
+}
+
+function buildManager(overrides: Partial<TransactionManagerMock> = {}) {
+  const manager: TransactionManagerMock = {
+    findOne: jest.fn(),
+    save: jest.fn(async (entity: UserOrmEntity) => entity),
+    update: jest.fn(),
+    ...overrides,
+  };
+
+  const repositoryMock = {
+    manager: {
+      transaction: jest.fn(async (callback: (m: EntityManager) => unknown) =>
+        callback(manager as unknown as EntityManager),
+      ),
+    },
+  } as unknown as Repository<UserOrmEntity>;
+
+  const repository = new TypeOrmUserRepository(repositoryMock);
+
+  return { manager, repository };
+}
 
 describe('TypeOrmUserRepository', () => {
   it('lists active and soft-deleted users with deterministic pagination', async () => {
@@ -43,15 +72,20 @@ describe('TypeOrmUserRepository', () => {
       isActive: true,
       passwordHash: 'must-not-leak',
       deletedAt: null,
+      profilePhotoMediaId: null,
     });
-    const findOne = jest.fn().mockResolvedValue(stored);
-    const save = jest.fn().mockImplementation(async (entity: UserOrmEntity) => entity);
-    const repository = new TypeOrmUserRepository({ findOne, save } as unknown as Repository<UserOrmEntity>);
+    const { manager, repository } = buildManager({
+      findOne: jest.fn().mockResolvedValue(stored),
+    });
 
     const result = await repository.update('user-id', { firstName: 'Updated' });
 
-    expect(findOne).toHaveBeenCalledWith({ where: { id: 'user-id' }, withDeleted: true });
-    expect(save).toHaveBeenCalled();
+    expect(manager.findOne).toHaveBeenCalledWith(UserOrmEntity, {
+      where: { id: 'user-id' },
+      withDeleted: true,
+    });
+    expect(manager.save).toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
     expect(result).toMatchObject({ id: 'user-id', firstName: 'Updated', lastName: 'User' });
     expect(result).not.toHaveProperty('passwordHash');
   });
@@ -61,13 +95,92 @@ describe('TypeOrmUserRepository', () => {
       id: 'user-id',
       deletedAt: new Date(),
     });
-    const save = jest.fn();
-    const repository = new TypeOrmUserRepository(
-      { findOne: jest.fn().mockResolvedValue(stored), save } as unknown as Repository<UserOrmEntity>,
-    );
+    const { manager, repository } = buildManager({
+      findOne: jest.fn().mockResolvedValue(stored),
+    });
 
     await expect(repository.update('user-id', { firstName: 'Nope' })).resolves.toBeNull();
-    expect(save).not.toHaveBeenCalled();
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+
+  it('links a new profile photo to the user inside the transaction', async () => {
+    const stored = Object.assign(new UserOrmEntity(), {
+      id: 'user-id',
+      email: 'user@test.com',
+      firstName: 'Test',
+      lastName: 'User',
+      roles: [],
+      isActive: true,
+      deletedAt: null,
+      profilePhotoMediaId: null,
+    });
+    const { manager, repository } = buildManager({
+      findOne: jest.fn().mockResolvedValue(stored),
+    });
+
+    await repository.update('user-id', { profilePhotoMediaId: 'media-new' });
+
+    expect(manager.save).toHaveBeenCalledWith(
+      expect.objectContaining({ profilePhotoMediaId: 'media-new' }),
+    );
+    expect(manager.update).toHaveBeenCalledWith(
+      MediaAssetOrmEntity,
+      { id: 'media-new' },
+      { ownerType: MediaOwnerType.USER, ownerId: 'user-id' },
+    );
+  });
+
+  it('orphans the previous photo and links the new one on replacement', async () => {
+    const stored = Object.assign(new UserOrmEntity(), {
+      id: 'user-id',
+      email: 'user@test.com',
+      firstName: 'Test',
+      lastName: 'User',
+      roles: [],
+      isActive: true,
+      deletedAt: null,
+      profilePhotoMediaId: 'media-old',
+    });
+    const { manager, repository } = buildManager({
+      findOne: jest.fn().mockResolvedValue(stored),
+    });
+
+    await repository.update('user-id', { profilePhotoMediaId: 'media-new' });
+
+    expect(manager.update).toHaveBeenCalledWith(
+      MediaAssetOrmEntity,
+      { id: 'media-old' },
+      { ownerType: null, ownerId: null },
+    );
+    expect(manager.update).toHaveBeenCalledWith(
+      MediaAssetOrmEntity,
+      { id: 'media-new' },
+      { ownerType: MediaOwnerType.USER, ownerId: 'user-id' },
+    );
+  });
+
+  it('orphans the previous photo when clearing it with null', async () => {
+    const stored = Object.assign(new UserOrmEntity(), {
+      id: 'user-id',
+      email: 'user@test.com',
+      firstName: 'Test',
+      lastName: 'User',
+      roles: [],
+      isActive: true,
+      deletedAt: null,
+      profilePhotoMediaId: 'media-old',
+    });
+    const { manager, repository } = buildManager({
+      findOne: jest.fn().mockResolvedValue(stored),
+    });
+
+    await repository.update('user-id', { profilePhotoMediaId: null });
+
+    expect(manager.update).toHaveBeenCalledWith(
+      MediaAssetOrmEntity,
+      { id: 'media-old' },
+      { ownerType: null, ownerId: null },
+    );
   });
 
   it('counts active admins excluding the given id', async () => {

@@ -55,11 +55,11 @@ Nota: `POST /medical-records/:id/restore` esta reservado a `admin`; `shelter_man
 Solo `admin` gestiona usuarios internos y roles:
 
 - `POST /users`
-- `PATCH /users/:id`
+- `PATCH /users/:id` (perfil y roles)
 - `POST /users/:id/deactivate`
 - `POST /users/:id/activate`
 
-`GET /users/me` esta disponible para los tres roles.
+`GET /users/me` esta disponible para los tres roles. `PATCH /users/:id` tambien permite a cualquier rol autenticado modificar unicamente su propia `profilePhotoMediaId` (foto de perfil); editar otro usuario o campos de perfil sin `admin` responde `403 FORBIDDEN_RESOURCE`. `profilePhotoMediaId` se serializa siempre, con `null` explicito cuando no hay foto.
 
 ### `canManageExpenses` (`admin`, `shelter_manager`)
 
@@ -100,6 +100,7 @@ Las lecturas (`GET /veterinarians`, `GET /veterinarians/:id`) estan disponibles 
 
 - `POST /auth/login` y `POST /auth/refresh` son publicos (autenticacion), no forman parte de la matriz.
 - En `media`, el rol `veterinarian` puede subir y borrar assets restringidos a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos propios; `admin` y `shelter_manager` operan cualquier asset. Esta politica esta documentada en `architecture.md` seccion 5.1 y en el modulo `media`.
+- Los avatares de usuario (`ownerType=user`) solo pueden ser subidos, leidos y borrados por su propietario o por `admin`; un `veterinarian` o `shelter_manager` no puede leer ni borrar un avatar ajeno (`403`).
 - La constante `ROLE_CAPABILITIES` no se usa para autorizacion: los guards siguen siendo la unica via de enforcement. Cualquier cambio en los guards debe reflejarse aqui para que el contrato no quede desincronizado.
 
 ## Regeneracion del contrato

@@ -184,6 +184,8 @@ Responsabilidades:
 
 `passwordHash` pertenece a persistencia y nunca debe exponerse en respuestas HTTP.
 
+`profilePhotoMediaId` referencia el asset de media que actua como foto de perfil (`media_assets.id`, `ON DELETE SET NULL`). La foto se gestiona mediante `PATCH /users/:id` y se expone en `GET /users/me` y en todas las respuestas de `UserResponseDto`: el campo siempre esta presente y se serializa `null` explicito cuando el usuario no tiene foto. Solo el propio usuario o un `admin` puede modificarla; al reemplazarla, el nuevo asset se vincula en la misma transaccion (`ownerType=user`) y el anterior vuelve a ser huerfano para la politica de purga, con el mismo patron que `PATCH /animals/:id`. Un usuario no-admin solo puede actualizar su propia `profilePhotoMediaId`; cualquier otro campo o usuario responde `403`.
+
 ### 5.1 Matriz de autorizacion por roles
 
 Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@UseGuards`. Los permisos declarativos se indican con `@Roles`; no deben implementarse comprobaciones de roles dentro de los controllers.
@@ -193,6 +195,7 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | Endpoint                                 | `admin`   | `shelter_manager` | `veterinarian` |
 | ---------------------------------------- | --------- | ----------------- | -------------- |
 | `POST /users`                            | Permitido | Rechazado         | Rechazado      |
+| `PATCH /users/:id` (perfil y roles)      | Permitido | Rechazado         | Rechazado      |
 | `POST /users/:id/deactivate`             | Permitido | Rechazado         | Rechazado      |
 | `POST /users/:id/activate`               | Permitido | Rechazado         | Rechazado      |
 | `GET /users/me`                          | Permitido | Permitido         | Permitido      |
@@ -248,6 +251,8 @@ Los endpoints privados deben combinar `JwtAuthGuard` y `RolesGuard` mediante `@U
 | `GET /animals/:id/adoptions`             | Permitido | Permitido         | Permitido      |
 
 En `media`, el rol `veterinarian` puede subir y borrar assets, pero restringido a adjuntos clinicos (`ownerType=medical_record`) o assets huerfanos al subir; los roles `admin` y `shelter_manager` pueden operar cualquier asset. Ademas, el usuario que subio un asset huerfano puede borrarlo con `DELETE /media/:id` aunque sea `veterinarian`, para cubrir el flujo subir -> cancelar antes de vincular.
+
+En `users`, `PATCH /users/:id` permite a `admin` editar nombre, apellido, email y roles de cualquier usuario; cualquier rol autenticado puede modificar unicamente su propia `profilePhotoMediaId`. Un usuario no-admin que intente editar otro usuario o campos de perfil propios recibe `403` (auditado como `access.denied`).
 
 `POST /auth/login` es publico porque es el punto de entrada para obtener un token. Los modulos sin endpoints HTTP implementados heredaran esta politica cuando sus controllers sean agregados.
 
@@ -390,6 +395,7 @@ La vinculacion polimorfica se controla en `domain/services/media-owner-policy.ts
 - Tickets (`expense_ticket`) solo asociados a gastos.
 - Fotos de perfil (`animal`) solo asociadas a animales.
 - Adjuntos clinicos (`medical_record`) solo asociados a registros medicos.
+- Fotos de perfil de usuario (`user`) solo asociadas a usuarios.
 
 Cada vinculo valida en la capa de aplicacion que el asset sea huerfano o del tipo esperado. Un asset huerfano se re-asigna en la misma transaccion que crea la entidad (`expenses`, `animals` o `medical-records`); un asset ya asignado a otra entidad se rechaza con `409` y un tipo incompatible tambien con `409`.
 
@@ -398,6 +404,8 @@ La consulta de assets por propietario se realiza mediante `GET /media?ownerType=
 La baja logica se realiza mediante `DELETE /media/:id` aplicando `deletedAt` y luego intenta eliminar el archivo remoto en Cloudinary. Si la limpieza remota falla, se loguea el error y el registro permanece oculto por `deletedAt`.
 
 Los roles `admin` y `shelter_manager` pueden subir, listar y borrar cualquier asset. El rol `veterinarian` puede subir adjuntos clinicos (o huerfanos) y borrar assets de `medical_record`; ademas, cualquier usuario puede borrar un asset huerfano que el mismo haya subido (`uploadedByUserId`). Un `veterinarian` no puede borrar huerfanos ajenos ni assets vinculados a otras entidades (`403`).
+
+Los avatares de usuario (`ownerType=user`) tienen una politica propia: solo su propietario o `admin` puede subirlos, leerlos (`GET /media/:id`) o borrarlos (`DELETE /media/:id`). Un `veterinarian` o `shelter_manager` que intente leer o borrar un avatar ajeno recibe `403`. La subida de assets `ownerType=user` esta limitada al propio usuario o a `admin`.
 
 Los assets huerfanos que nunca se vinculan se eliminan mediante un job de limpieza por antiguedad. `MediaService.purgeExpiredOrphans` selecciona huerfanos con `createdAt` anterior a `MEDIA_ORPHAN_RETENTION_HOURS` (default 48h) y aplica un soft-delete condicional y atomico (`softDeleteOrphanOlderThan`: `id`, `ownerType`/`ownerId` nulos y `createdAt` anterior al umbral) seguido de limpieza remota best-effort; si el borrado condicional no afecta filas (el asset se vinculo entre la seleccion y la ejecucion), se cuenta como `skipped` y no se toca Cloudinary. El runner CLI `npm run media:purge-orphans` acepta `--dry-run`, `--older-than-hours=`, `--limit=` y `--request-id=`, emite logs JSON con `requestId` (`media.orphan_purge.*`, sin secretos ni URLs remotas) y retorna exit code `0` si `dry-run` o `failed=0`, y `1` ante fallos, argumentos invalidos o error no recuperable. Debe ser invocado por un cron externo (no existe scheduler in-process). Swagger documenta la politica de propiedad y retencion en `POST /media/upload` y `DELETE /media/:id`. Ver `docs/orphan-media-cleanup.md` para la guia operativa.
 
@@ -517,6 +525,7 @@ Representa una persona con acceso al sistema.
 | `lastName`       | `varchar(100)` | No   |                                       |
 | `roles`          | `user_role[]`  | No   | Default `shelter_manager`             |
 | `isActive`       | `boolean`      | No   | Default `true`                        |
+| `profilePhotoMediaId` | `uuid`   | Si   | FK a `media_assets.id`, `ON DELETE SET NULL` |
 | columnas comunes |                |      | `createdAt`, `updatedAt`, `deletedAt` |
 
 Enum `user_role`:
@@ -951,6 +960,7 @@ erDiagram
         varchar lastName
         user_role_array roles
         boolean isActive
+        uuid profilePhotoMediaId FK
         timestamptz createdAt
         timestamptz updatedAt
         timestamptz deletedAt
@@ -1154,6 +1164,7 @@ Las relaciones implementadas en la migracion inicial son:
 | `refresh_tokens`         | `replacedById`        | `refresh_tokens.id`  | `SET NULL`  |
 | `password_reset_tokens`  | `userId`              | `users.id`           | `CASCADE`   |
 | `animals`                | `profilePhotoMediaId` | `media_assets.id`    | `SET NULL`  |
+| `users`                  | `profilePhotoMediaId` | `media_assets.id`    | `SET NULL`  |
 | `media_assets`           | `uploadedByUserId`    | `users.id`           | `SET NULL`  |
 | `audit_logs`             | `actorUserId`         | `users.id`           | `SET NULL`  |
 | `adoption_applications`  | `animalId`            | `animals.id`         | `RESTRICT`  |
@@ -1371,10 +1382,11 @@ La baja de un asset aplica `deletedAt` y luego intenta eliminar el archivo remot
 - Listado de gastos por animal (`GET /animals/:animalId/expenses`) con paginacion, filtros y proteccion por roles.
 - Baja logica de gastos (`DELETE /expenses/:id`) con proteccion por roles.
 - Subida de media (`POST /media/upload`) con validacion de propietario (o assets huerfanos), mimetype, tamano, autorizacion por roles y compensacion remota si falla la persistencia.
-- Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales y adjuntos clinicos solo a registros medicos, con re-asignacion transaccional y `409 INCOMPATIBLE_OWNER_TYPE` / `409 MEDIA_ALREADY_OWNED`.
+- Vinculacion polimorfica controlada: tickets solo a gastos, fotos de perfil solo a animales, adjuntos clinicos solo a registros medicos y fotos de usuario solo a usuarios, con re-asignacion transaccional y `409 INCOMPATIBLE_OWNER_TYPE` / `409 MEDIA_ALREADY_OWNED`.
 - Listado de assets por propietario (`GET /media`) con validacion de existencia del propietario, paginacion y exclusion de soft-deleted.
 - Baja logica de media (`DELETE /media/:id`) con limpieza remota en Cloudinary y permisos diferenciados para `veterinarian`.
 - Politica de media huerfana: el uploader puede borrar su propio asset huerfano, un `veterinarian` no puede borrar huerfanos ajenos ni assets vinculados ajenos (`403`), compensacion remota endurecida si falla la persistencia, job de limpieza por antiguedad (`npm run media:purge-orphans`) con TTL configurable por entorno, dry-run y ejecucion real, y Swagger documentando la politica.
+- Foto de perfil de usuario (RFG-182): migracion `users.profilePhotoMediaId` (`uuid` nullable, FK a `media_assets.id` con `ON DELETE SET NULL` e indice), `profilePhotoMediaId` siempre presente en `UserResponseDto`/`UpdateUserDto` y `GET /users/me` (`null` explicito), edicion via `PATCH /users/:id` por el propio usuario o `admin` (`403 FORBIDDEN_RESOURCE` para otro usuario no-admin, auditado como `access.denied`), reemplazo transaccional que orfana el asset anterior para la purga, y avatares de usuario (`ownerType=user`) con lectura/borrado restringidos al propietario o `admin`.
 - Auditoria transversal de operaciones sensibles (`audit_logs`, append-only) con actor, accion, recurso y timestamp.
 - Registro de eventos de usuarios (`user.create`, `user.deactivate`, `user.activate`, `user.role_assign`), registros clinicos (`create/update/soft_delete/restore`), gastos (`create/soft_delete`), logins (`auth.login_success`, `auth.login_failure`) y denegaciones de acceso (`access.denied`).
 - Sanitizacion recursiva de `metadata` que redacta passwords, tokens y secretos antes de persistir.
